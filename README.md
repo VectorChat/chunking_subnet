@@ -16,7 +16,6 @@
 - [Get Started](#get-started)
   - [Chunking](#chunking)
   - [Validator](#validator)
-    - [Hardware Requirements](#hardware-requirements)
   - [Miner](#miner)
     - [Default Miner](#default-miner)
     - [Custom Miner](#custom-miner)
@@ -51,6 +50,7 @@ python -m pip install -r requirements.txt
 python -m pip install -e 
 ```
 Register your wallet to testnet or localnet
+
 Testnet:
 ```bash
 btcli subnet register --wallet.name $coldkey --wallet.hotkey $hotkey --subtensor.network test --netuid $uid
@@ -70,9 +70,9 @@ python3 neurons/validator.py --netuid 1 --subtensor.chain_endpoint ws://127.0.0.
 # on testnet
 python3 neurons/validator.py --netuid $uid --subtensor.network test --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
 ```
-Something to consider when running a validator is the number of embeddings you're going to generate per miner evaluation. 
-#### Hardware Reuquirements
+Something to consider when running a validator is the number of embeddings you're going to generate per miner evaluation. When scoring a miner, a random sample of 3-sentence segments are taken from the response and embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score if the embeddings originated from the same chunk or subtracted from the final score if they originated from different chunks. A greater sample size will likely result in a more accurate evaluation and higher dividends. This comes at the cost of more API calls to generate the embeddings and more time and resources to compare them against each other.
 
+![evaluations](./assets/evaluations.png)
 
 ### Miner
 It is highly recomended that you write your own logic for neurons.miner.forward in order to achieve better chunking and recieve better rewards, for help on doing this, see [Custom Miner](#custom-miner).
@@ -107,3 +107,5 @@ Recursive chunking first splits the document into a small number of chunks. It t
 ###### Semantic Chunking
 Semantic chunking first splits the document into individual sentences. It then creates a sentence group for each sentence consisting of the 'anchor' sentence and some number of surrounding sentences. These sentence groups are then compared to each other sequentially. Wherever there is a high semantic difference between adjacent sentence groups, one chunk is deliniated from the next.
 
+###### Prebuilt Solutions
+There exist many freely available chunking utilities that can help get you started on your own chunking algorithm. See [this pinecone repo](https://github.com/pinecone-io/examples/tree/master/learn/generation/better-rag) and [this document](https://js.langchain.com/v0.1/docs/modules/data_connection/document_transformers/) for more information.
