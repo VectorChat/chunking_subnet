@@ -11,43 +11,31 @@
 [Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/) • [Research](https://bittensor.com/whitepaper)
 </div>
 
----
-- [Introduction](#introduction)
-- [Get Started](#get-started)
-  - [Chunking](#chunking)
-  - [Validator](#validator)
-  - [Miner](#miner)
-    - [Default Miner](#default-miner)
-    - [Custom Miner](#custom-miner)
-        - [Miner Considerations](#miner-considerations)
-        - [Chunking Strategies](#chunking-strategies)
-
----
 ## Introduction
 
-**Key Objective** - provide optimal chunking for use with large language models (LLMs)
+**Mission** - to provide optimal chunking for use with large language models (LLMs)
 
-Chunking is the splitting of large texts into smaller pieces with related contents. This could include things like splitting an article into sections, a book into chapters, or a screeplay into scenes.
+**What is Chunking?** - Chunking is the splitting of large texts into smaller pieces with related contents. This could include things like splitting an article into sections, a book into chapters, or a screeplay into scenes.
 
-**Example Use Cases**
+**Why Chunking?** - Chunking is an important preliminary step for many ML tasks that use large amounts of data such as:
 - Retrieval-Augmented Generation (RAG) - RAG utilizes a database of relevant documents to give LLMs the proper context to answer a parse a particular query. Better chunking results in more relevant and specific texts being included in the LLMs context window, resulting in better responses.
 - Classification - Chunking can be used to seperate texts into similar sections which can then be classified and assigned labels.
 - Semantic Search - Better chunking can enhance the accuracy and reliability of semantic searching algorithms that return results based off of similarity in semantic meaning instead of keyword matching.
 ---
 
-## Get Started
+## Getting Started
 
 - Review min compute requirements for desired role
 - Read through [Bittensor documentation](https://docs.bittensor.com/)
 - Ensure you've gone through the [appropriate checklist](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
 
-### Chunking
+### Prerequisites
 This repository requires python3.8 or higher. To install, simply clone this repository and install the requirements.
 ```bash
 git clone https://github.com/VectorChat/chunking_subnet
 cd chunking_subnet
 python -m pip install -r requirements.txt
-python -m pip install -e 
+python -m pip install -e .
 ```
 Register your wallet to testnet or localnet
 
@@ -59,6 +47,8 @@ Localnet:
 ```bash
 btcli subnet register --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --subtensor.chain_endpoint ws://127.0.0.1:9946 --netuid 1
 ```
+### Compute Requirements
+Compute requirements are low for validators as all major computer architectures are optimized for vector operations. We recommend you run test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation. For miners, the compute requirements depend entirely on the code you are running. The default miner should run on anything.
 
 ### Validator
 Running a validator requires an OpenAI API key.
@@ -72,6 +62,7 @@ python3 neurons/validator.py --netuid $uid --subtensor.network test --wallet.nam
 ```
 Something to consider when running a validator is the number of embeddings you're going to generate per miner evaluation. When scoring a miner, a random sample of 3-sentence segments are taken from the response and embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score if the embeddings originated from the same chunk or subtracted from the final score if they originated from different chunks. A greater sample size will likely result in a more accurate evaluation and higher dividends. This comes at the cost of more API calls to generate the embeddings and more time and resources to compare them against each other.
 
+Here is how the validator calculates miner scores:
 ![evaluations](./assets/evaluations.png)
 
 ### Miner
