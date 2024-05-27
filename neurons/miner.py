@@ -104,6 +104,9 @@ class Miner(BaseMinerNeuron):
         Otherwise, allow the request to be processed further.
         """
         # TODO(developer): Define how miners should blacklist requests.
+        if not synapse.dendrite.hotkey or not synapse.dendrite.hotkey in self.metagraph.hotkeys:
+            return True, "Unregistered hotkey"
+            
         uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
         if (
             not self.config.blacklist.allow_non_registered
@@ -122,7 +125,12 @@ class Miner(BaseMinerNeuron):
                     f"Blacklisting a request from non-validator hotkey {synapse.dendrite.hotkey}"
                 )
                 return True, "Non-validator hotkey"
+        
+        stake = self.metagraph.S[uid].item()
 
+        if stake < self.config.blacklist.minimum_stake:
+            return True, "Minimal stake validator"
+        
         bt.logging.trace(
             f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
         )
