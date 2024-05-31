@@ -16,20 +16,19 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-
+import os
 import copy
 import torch
 import asyncio
 import argparse
 import threading
 import bittensor as bt
+import time
 
 from typing import List
 from traceback import print_exception
 
 from chunking.base.neuron import BaseNeuron
-from chunking.mock import MockDendrite
-from chunking.utils.config import add_validator_args
 
 
 class BaseValidatorNeuron(BaseNeuron):
@@ -39,30 +38,22 @@ class BaseValidatorNeuron(BaseNeuron):
 
     neuron_type: str = "ValidatorNeuron"
 
-    @classmethod
-    def add_args(cls, parser: argparse.ArgumentParser):
-        super().add_args(parser)
-        add_validator_args(cls, parser)
-
     def __init__(self, config=None):
-        super().__init__(config=config)
+        super().__init__(config=self.config())
 
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
         # Dendrite lets us send messages to other nodes (axons) in the network.
-        if self.config.mock:
-            self.dendrite = MockDendrite(wallet=self.wallet)
-        else:
-            self.dendrite = bt.dendrite(wallet=self.wallet)
+
+        self.dendrite = bt.dendrite(wallet=self.wallet)
         bt.logging.info(f"Dendrite: {self.dendrite}")
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = torch.zeros(
-            self.metagraph.n, dtype=torch.float32, device=self.device
-        )
+        self.scores = torch.zeros(self.metagraph.n, dtype=torch.float32, device=self.device)
 
+        self.load_state()
         # Init sync with the network. Updates the metagraph.
         self.sync()
 
@@ -101,9 +92,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 pass
 
         except Exception as e:
-            bt.logging.error(
-                f"Failed to create Axon initialize with exception: {e}"
-            )
+            bt.logging.error(f"Failed to create Axon initialize with exception: {e}")
             pass
 
     async def concurrent_forward(self):
@@ -155,6 +144,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 self.step += 1
 
+                time.sleep(10)
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
             self.axon.stop()
@@ -317,16 +307,10 @@ class BaseValidatorNeuron(BaseNeuron):
             # Replace any NaN values in rewards with 0.
             rewards = torch.nan_to_num(rewards, 0)
 
-        # Check if `uids` is already a tensor and clone it to avoid the warning.
-        if isinstance(uids, torch.Tensor):
-            uids_tensor = uids.clone().detach()
-        else:
-            uids_tensor = torch.tensor(uids).to(self.device)
-
         # Compute forward pass rewards, assumes uids are mutually exclusive.
         # shape: [ metagraph.n ]
         scattered_rewards: torch.FloatTensor = self.scores.scatter(
-            0, uids_tensor, rewards
+            0, uids.clone().detach().to(self.device), rewards
         ).to(self.device)
         bt.logging.debug(f"Scattered rewards: {rewards}")
 
@@ -354,6 +338,9 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def load_state(self):
         """Loads the state of the validator from a file."""
+        if not os.path.exists(self.config.neuron.full_path + "/state.pt"):
+            return
+
         bt.logging.info("Loading validator state.")
 
         # Load the state of the validator from file.
@@ -361,3 +348,7 @@ class BaseValidatorNeuron(BaseNeuron):
         self.step = state["step"]
         self.scores = state["scores"]
         self.hotkeys = state["hotkeys"]
+
+        bt.logging.info(
+            f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}"
+        )

@@ -30,27 +30,19 @@ from chunking.validator import forward
 from chunking.base.validator import BaseValidatorNeuron
 import os
 from openai import OpenAI
+from typing import Tuple
 
 class Validator(BaseValidatorNeuron):
-    """
-    Your validator neuron class. You should use this class to define your validator's behavior. In particular, you should replace the forward function with your own logic.
 
-    This class inherits from the BaseValidatorNeuron class, which in turn inherits from BaseNeuron. The BaseNeuron class takes care of routine tasks such as setting up wallet, subtensor, metagraph, logging directory, parsing config, etc. You can override any of the methods in BaseNeuron if you need to customize the behavior.
-
-    This class provides reasonable default behavior for a validator such as keeping a moving average of the scores of the miners and using them to set weights at the end of each epoch. Additionally, the scores are reset for new hotkeys at the end of each epoch.
-    """
-
-    def __init__(self, config=None):
-        super(Validator, self).__init__(config=config)
+    def __init__(self):
+        super(Validator, self).__init__()
         
         bt.logging.info("load_state()")
-        self.load_state()
-        if not config.openaikey:
+        if not self.config.openaikey:
             print("Must provide OpenAI API key with --openaikey <OPENAIKEY>")
-        os.environ["OPENAI_API_KEY"] = config.openaikey
+        os.environ["OPENAI_API_KEY"] = self.config.openaikey
         self.client = OpenAI()
         self.numEmbeddings = 10
-        # TODO(developer): Anything specific to your use case you can do here
 
     async def forward(self, synapse: chunking.protocol.chunkSynapse=None):
         """
@@ -64,13 +56,13 @@ class Validator(BaseValidatorNeuron):
 
         return await forward(self, synapse)
 
-#    async def blacklist(self, synapse: chunking.protocol.chunkSynapse) -> Tuple[bool, str]:
+    async def blacklist(self, synapse: chunking.protocol.chunkSynapse) -> Tuple[bool, str]:
             # TODO add hotkeys to blacklist her as needed
             # blacklist the hotkeys mining on the subnet to prevent any potential issues
             #hotkeys_to_blacklist = [h for i,h in enumerate(self.hotkeys) if self.metagraph.S[i] < 20000 and h != self.wallet.hotkey.ss58_address]
             #if synapse.dendrite.hotkey in hotkeys_to_blacklist:
             #    return True, "Blacklisted hotkey - miners can't connect, use a diff hotkey."
-#            return False, ""
+            return [False, ""]
 
     async def priority(self, synapse: chunking.protocol.chunkSynapse) -> float:
         # high priority for organic traffic
@@ -81,4 +73,4 @@ if __name__ == "__main__":
     with Validator() as validator:
         while True:
             bt.logging.info("Validator running...", time.time())
-            time.sleep(5)
+            time.sleep(10)

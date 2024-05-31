@@ -25,8 +25,6 @@ import traceback
 import bittensor as bt
 
 from chunking.base.neuron import BaseNeuron
-from chunking.utils.config import add_miner_args
-
 
 class BaseMinerNeuron(BaseNeuron):
     """
@@ -35,13 +33,8 @@ class BaseMinerNeuron(BaseNeuron):
 
     neuron_type: str = "MinerNeuron"
 
-    @classmethod
-    def add_args(cls, parser: argparse.ArgumentParser):
-        super().add_args(parser)
-        add_miner_args(cls, parser)
-
-    def __init__(self, config=None):
-        super().__init__(config=config)
+    def __init__(self):
+        super().__init__(config=self.config())
 
         # Warn if allowing incoming requests from anyone.
         if not self.config.blacklist.force_validator_permit:
@@ -52,20 +45,19 @@ class BaseMinerNeuron(BaseNeuron):
             bt.logging.warning(
                 "You are allowing non-registered entities to send requests to your miner. This is a security risk."
             )
-
+        print("hello?")
         # The axon handles request processing, allowing validators to send this miner requests.
         self.axon = bt.axon(wallet=self.wallet, config=self.config)
-
+        print("anyone there?")
         # Attach determiners which functions are called when servicing a request.
         bt.logging.info(f"Attaching forward function to miner axon.")
-        print("forward")
         self.axon.attach(
             forward_fn=self.forward,
             blacklist_fn=self.blacklist,
             priority_fn=self.priority,
         )
         bt.logging.info(f"Axon created: {self.axon}")
-
+        print("hellooooo")
         # Instantiate runners
         self.should_exit: bool = False
         self.is_running: bool = False
@@ -114,8 +106,7 @@ class BaseMinerNeuron(BaseNeuron):
         try:
             while not self.should_exit:
                 while (
-                    self.block - self.metagraph.last_update[self.uid]
-                    < self.config.neuron.epoch_length
+                    self.block - self.last_sync_block < self.config.neuron.epoch_length
                 ):
                     # Wait before checking again.
                     time.sleep(1)
@@ -191,3 +182,4 @@ class BaseMinerNeuron(BaseNeuron):
 
         # Sync the metagraph.
         self.metagraph.sync(subtensor=self.subtensor)
+        self.last_sync_block = self.block

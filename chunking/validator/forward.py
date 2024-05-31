@@ -43,19 +43,20 @@ async def forward(self, synapse: chunkSynapse=None):
         # don't grab miner ids if they are passed in from the organic axon request
         if not synapse or len(synapse.miner_uids) == 0:
             miner_uids = get_random_uids(self, k=min(self.config.neuron.sample_size, self.metagraph.n.item()))
-            print(miner_uids)
+            bt.logging.info(f"Getting miner uids: {miner_uids}")
     except Exception as e:
         #bt.logging.warning(f"Trouble setting miner_uids: {e}")
         bt.logging.warning("Defaulting to 1 uid, k=1 ... likely due to low # of miners available.")
         miner_uids = get_random_uids(self, k=1)
-        print(miner_uids)
 
     if synapse:
+        bt.logging.debug("Synapse was passed in")
         if len(synapse.miner_uids) > 0:
-            miner_uids = torch.tensor(synapse.miner_uids)
-            bt.logging.info(f"got uids: {miner_uids}")
+            miner_uids = synapse.miner_uids
+            bt.logging.info(f"Parsed uids: {miner_uids}")
+        
         if not synapse.timeout:
-            synapse.timeout = 3.0
+            synapse.timeout = 10.0
         
         if not synapse.maxTokensPerChunk:
             synapse.maxTokensPerChunk = 200
@@ -80,15 +81,21 @@ async def forward(self, synapse: chunkSynapse=None):
         synapse = chunkSynapse(document=document, timeout=30.0, maxTokensPerChunk=200)
         # The dendrite client queries the network.
     
-    
+    bt.logging.trace(
+                f"miners: {[(uid, self.metagraph.axons[uid] )for uid in miner_uids]}"
+            )
+
     responses = self.dendrite.query(
         axons=[self.metagraph.axons[uid] for uid in miner_uids],
         synapse=synapse,
         deserialize=True,
         timeout=synapse.timeout,
     )
-
-    bt.logging.info(f"Received responses: {responses}")
+    bt.logging.info("Received responses:") 
+    for response in responses:
+        if response:
+            if reponse.chunks:
+                bt.logging.info(f"\t{[chunk[:20] for chunk in response.chunks]}")
 
     rewards = get_rewards(self, document=document, responses=responses)
 

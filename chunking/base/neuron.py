@@ -26,7 +26,6 @@ from abc import ABC, abstractmethod
 from chunking.utils.config import check_config, add_args, config
 from chunking.utils.misc import ttl_get_block
 from chunking import __spec_version__ as spec_version
-from chunking.mock import MockSubtensor, MockMetagraph
 
 
 class BaseNeuron(ABC):
