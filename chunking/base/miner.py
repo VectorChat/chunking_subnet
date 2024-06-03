@@ -45,20 +45,18 @@ class BaseMinerNeuron(BaseNeuron):
             bt.logging.warning(
                 "You are allowing non-registered entities to send requests to your miner. This is a security risk."
             )
-        print("hello?")
         # The axon handles request processing, allowing validators to send this miner requests.
         self.axon = bt.axon(wallet=self.wallet, config=self.config)
-        print("anyone there?")
         # Attach determiners which functions are called when servicing a request.
         bt.logging.info(f"Attaching forward function to miner axon.")
         self.axon.attach(
+            verify_fn=self.verify,
             forward_fn=self.forward,
             blacklist_fn=self.blacklist,
             priority_fn=self.priority,
         )
         bt.logging.info(f"Axon created: {self.axon}")
-        print("hellooooo")
-        # Instantiate runners
+        # Instantiate runner
         self.should_exit: bool = False
         self.is_running: bool = False
         self.thread: threading.Thread = None
@@ -109,7 +107,7 @@ class BaseMinerNeuron(BaseNeuron):
                     self.block - self.last_sync_block < self.config.neuron.epoch_length
                 ):
                     # Wait before checking again.
-                    time.sleep(1)
+                    time.sleep(6)
 
                     # Check if we should exit.
                     if self.should_exit:

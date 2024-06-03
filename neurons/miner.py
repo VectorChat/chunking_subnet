@@ -31,7 +31,7 @@ class Miner(BaseMinerNeuron):
 
     def __init__(self):
         super(Miner, self).__init__()
-
+        self.splitter = NLTKTextSplitter()
         # TODO(developer): Anything specific to your use case you can do here
 
     async def forward(
@@ -48,24 +48,25 @@ class Miner(BaseMinerNeuron):
 
         """
         # TODO(developer): Replace with actual implementation logic.
-
-        bt.logging.info(f"Received chunkSynapse: {synapse.document[:20]}")
-        splitter = NLTKTextSplitter
-        document = splitter.split_text(synapse.document)[0].split('\n\n')
-        print(document[0])
+        document = self.splitter.split_text(synapse.document)[0].split('\n\n')
+        bt.logging.info(f"Received chunkSynapse: {document[0]}")
         chunks = []        
         while len(document) > 0:
             chunks.append(document[0])
             del document[0]
-            while chunks[len(chunks) - 1].count(" ") < synapse.maxTokensPerChunk:
-                chunks[len(chunks) -1].append(" " + document[0])
+            while len(document) > 0 and chunks[len(chunks) - 1].count(" ") < synapse.maxTokensPerChunk:
+                chunks[len(chunks) -1] += (" " + document[0])
                 del document[0]
         synapse.chunks = chunks
         return synapse
-
+    async def verify(
+        self, synapse: chunking.protocol.chunkSynapse
+    ) -> None:
+        bt.logging.info("VERIFYING")
     async def blacklist(
         self, synapse: chunking.protocol.chunkSynapse
     ) -> Tuple[bool, str]:
+        bt.logging.info("BLACKLISTING")
         """
         Determines whether an incoming request should be blacklisted and thus ignored. Your implementation should
         define the logic for blacklisting requests based on your needs and desired security parameters.
@@ -102,7 +103,7 @@ class Miner(BaseMinerNeuron):
             and synapse.dendrite.hotkey not in self.metagraph.hotkeys
         ):
             # Ignore requests from un-registered entities.
-            bt.logging.trace(
+            bt.logging.debug(
                 f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}"
             )
             return True, "Unrecognized hotkey"
@@ -115,12 +116,13 @@ class Miner(BaseMinerNeuron):
                 )
                 return True, "Non-validator hotkey"
 
-        bt.logging.trace(
+        bt.logging.debug(
             f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
         )
         return False, "Hotkey recognized!"
 
     async def priority(self, synapse: chunking.protocol.chunkSynapse) -> float:
+        bt.logging.info("PRIORITIZING")
         """
         The priority function determines the order in which requests are handled. More valuable or higher-priority
         requests are processed before others. You should design your own priority mechanism with care.
@@ -147,7 +149,7 @@ class Miner(BaseMinerNeuron):
         prirority = float(
             self.metagraph.S[caller_uid]
         )  # Return the stake as the priority.
-        bt.logging.trace(
+        bt.logging.debug(
             f"Prioritizing {synapse.dendrite.hotkey} with value: ", prirority
         )
         return 1.0

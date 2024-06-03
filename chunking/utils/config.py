@@ -198,6 +198,7 @@ def config(cls):
     bt.subtensor.add_args(parser)
     bt.logging.add_args(parser)
     bt.axon.add_args(parser)
+    bt.trace()
     bt.debug()
     cls.add_args(parser)
     return bt.config(parser)

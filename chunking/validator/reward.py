@@ -19,13 +19,11 @@
 import torch
 from typing import List
 from chunking.protocol import chunkSynapse
-from multiprocessing import Pool
-import random
+from random import sample
 import numpy as np
-from langchain.text_splitter import NLTKTextSplitter
 import bittensor as bt
 
-def reward(document: str, response: chunkSynapse) -> float:
+def reward(self, document: str, response: chunkSynapse) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
     value for the miner, which is used to update the miner's score.
@@ -33,34 +31,29 @@ def reward(document: str, response: chunkSynapse) -> float:
     Returns:
     - float: The reward value for the miner.
     """
-    if not response:
+    if not response.chunks:
         bt.logging.info("No response")
         return 0
     reward = 0
     smallChunks = []
-    splitter =  NLTKTextSplitter()
-    sourceSentences = splitter.split_text(document)[0].split('\n\n')
-    responseSentences = splitter.split_text(" ".join(response.chunks))[0].split('\n\n')
-
-    for sentence in sourceSentences:
-        if not sentence in responseSentences:
-            bt.logging.info("mismatch")
-            return 0
-    for sentence in responseSentences:
-        if not sentence in sourceSentences:
-            bt.logging.info("mismatch")
-            return 0
+    if not document == ' '.join(' '.join(response.chunks).split()):
+        bt.logging.info("Response does not match query")
+        return 0
         
     for i in range(len(response.chunks)):
-        sentences = splitter.split_text(response.chunks[i])[0].split('\n\n')
+        sentences = self.splitter.split_text(response.chunks[i])[0].split('\n\n')
         for j in range(-(len(sentences) // -3)):
             if (j * 3 + 2) < len(sentences):
                 text = " ".join([sentences[j * 3], sentences[j * 3 + 1], sentences[j * 3 + 2]])
             else:
                 text = " ".join(sentences[j*3:])
             smallChunks.append(smallChunk(i, text))
-    testChunks = sample(smallChunks, self.numEmbeddings)
-    embeddings = self.client.embeddings.create(input=[testChunk.text for testChunk in testChunks], model="text-embedding-ada-002")
+    if self.numEmbeddings < len(smallChunks):
+        testChunks = sample(smallChunks, self.numEmbeddings)
+    else:
+        testChunks = smallChunks
+    embeddings = self.client.embeddings.create(input=[testChunk.text for testChunk in testChunks], model="text-embedding-ada-002").data
+    embeddings = [item.embedding for item in embeddings]
     for i in range(len(testChunks) - 1):
         j = i + 1
         while j < len(testChunks):
@@ -69,8 +62,9 @@ def reward(document: str, response: chunkSynapse) -> float:
             else:
                 reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
             j += 1
-    if response.time_elapsed > 2.75:
-        reward *= (2/3) ** (response.time_elapsed - 2.75)
+    bt.logging.info(f"Response time: {response.dendrite.process_time}")
+    if response.dendrite.process_time > 2.75:
+        reward *= (2/3) ** (response.dendrite.process_time - 2.75)
     return reward
 
 
@@ -91,7 +85,7 @@ def get_rewards(
     """
     # Get all the reward results by iteratively calling your reward() function.
     return torch.FloatTensor(
-        [reward(document, response) for response in responses]
+        [reward(self, document, response) for response in responses]
     ).to(self.device)
 
 

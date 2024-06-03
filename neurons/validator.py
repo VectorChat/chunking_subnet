@@ -30,6 +30,7 @@ from chunking.validator import forward
 from chunking.base.validator import BaseValidatorNeuron
 import os
 from openai import OpenAI
+from langchain.text_splitter import NLTKTextSplitter
 from typing import Tuple
 
 class Validator(BaseValidatorNeuron):
@@ -42,8 +43,8 @@ class Validator(BaseValidatorNeuron):
             print("Must provide OpenAI API key with --openaikey <OPENAIKEY>")
         os.environ["OPENAI_API_KEY"] = self.config.openaikey
         self.client = OpenAI()
-        self.numEmbeddings = 10
-
+        self.numEmbeddings = self.config.numEmbeddings
+        self.splitter =  NLTKTextSplitter()
     async def forward(self, synapse: chunking.protocol.chunkSynapse=None):
         """
         Validator forward pass. Consists of:

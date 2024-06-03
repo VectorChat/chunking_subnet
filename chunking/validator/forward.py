@@ -17,7 +17,8 @@
 # DEALINGS IN THE SOFTWARE.
 
 import bittensor as bt
-
+from random import choice
+import torch
 from chunking.protocol import chunkSynapse
 from chunking.validator.reward import get_rewards
 from chunking.utils.uids import get_random_uids
@@ -62,7 +63,8 @@ async def forward(self, synapse: chunkSynapse=None):
             synapse.maxTokensPerChunk = 200
 
     else:
-        page = requests.get('https://en.wikipedia.org/w/api.php', params={
+        #page = choice([312990, 9046237, 585013, 444081, 12559806, 30873232, 9236, 9577500, 21501970])
+        requests.get('https://en.wikipedia.org/w/api.php', params={
             'action': 'query',
             'format': 'json',
             'list': 'random',
@@ -77,26 +79,27 @@ async def forward(self, synapse: chunkSynapse=None):
             'explaintext': True,
             'exsectionformat': 'plain',
             }).json()['query']['pages'][str(page)]['extract']
-
+        document = document.replace("\n", " ").replace("\t", " ")
+        document = ' '.join(document.split())
         synapse = chunkSynapse(document=document, timeout=30.0, maxTokensPerChunk=200)
         # The dendrite client queries the network.
     
-    bt.logging.trace(
+    bt.logging.debug(
                 f"miners: {[(uid, self.metagraph.axons[uid] )for uid in miner_uids]}"
             )
 
     responses = self.dendrite.query(
         axons=[self.metagraph.axons[uid] for uid in miner_uids],
         synapse=synapse,
-        deserialize=True,
+        deserialize=False,
         timeout=synapse.timeout,
     )
     bt.logging.info("Received responses:") 
     for response in responses:
-        if response:
-            if reponse.chunks:
-                bt.logging.info(f"\t{[chunk[:20] for chunk in response.chunks]}")
-
+        if response.chunks:
+            bt.logging.info(f"\t{[chunk[:20] for chunk in response.chunks]}")
+        else:
+            bt.logging.info("No response")
     rewards = get_rewards(self, document=document, responses=responses)
 
     bt.logging.info(f"Scored responses: {rewards}")
