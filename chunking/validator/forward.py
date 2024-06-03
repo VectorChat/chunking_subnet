@@ -64,7 +64,7 @@ async def forward(self, synapse: chunkSynapse=None):
 
     else:
         #page = choice([312990, 9046237, 585013, 444081, 12559806, 30873232, 9236, 9577500, 21501970])
-        requests.get('https://en.wikipedia.org/w/api.php', params={
+        page = requests.get('https://en.wikipedia.org/w/api.php', params={
             'action': 'query',
             'format': 'json',
             'list': 'random',
