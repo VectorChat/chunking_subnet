@@ -71,7 +71,7 @@ class BaseNeuron(ABC):
         self.device = "cpu"#self.config.neuron.device
 
         # Log the configuration for reference.
-        bt.logging.info(self.config)
+        #bt.logging.info(self.config)
 
         # Build Bittensor objects
         # These are core Bittensor classes to interact with the network.

@@ -186,8 +186,23 @@ def add_args(cls, parser):
             "--blacklist.allow_non_registered",
             action="store_true",
             help="If set, miners will accept queries from non registered entities. (Dangerous!)",
-            default=True,
+            default=False,
         )
+
+        parser.add_argument(
+            "--blacklist.minimum_stake",
+            type=int,
+            help="If set, we will force incoming requests to have a weight settable stake.",
+            default=0,
+        )
+
+        parser.add_argument(
+            "--verify",
+            action="store_true",
+            help="If set, miners will accept queries without verifying. (Dangerous!)",
+            default=False,
+        )
+
 
 def config(cls):
     """

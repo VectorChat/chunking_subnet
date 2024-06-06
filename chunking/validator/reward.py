@@ -36,9 +36,9 @@ def reward(self, document: str, response: chunkSynapse) -> float:
         return 0
     reward = 0
     smallChunks = []
-    if not document == ' '.join(' '.join(response.chunks).split()):
-        bt.logging.info("Response does not match query")
-        return 0
+    # if not document == ' '.join(' '.join(response.chunks).split()):
+    #     bt.logging.info("Response does not match query")
+    #     return 0
         
     for i in range(len(response.chunks)):
         sentences = self.splitter.split_text(response.chunks[i])[0].split('\n\n')
@@ -65,7 +65,7 @@ def reward(self, document: str, response: chunkSynapse) -> float:
     bt.logging.info(f"Response time: {response.dendrite.process_time}")
     if response.dendrite.process_time > 2.75:
         reward *= (2/3) ** (response.dendrite.process_time - 2.75)
-    return reward
+    return 1.01 ** reward
 
 
 def get_rewards(

@@ -30,7 +30,7 @@ class chunkSynapse(bt.Synapse):
     """
 
     # Required request input, filled by sending dendrite caller. It is a base64 encoded string.
-    document: str
+    document: int
     maxTokensPerChunk: int = None
     timeout: Optional[float] = None
 
