@@ -52,11 +52,11 @@ class Miner(BaseMinerNeuron):
 
         document = self.splitter.split_text(synapse.document)[0].split('\n\n')
         bt.logging.info(f"Received chunkSynapse: \"{document[0]} ...\"")
-        chunks = []        
+        chunks = []       
         while len(document) > 0:
             chunks.append(document[0])
             del document[0]
-            while len(document) > 0 and chunks[len(chunks) - 1].count(" ") < self.tok:
+            while len(document) > 0 and chunks[len(chunks) - 1].count(" ") < synapse.maxTokensPerChunk:
                 chunks[len(chunks) -1] += (" " + document[0])
                 del document[0]
         synapse.chunks = chunks
