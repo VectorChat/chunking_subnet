@@ -81,7 +81,7 @@ async def forward(self, synapse: chunkSynapse=None):
             }).json()['query']['pages'][str(page)]['extract']
         document = document.replace("\n", " ").replace("\t", " ")
         document = ' '.join(document.split())
-        synapse = chunkSynapse(document=page, timeout=30.0, maxTokensPerChunk=200)
+        synapse = chunkSynapse(document=document, timeout=30.0, maxTokensPerChunk=200)
         # The dendrite client queries the network.
     
     # bt.logging.debug(

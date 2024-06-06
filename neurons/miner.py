@@ -50,16 +50,7 @@ class Miner(BaseMinerNeuron):
 
         # default miner logic, see docs/miner.md for help writing your own miner logic
 
-        document = requests.get('https://en.wikipedia.org/w/api.php', params={
-            'action': 'query',
-            'format': 'json',
-            'pageids': synapse.document,
-            'prop': 'extracts',
-            'explaintext': True,
-            'exsectionformat': 'plain',
-            }).json()['query']['pages'][str(synapse.document)]['extract']
-        document = document.replace("\n", " ").replace("\t", " ")
-        document = self.splitter.split_text(document)[0].split('\n\n')
+        document = self.splitter.split_text(synapse.document)[0].split('\n\n')
         bt.logging.info(f"Received chunkSynapse: \"{document[0]} ...\"")
         chunks = []        
         while len(document) > 0:
