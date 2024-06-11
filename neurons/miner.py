@@ -25,14 +25,20 @@ import bittensor as bt
 import chunking
 from chunking.base.miner import BaseMinerNeuron
 
-from langchain.text_splitter import NLTKTextSplitter
-import requests
+from nltk.tokenize import sent_tokenize
+import subprocess
+import os
 
 class Miner(BaseMinerNeuron):
 
     def __init__(self):
         super(Miner, self).__init__()
-        self.splitter = NLTKTextSplitter()
+
+    async def unpin(
+        self, cid: str, wait: float
+    ) -> None:
+        time.sleep(wait)
+        subprocess.run(['ipfs', 'pin', 'rm', cid])
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
@@ -47,11 +53,15 @@ class Miner(BaseMinerNeuron):
             chunking.protocol.chunkSynapse: The synapse object with the 'chunks' field set to the generated chunks.
 
         """
-
         # default miner logic, see docs/miner.md for help writing your own miner logic
-
-        document = self.splitter.split_text(synapse.document)[0].split('\n\n')
-        bt.logging.info(f"Received chunkSynapse: \"{document[0]} ...\"")
+        filename = str(hash(time.time())) + '.txt'
+        subprocess.run(["ipfs", "get", synapse.document, '-o', filename])
+        with open(filename, 'r') as file:
+            document = file.read()
+            file.close()
+        os.remove(filename)
+        document = sent_tokenize(document)
+        bt.logging.info(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
         chunks = []       
         while len(document) > 0:
             chunks.append(document[0])
@@ -59,7 +69,16 @@ class Miner(BaseMinerNeuron):
             while len(document) > 0 and chunks[len(chunks) - 1].count(" ") < synapse.maxTokensPerChunk:
                 chunks[len(chunks) -1] += (" " + document[0])
                 del document[0]
-        synapse.chunks = chunks
+        filename = str(hash(time.time())) + '.txt'
+        with open(filename, 'x') as file:
+            file.write('\n\n'.join(chunks))
+            file.close()
+        bt.logging.debug(f"Wrote chunks to {filename}")
+        cid = subprocess.run(["ipfs", "add", filename], capture_output=True).stdout[6:52]
+        bt.logging.debug(f"Uploaded chunks with cid: {cid}")
+        os.remove(filename)
+        self.unpin(cid, synapse.timeout * 2)
+        synapse.chunks = cid
         return synapse
 
     async def blacklist(

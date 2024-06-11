@@ -24,6 +24,7 @@ import argparse
 import threading
 import bittensor as bt
 import time
+import subprocess
 
 from typing import List, Union
 from traceback import print_exception
@@ -57,8 +58,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = np.zeros(10, dtype=np.float32)
-
+        self.scores = np.zeros(self.metagraph.n, dtype=np.float32)
+        self.rankings = np.array(range(self.metagraph.n))
         #self.load_state()
         # Init sync with the network. Updates the metagraph.
         self.sync()
@@ -77,6 +78,7 @@ class BaseValidatorNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
         self.lock = asyncio.Lock()
+
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
@@ -137,7 +139,6 @@ class BaseValidatorNeuron(BaseNeuron):
         try:
             while True:
                 bt.logging.info(f"step({self.step}) block({self.block})")
-
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
 
@@ -154,6 +155,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
             self.axon.stop()
+            subprocess.run(['ipfs', 'shutdown'])
             bt.logging.success("Validator killed by keyboard interrupt.")
             exit()
 
@@ -220,11 +222,10 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
 
         # Calculate the average reward for each uid across non-zero values.
-        # Replace any NaN values with 0.
-        raw_weights = self.scores * -1
-        raw_weights[raw_weights.argmin()] = (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)
-        next_best_weight = raw_weights.max()
-        while raw_weights.min() < 0:
+        raw_weights = self.scores
+        raw_weights[raw_weights.argmin()] = -1 * (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)
+        next_best_weight = raw_weights.min()
+        while raw_weights.max() > 0:
             next_best_weight /= 2
             raw_weights[raw_weights.argmin()] = next_best_weight
         
@@ -293,7 +294,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # If so, we need to add new hotkeys and moving averages.
         if len(self.hotkeys) < len(self.metagraph.hotkeys):
             # Update the size of the moving average scores.
-            new_moving_average = np.zeros((self.metagraph.n))
+            new_moving_average = np.full((self.metagraph.n), self.metagraph.n)
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
@@ -308,7 +309,7 @@ class BaseValidatorNeuron(BaseNeuron):
         if np.isnan(rewards).any():
             bt.logging.warning(f"NaN values detected in rewards: {rewards}")
             # Replace any NaN values in rewards with 0.
-            rewards = np.nan_to_num(rewards, nan=0)
+            rewards = np.nan_to_num(rewards, nan=len(self.scores))
 
         if isinstance(uids, np.ndarray):
             uids_array = uids.copy()
@@ -317,18 +318,30 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Compute forward pass rewards, assumes uids are mutually exclusive.
         # shape: [ metagraph.n ]
-        scattered_rewards: np.ndarray = np.zeros_like(self.scores)
+        scattered_rewards: np.ndarray = np.full_like(self.scores, len(self.scores))
+        bt.logging.debug(f"uids: {uids_array}")
+        bt.logging.debug(f"rewars: {rewards}")
         scattered_rewards[uids_array] = rewards
-        bt.logging.debug(f"Scattered rewards: {rewards}")
+        bt.logging.debug(f"Scattered scores: {scattered_rewards}")
 
         # Update scores with rewards produced by this step.
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
+        bt.logging.debug(f"Scores: {self.scores}")
         self.scores: np.ndarray = (
             alpha * scattered_rewards
             + (1 - alpha) * self.scores
         )
         bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+
+        tempScores = np.copy(self.scores)
+        self.rankings = np.full_like(tempScores, len(self.scores))
+        i = 0
+        while np.sum(np.isfinite(tempScores)) != 0:
+            self.rankings[i] = tempScores.argmin()
+            tempScores[tempScores.argmin()] = np.inf
+            i += 1
+        bt.logging.debug(f"Updated rankings: {self.rankings}")
 
     def save_state(self):
         """Saves the state of the validator to a file."""

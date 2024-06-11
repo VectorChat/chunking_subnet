@@ -28,8 +28,6 @@ from chunking.validator import forward
 
 # import base validator class which takes care of most of the boilerplate
 from chunking.base.validator import BaseValidatorNeuron
-
-from langchain.text_splitter import NLTKTextSplitter
 from openai import OpenAI
 
 class Validator(BaseValidatorNeuron):
@@ -45,7 +43,7 @@ class Validator(BaseValidatorNeuron):
         os.environ["OPENAI_API_KEY"] = self.config.openaikey
         self.client = OpenAI()
         self.numEmbeddings = self.config.numEmbeddings
-        self.splitter =  NLTKTextSplitter()
+        self.sample_size = self.config.neuron.sample_size
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse=None

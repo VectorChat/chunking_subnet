@@ -35,12 +35,12 @@ class chunkSynapse(bt.Synapse):
     timeout: Optional[float] = None
 
     # Optional request output, filled by recieving axon.
-    chunks: Optional[List[str]] = None
+    chunks: Optional[str] = None
 
 
     # Used for requests sent to validators
     miner_uids: Optional[List[int]] = []
 
 
-    def deserialize(self) -> List[str]:
+    def deserialize(self) -> str:
         return self.chunks

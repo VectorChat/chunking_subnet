@@ -16,12 +16,15 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import torch
 from typing import List
 from chunking.protocol import chunkSynapse
 from random import sample
+from nltk.tokenize import sent_tokenize
 import numpy as np
 import bittensor as bt
+import time
+import subprocess
+import os
 
 def reward(self, document: str, response: chunkSynapse) -> float:
     """
@@ -32,16 +35,22 @@ def reward(self, document: str, response: chunkSynapse) -> float:
     - float: The reward value for the miner.
     """
     if not response.chunks:
-        bt.logging.info("No response")
         return 0
+    filename = str(hash(time.time())) + '.txt'
+    subprocess.run(["ipfs", "get", response.chunks, '-o', filename])
+    with open(filename, 'r') as file:
+        chunks = file.read().split('\n\n')
+        file.close()
+    os.remove(filename)
+    
     reward = 0
     smallChunks = []
-    # if not document == ' '.join(' '.join(response.chunks).split()):
-    #     bt.logging.info("Response does not match query")
-    #     return 0
+
+    if not document == ' '.join(' '.join(chunks).split()):
+        return 0
         
-    for i in range(len(response.chunks)):
-        sentences = self.splitter.split_text(response.chunks[i])[0].split('\n\n')
+    for i in range(len(chunks)):
+        sentences = sent_tokenize(chunks[i])
         for j in range(-(len(sentences) // -3)):
             if (j * 3 + 2) < len(sentences):
                 text = " ".join([sentences[j * 3], sentences[j * 3 + 1], sentences[j * 3 + 2]])
@@ -62,17 +71,16 @@ def reward(self, document: str, response: chunkSynapse) -> float:
             else:
                 reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
             j += 1
-    bt.logging.info(f"Response time: {response.dendrite.process_time}")
     if response.dendrite.process_time > 2.75:
         reward *= (2/3) ** (response.dendrite.process_time - 2.75)
     return 1.01 ** reward
 
 
-def get_rewards(
+def rank_responses(
         self,
         document: str,
         responses: List[chunkSynapse],
-) -> torch.FloatTensor:
+) -> np.ndarray:
     """
     Returns a tensor of rewards for the given query and responses.
 
@@ -81,15 +89,19 @@ def get_rewards(
     - responses (List[float]): A list of responses from the miner.
 
     Returns:
-    - torch.FloatTensor: A tensor of rewards for the given query and responses.
+    - np.ndarray: 
     """
     # Get all the reward results by iteratively calling your reward() function.
-    return torch.FloatTensor(
-        [reward(self, document, response) for response in responses]
-    ).to(self.device)
-
-
-
+    rewards = np.array([float(reward(self, document, response)) for response in responses])
+    bt.logging.debug(f"Scored responses: {rewards}")
+    responseRanks = np.zeros_like(rewards)
+    i = 0
+    while np.sum(np.isfinite(rewards)) != 0:
+        responseRanks[rewards.argmax()] = i
+        rewards[rewards.argmax()] = np.NINF
+        i += 1
+    return responseRanks
+    
 class smallChunk():
     def __init__(self, sourceChunk, text):
         self.sourceChunk = sourceChunk

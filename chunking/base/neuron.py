@@ -17,6 +17,7 @@
 
 import copy
 import typing
+import subprocess
 
 import bittensor as bt
 
@@ -106,7 +107,8 @@ class BaseNeuron(ABC):
             f"Running neuron on subnet: {self.config.netuid} with uid {self.uid} using network: {self.subtensor.chain_endpoint}"
         )
         self.step = 0
-
+        subprocess.run(["ipfs", "init"])
+        subprocess.Popen(["ipfs", "daemon"])
     @abstractmethod
     async def forward(self, synapse: bt.Synapse) -> bt.Synapse:
         ...
