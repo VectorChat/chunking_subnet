@@ -13,90 +13,66 @@
 
 ## Introduction
 
-**Mission** - to provide optimal chunking for use with large language models (LLMs)
+In the rapidly advancing world of conversational artificial intelligence, one of the most fundamental challenges remains implementing long-term memory into AI systems both effectively and efficiently.
 
-**What is Chunking?** - Chunking is the splitting of large texts into smaller pieces with related contents. This could include things like splitting an article into sections, a book into chapters, or a screeplay into scenes.
+**Mission** 
 
-**Why Chunking?** - Chunking is an important preliminary step for many ML tasks that use large amounts of data such as:
-- Retrieval-Augmented Generation (RAG) - RAG utilizes a database of relevant documents to give LLMs the proper context to answer a parse a particular query. Better chunking results in more relevant and specific texts being included in the LLMs context window, resulting in better responses.
-- Classification - Chunking can be used to seperate texts into similar sections which can then be classified and assigned labels.
-- Semantic Search - Better chunking can enhance the accuracy and reliability of semantic searching algorithms that return results based off of similarity in semantic meaning instead of keyword matching.
----
+Our mission is to address a critical aspect of preprocessing data when using vector database solutions: chunking. By refining and optimizing chunking techniques, we aim to enhance the efficiency and effectiveness of Retrieval-Augmented Generation (RAG) systems. Our ultimate goal is to improve machine learning models and algorithms, contributing to a better global solution for data retrieval and processing, with a vision to expand and handle other key aspects of RAG in the future. To better understand our intentions, please read our medium article.
+
+**What is Chunking?** 
+
+Chunking is the process of breaking down a large text or a set of data into smaller, more manageable chunks. This technique is essential in natural language processing (NLP) and particularly useful when working with large language models (LLMs). Chunking can involve various methods of segmentation, such as splitting an article into sections, a book into chapters, or a screenplay into scenes.
+
+
+**Why Chunk?** 
+
+To understand why chunking is necessary, let us first discuss how long-term memory is currently implemented in many AI systems. When working with LLMs that need to access a vast base of knowledge, it is impractical to pass the entire corpus of data with each request due to the high cost of inference. For example, querying an LLM using a book as a source can be quite costly. Even at a rate of $5.00 per million tokens, querying a 500-page book, which is estimated to be around 200,000 tokens, would cost approximately $1.00 per query. This high expense makes the integration of specialized characters or the inclusion of extensive knowledge from numerous texts impractical.
+
+To address this issue, we utilize chunking. By breaking down large texts into smaller, manageable chunks and transforming these chunks into vectors with embedded meanings, we store them in a vector database. When a user sends a query, we embed the query as a vector and identify the vectors in the database with meanings most related to the query. Instead of loading the entire book into the model’s context, we only retrieve the relevant chunks of text, significantly reducing the total number of tokens processed per query.
+
+Chunking, therefore, enables efficient and cost-effective querying by focusing on relevant portions of text, maintaining the balance between comprehensive knowledge and resource management.
+
+Chunking is an important preliminary step for many machine learning (ML) tasks that use large amounts of data, such as:
+- Retrieval-Augmented Generation (RAG): Rag utilizes a database of relevant documents to give LLMs the proper context to parse a particular query. Effective chunking results in more relevant and specific texts being included in the LLM’s context window, leading to better responses
+
+- Classification: Chunking can be used to separate texts into similar sections, which can be then classified and assigned labels. This enhances the accuracy and efficiency of classification tasks
+
+- Semantic Search: Improved chunking can enhance the accuracy and reliability of semantic searching algorithms, which return results based on the similarity in semantic meaning rather than simple keyword matching
+
 
 ## Getting Started
 
 - Review min compute requirements for desired role
-- Read through [Bittensor documentation](https://docs.bittensor.com/)
-- Ensure you've gone through the [appropriate checklist](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
 
-### Prerequisites
-This repository requires python3.8 or higher. To install, simply clone this repository and install the requirements.
-```bash
-git clone https://github.com/VectorChat/chunking_subnet
-cd chunking_subnet
-python -m pip install -r requirements.txt
-python -m pip install -e .
-```
-Register your wallet to testnet or localnet
+- Ensure you've gone through the [checklist for validating and mining](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
 
-Testnet:
-```bash
-btcli subnet register --wallet.name $coldkey --wallet.hotkey $hotkey --subtensor.network test --netuid $uid
-```
-Localnet:
-```bash
-btcli subnet register --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --subtensor.chain_endpoint ws://127.0.0.1:9946 --netuid 1
-```
-### Compute Requirements
-Compute requirements are low for validators as all major computer architectures are optimized for vector operations. We recommend you run test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation. For miners, the compute requirements depend entirely on the code you are running. The default miner should run on anything.
+### Computation Requirements
+- To run a validator, there are no specific computation requirements as all major computer architectures are optimized for vector operations. We recommend you run the test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation.
 
-### Validator
-Running a validator requires an OpenAI API key.
-To run the validator:
-```bash
-# on localnet
-python3 neurons/validator.py --netuid 1 --subtensor.chain_endpoint ws://127.0.0.1:9946 --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
+- To run a miner, again there are no specific computation requirements as the amount of compute is entirely dependent on the code you are running. The default miner we provide should run on any hardware.
 
-# on testnet
-python3 neurons/validator.py --netuid $uid --subtensor.network test --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
-```
-Something to consider when running a validator is the number of embeddings you're going to generate per miner evaluation. When scoring a miner, a random sample of 3-sentence segments are taken from the response and embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score if the embeddings originated from the same chunk or subtracted from the final score if they originated from different chunks. A greater sample size will likely result in a more accurate evaluation and higher dividends. This comes at the cost of more API calls to generate the embeddings and more time and resources to compare them against each other.
+### Installation
 
-Here is how the validator calculates miner scores:
+#### Validating
+
+Please see [Validator Setup](./docs/validator_setup.md) to learn how to set up a validator
+
+#### Miner
+
+Please see [Miner Setup](./docs/miner_setup.md) to learn how to set up a miner
+
+## Scoring
+
+As described in more detail in the validator and mining setup documentation, validators need to consider the number of embeddings they will generate while evaluating a miner. When scoring, a random-sample of 3-sentence segments are taken from the response and are embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score. If the embeddings originated from the same chunk, it is added to the final score–if the embeddings originated from different chunks, it is subtracted from the final score.
+
+Here is a visualization of how the validator calculates the miner’s score:
 ![evaluations](./assets/evaluations.png)
 
-### Miner
-It is highly recomended that you write your own logic for neurons.miner.forward in order to achieve better chunking and recieve better rewards, for help on doing this, see [Custom Miner](#custom-miner).
+A greater sample size will likely result in more accurate evaluations and higher yields. This will come at the cost of more API calls to generate the additional embeddings and potentially more time and resources comparing them against each other. 
 
-```bash
-# on localnet
-python3 neurons/miner.py --netuid 1 --subtensor.chain_endpoint ws://127.0.0.1:9946 --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug
+Miners should create their own logic and improve on what is initially provided in neurons/miner.forward to achieve better results when chunking (more information is provided in [Miner Setup](./docs/miner_setup.md))
 
-# on testnet
-python3 neurons/miner.py --netuid $uid --subtensor.network test --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug
-```
-#### Default Miner
-The default miner simply splits the incoming document into individual sentences and then forms each chunk by concatenating adjacent sentences until the token limit is reached. This is not an optimal strategy and will likely see you deregistered. For help on writing a custom miner, see [Custom Miner](#custom-miner).
+## Resources
 
+For miners, there are various approaches to chunking that can produce high-quality chunks. We recommend that you use recursive or semantic chunking, but in line with Bittensor’s ideology, we invite you to experiment. To learn more about the basics of chunking, we recommend you read through this [article](https://www.pinecone.io/learn/chunking-strategies/). Additional resources are provided in the [Miner Setup](./docs/miner_setup.md) documentation.
 
-#### Custom Miner
-To change the behavior of the default miner, edit the logic in neurons.miner.forward to your liking.
-
-##### Miner Considerations
-Validators check each chunk that is sent to them against the source document that they sent out. To ensure that your chunks match the source document, it is highly encouraged that you use NLTKTextSplitter to split the document by sentences before combining them into chunks.
-
-Each incoming query contains a variable called maxTokensPerChunk. Exceeding this number of tokens in any of your chunks will result in severe reductions in your score, so ensure that your logic does not produce chunks that exceed that number of tokens.
-
-Chunk quality is calculated based on the semantic consistency within a given chunk and its semantic similarity to other chunks. In order to produce the best chunks, ensure that all text in a chunk is related and that text from different chunks are not.
-
-##### Chunking Strategies
-There are various approaches to chunking that can produce high-quality chunks. We recommend that you use recursive or semantic chunking. To learn more about chunking, we recommend you read through [this blogpost](https://www.pinecone.io/learn/chunking-strategies/)
-
-###### Recursive Chunking
-Recursive chunking first splits the document into a small number of chunks. It then preforms checks if the chunks fit the desired criteria (size, semantic self-similarity, etc.) If the chunks do not fit those criteria, the recursive chunking algorithm is called on the individual chunks to split them further.
-
-###### Semantic Chunking
-Semantic chunking first splits the document into individual sentences. It then creates a sentence group for each sentence consisting of the 'anchor' sentence and some number of surrounding sentences. These sentence groups are then compared to each other sequentially. Wherever there is a high semantic difference between adjacent sentence groups, one chunk is deliniated from the next.
-
-###### Prebuilt Solutions
-There exist many freely available chunking utilities that can help get you started on your own chunking algorithm. See [this pinecone repo](https://github.com/pinecone-io/examples/tree/master/learn/generation/better-rag) and [this document](https://js.langchain.com/v0.1/docs/modules/data_connection/document_transformers/) for more information.
