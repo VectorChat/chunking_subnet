@@ -44,11 +44,17 @@ There are various approaches to chunking that can produce high-quality chunks. W
 
 #### Recursive Chunking
 
-Recursive chunking begins by splitting the data set into a small number of chunks. It then checks whether each chunk meets the desired criteria (such as size or semantic self-similarity.) If a chunk does not meet these criteria, the algorithm recursively splits that chunk into smaller chunks. This process continues until all chunks satisfy the specified criteria.
+Recursive chunking begins by splitting the data set into a small number of chunks. It then checks whether each chunk meets the desired criteria (such as size or semantic self-similarity.) If a chunk does not meet these criteria, the algorithm recursively splits that chunk into smaller chunks. This process continues until all chunks satisfy the specified criteria. 
+
+Here is a diagram of this process:
+![recursive_chunking](../assets/recursive_chunking.png)
 
 #### Semantic Chunking
 
-Semantic chunking starts by splitting the entire data set into individual sentences. Each sentence, called an anchor sentence, is then grouped with a number of surrounding sentences to form a sentence group. These sentence groups are compared sequentially. A chunk boundary is established wherever there is a significant semantic difference between adjacent sentence groups.
+Semantic chunking starts by splitting the entire data set into individual sentences. Each sentence, called an anchor sentence, is then grouped with a number of surrounding sentences to form a sentence group. These sentence groups are compared sequentially. A chunk boundary is established wherever thesemantic difference between adjacent sentence groups crosses some threshold.
+
+Here is an example with a thrshold of 1:
+![semantic_chunking](../assets/semantic_chunking.png)
 
 ###### Prebuilt Solutions
 There exist many freely available chunking utilities that can help you get a head start on your chunking algorithm, see the following links:
