@@ -19,41 +19,43 @@
 
 **Frontends**
 
-To make use of the subnet, see our frontend:
+While the subnet remains permissionless in the ethos of Bittensor, we are developing [Chunking.com](https://chunking.com) to drive demand to this subnet. [Learn more on our site.](https://vectorchat.ai).
 
-- [chunking.com](https://chunking.com)
-
+If you have created your own frontend for this subnet, feel free to submit a pull request to append it here.
 
 ## Getting Started
 
-- Review min compute requirements for desired role
+- Review the minimum compute requirements for your desired role
 
 - Ensure you've gone through the [checklist for validating and mining](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
 
 ### Computation Requirements
-- To run a validator, there are no specific computation requirements as all major computer architectures are optimized for vector operations. We recommend you run the test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation.
 
-- To run a miner, again there are no specific computation requirements as the amount of compute is entirely dependent on the code you are running. The default miner we provide should run on any hardware.
+*Validators:* there are no specific computation requirements as all major computer architectures are optimized for vector operations. We recommend you run the test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation.
 
-### Installation
+*Miners:* There are no specific computation requirements as the amount of compute is entirely dependent on your method of chunking. The default miner we provide should run on any hardware.
+
+### Installation & Guides
 
 #### Validating
 
-Please see [Validator Setup](./docs/validator_setup.md) to learn how to set up a validator
+Please see [Validator Setup](./docs/validator_setup.md) to learn how to validate.
 
 #### Miner
 
-Please see [Miner Setup](./docs/miner_setup.md) to learn how to set up a miner
+Please see [Miner Setup](./docs/miner_setup.md) to learn how to set up a miner, along with general tips to help you develop a custom solution.
 
 ## Ranking
 
-Validators maintain an internal ranking of all miners which they use to decide which miners to query and what weights to set. When choosing which miners to query, validators create groups of miners with adjacent ranks. They then choose one of these groups at random and query all of the miners in that group. Once all the miners' responses have been scored, the validator then ranks them relative to each other and adjusts these rankings to reflect their overall rankings. For organic queries, groups are created to include the miners specified by the user.
+The default validator uses Group Tournament Ranking to determine the ranking of miners. 
+
+Specifically, validators maintain an internal ranking of all miners from which they decide whom to query and what weights to set. When selecting which miners to query, validators create groups of miners with adjacent ranks. They then select one of these groups at random and query all of the miners in that group. Once all of the miners' responses have been scored, the validator ranks them relative to one another and then adjusts these rankings to reflect their overall rankings. For organic queries, groups are created to include the miners specified by the user.
 
 Here is an example of this system with 12 miners and a sample size of 4:
 ![ranking_visualization](./assets/ranking_visualization.png)
 
 ### Incentive Curve
-When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner. This makes it so that for anyone running a miner, improving that miner's rank by one spot will always result in more emissions than running more miners.
+When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. This design ensures that improving a miner's rank by one spot will always result in more emissions than running more miners.
 
 Here is an example of the incentive curve with 5 miners:
 ![incentive_curve](./assets/incentive_curve.png)
@@ -61,7 +63,7 @@ Here is an example of the incentive curve with 5 miners:
 
 ## Evaluating
 
-As described in more detail in the validator and mining setup documentation, validators need to consider the number of embeddings they will generate while evaluating a miner. When scoring, a random-sample of 3-sentence segments are taken from the response and are embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score. If the embeddings originated from the same chunk, it is added to the final score if the embeddings originated from different chunks, it is subtracted from the final score.
+As described in more detail in the validator and mining setup documentation, validators need to consider the number of embeddings they will generate while evaluating a miner. When scoring, a random-sample of 3-sentence segments is taken from the response and is then embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score. If the embeddings originated from the same chunk, it is added to the final score if the embeddings originated from different chunks, it is subtracted from the final score.
 
 Here is a visualization of how the validator calculates the miner’s score:
 ![evaluations](./assets/evaluations.png)
@@ -72,5 +74,5 @@ If the chunks generated by the miner have more tokens than specified by the vali
 
 ## Resources
 
-For miners, there are various approaches to chunking that can produce high-quality chunks. We recommend that you use recursive or semantic chunking, but in line with Bittensor’s ideology, we invite you to experiment. To learn more about the basics of chunking, we recommend you read through this [article](https://www.pinecone.io/learn/chunking-strategies/). Additional resources are provided in the [Miner Setup](./docs/miner_setup.md) documentation.
+For miners, there are various approaches to chunking that can produce high-quality chunks. We recommend that you start out with recursive or semantic chunking. To learn more about the basics of chunking, we recommend you read through this [article](https://www.pinecone.io/learn/chunking-strategies/). Additional resources are provided in the [Miner Setup](./docs/miner_setup.md) documentation.
 
