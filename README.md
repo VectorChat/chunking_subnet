@@ -15,13 +15,13 @@
 
 ### Description
 
-[Chunking](./docs/chunking.md) is a critical aspect of preprocessing data when using vector database solutions. By refining and optimizing chunking techniques, we aim to enhance the efficiency and effectiveness of Retrieval-Augmented Generation (RAG) systems. 
+[Chunking](./docs/chunking.md), or the process of breaking down large datasets into smaller, manageable pieces or “chunks,” is a foundational component of Retrieval-Augmented Generation (RAG). By developing increasingly intelligent chunking techniques, we aim to significantly enhance the efficacy of RAG-based applications. 
 
-**Frontends**
+### Frontends
 
-While the subnet remains permissionless in the ethos of Bittensor, we are developing [Chunking.com](https://chunking.com) to drive demand to this subnet. [Learn more on our site.](https://vectorchat.ai).
+While the subnet remains permissionless in the ethos of Bittensor, we are developing the service [Chunking.com](https://chunking.com) in order to drive demand to this subnet. Chunking.com will initially recieve its demand from Toffee, before branching out to onboard developers and enterprises. Learn more about our project [here](https://vectorchat.ai).
 
-If you have created your own frontend for this subnet, feel free to submit a pull request to append it here.
+If you have created, or are developing, your own frontend to this subnet, feel free to submit a pull request to append it here.
 
 ## Getting Started
 
@@ -31,9 +31,9 @@ If you have created your own frontend for this subnet, feel free to submit a pul
 
 ### Computation Requirements
 
-*Validators:* there are no specific computation requirements as all major computer architectures are optimized for vector operations. We recommend you run the test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation.
+**Validators:** There are no specific computation requirements as all major computer architectures are optimized for vector operations. We recommend you run the test_compute_requirements script to get a recommendation for the number of embeddings you should compute for each miner evaluation.
 
-*Miners:* There are no specific computation requirements as the amount of compute is entirely dependent on your method of chunking. The default miner we provide should run on any hardware.
+**Miners:** There are no specific computation requirements as the amount of compute is entirely dependent on your method of chunking. The default miner we provide should run on any hardware.
 
 ### Installation & Guides
 
@@ -47,7 +47,7 @@ Please see [Miner Setup](./docs/miner_setup.md) to learn how to set up a miner, 
 
 ## Ranking
 
-The default validator uses Group Tournament Ranking to determine the ranking of miners. 
+The default validator uses a form of group tournament ranking to determine the ranking of miners. 
 
 Specifically, validators maintain an internal ranking of all miners from which they decide whom to query and what weights to set. When selecting which miners to query, validators create groups of miners with adjacent ranks. They then select one of these groups at random and query all of the miners in that group. Once all of the miners' responses have been scored, the validator ranks them relative to one another and then adjusts these rankings to reflect their overall rankings. For organic queries, groups are created to include the miners specified by the user.
 
@@ -55,7 +55,7 @@ Here is an example of this system with 12 miners and a sample size of 4:
 ![ranking_visualization](./assets/ranking_visualization.png)
 
 ### Incentive Curve
-When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. This design ensures that improving a miner's rank by one spot will always result in more emissions than running more miners.
+When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. This is so that improving a miner's rank by one spot will always result in more emissions than running more miners.
 
 Here is an example of the incentive curve with 5 miners:
 ![incentive_curve](./assets/incentive_curve.png)
@@ -63,16 +63,18 @@ Here is an example of the incentive curve with 5 miners:
 
 ## Evaluating
 
-As described in more detail in the validator and mining setup documentation, validators need to consider the number of embeddings they will generate while evaluating a miner. When scoring, a random-sample of 3-sentence segments is taken from the response and is then embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score. If the embeddings originated from the same chunk, it is added to the final score if the embeddings originated from different chunks, it is subtracted from the final score.
+Described in more detail in the validator and mining setup documentation, validators need to consider the number of embeddings they will generate while evaluating a miner. When scoring, a random-sample of 3-sentence segments is taken from the response and is then embedded. The dot product of every possible pair of these embeddings is then compared. If the embeddings originated from the same chunk, it is added to the final score, whereas if the embeddings originated from different chunks, it is subtracted from the final score.
 
-Here is a visualization of how the validator calculates the miner’s score:
+Here is a visualization of how the validator calculates a miner’s score:
 ![evaluations](./assets/evaluations.png)
 
-A greater sample size will likely result in more accurate evaluations and higher yields. This will come at the cost of more API calls to generate the additional embeddings and potentially more time and resources comparing them against each other. 
+Taking a greater sample size will likely result in more accurate evaluations and higher yields, although this will come at the cost of more API calls to generate the additional embeddings and potentially more time and resources comparing them against each other. 
 
-If the chunks generated by the miner have more tokens than specified by the validator, their score is penalized exponentially per token above the limit.
+If the chunks generated by the miner have more tokens than specified by the validator, their score is penalized exponentially for each token above the limit.
 
 ## Resources
 
 For miners, there are various approaches to chunking that can produce high-quality chunks. We recommend that you start out with recursive or semantic chunking. To learn more about the basics of chunking, we recommend you read through this [article](https://www.pinecone.io/learn/chunking-strategies/). Additional resources are provided in the [Miner Setup](./docs/miner_setup.md) documentation.
+
+For background information on RAG, check out this [article](https://www.pinecone.io/learn/retrieval-augmented-generation/) by pinecone to get you started.
 
