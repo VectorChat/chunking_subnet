@@ -26,21 +26,20 @@ class chunkSynapse(bt.Synapse):
 
     Attributes:
     - document: str containing plaintext to be split by the miner.
-    - response: List[str] containing chunks of text from document.
+    - chunk_size: int containing the soft max characters per chunk.
+    - time_soft_max: float containing the maximum time the miner can take before being penalized.
+    - chunks: List[str] containing chunks of text from document.
+    - miner_signature: str containing the miner's signature of a json object containing document, chunk_size, and chunks.
     """
 
     # Required request input, filled by sending dendrite caller. It is a base64 encoded string.
     document: str
-    maxTokensPerChunk: int = None
-    timeout: Optional[float] = None
+    chunk_size: int = None
+    time_soft_max: float = None
 
     # Optional request output, filled by recieving axon.
-    chunks: Optional[str] = None
+    chunks: Optional[List[str]] = None
+    miner_signature: Optional[str] = None
 
-
-    # Used for requests sent to validators
-    miner_uids: Optional[List[int]] = []
-
-
-    def deserialize(self) -> str:
+    def deserialize(self) -> List[str]:
         return self.chunks

@@ -26,19 +26,14 @@ import chunking
 from chunking.base.miner import BaseMinerNeuron
 
 from nltk.tokenize import sent_tokenize
-import subprocess
-import os
+import json
+from sr25519 import sign
+
 
 class Miner(BaseMinerNeuron):
 
     def __init__(self):
         super(Miner, self).__init__()
-
-    async def unpin(
-        self, cid: str, wait: float
-    ) -> None:
-        time.sleep(wait)
-        subprocess.run(['ipfs', 'pin', 'rm', cid])
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
@@ -54,31 +49,31 @@ class Miner(BaseMinerNeuron):
 
         """
         # default miner logic, see docs/miner.md for help writing your own miner logic
-        filename = str(hash(time.time())) + '.txt'
-        subprocess.run(["ipfs", "get", synapse.document, '-o', filename])
-        with open(filename, 'r') as file:
-            document = file.read()
-            file.close()
-        os.remove(filename)
-        document = sent_tokenize(document)
-        bt.logging.info(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
+
+        document = sent_tokenize(synapse.document)
+        bt.logging.Debug(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
         chunks = []       
         while len(document) > 0:
             chunks.append(document[0])
             del document[0]
-            while len(document) > 0 and chunks[len(chunks) - 1].count(" ") < synapse.maxTokensPerChunk:
-                chunks[len(chunks) -1] += (" " + document[0])
-                del document[0]
-        filename = str(hash(time.time())) + '.txt'
-        with open(filename, 'x') as file:
-            file.write('\n\n'.join(chunks))
-            file.close()
-        bt.logging.debug(f"Wrote chunks to {filename}")
-        cid = subprocess.run(["ipfs", "add", filename], capture_output=True).stdout[6:52]
-        bt.logging.debug(f"Uploaded chunks with cid: {cid}")
-        os.remove(filename)
-        self.unpin(cid, synapse.timeout * 2)
-        synapse.chunks = cid
+            while len(document) > 0:
+                if len(chunks[-1] + " " + document[0]) > synapse.chunk_size:
+                    break
+                chunks[-1] += (" " + document.pop[0])
+
+        synapse.chunks = chunks
+
+        response_data = {
+            'document': synapse.document,
+            'chunk_size': synapse.chunk_size,
+            'chunks': synapse.chunks,
+        }
+        
+        synapse.miner_signature = sign(
+            (self.wallet.get_hotkey().public_key, self.wallet.get_hotkey().private_key),
+            str.encode(json.dumps(response_data))
+        ).hex()
+        
         return synapse
 
     async def blacklist(
@@ -166,7 +161,7 @@ class Miner(BaseMinerNeuron):
     async def verify(
         self, synapse: chunking.protocol.chunkSynapse
     ) -> None:
-        pass
+        print("not verifying")
 
 # This is the main function, which runs the miner.
 if __name__ == "__main__":

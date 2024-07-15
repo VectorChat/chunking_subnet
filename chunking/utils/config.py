@@ -167,10 +167,23 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--numEmbeddings",
+            "--num_embeddings",
             type=int,
             help="Number of embeddings to generate and compare.",
-            default=10,
+            default=50,
+        )
+        parser.add_argument(
+            "--accept_organic_queries",
+            action="store_true",
+            help="Set this flag to accept organic queries",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--api_host",
+            type=str,
+            help="Host to query if accept_organic_queries is enabled.",
+            default=None
         )
 
     #Miner
@@ -197,7 +210,7 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--verify",
+            "--neuron.disable_verification",
             action="store_true",
             help="If set, miners will accept queries without verifying. (Dangerous!)",
             default=False,

@@ -17,7 +17,6 @@
 
 import copy
 import typing
-import subprocess
 
 import bittensor as bt
 
@@ -66,31 +65,23 @@ class BaseNeuron(ABC):
         self.check_config(self.config)
 
         # Set up logging with the provided configuration and directory.
-        bt.logging(config=self.config, logging_dir=self.config.full_path)
+        bt.logging.set_config(config=self.config.logging)
 
         # If a gpu is required, set the device to cuda:N (e.g. cuda:0)
         self.device = "cpu"#self.config.neuron.device
 
         # Log the configuration for reference.
-        #bt.logging.info(self.config)
+        bt.logging.info(self.config)
 
         # Build Bittensor objects
         # These are core Bittensor classes to interact with the network.
         bt.logging.info("Setting up bittensor objects.")
 
         # The wallet holds the cryptographic key pairs for the miner.
-        if self.config.mock:
-            self.wallet = bt.MockWallet(config=self.config)
-            self.subtensor = MockSubtensor(
-                self.config.netuid, wallet=self.wallet
-            )
-            self.metagraph = MockMetagraph(
-                self.config.netuid, subtensor=self.subtensor
-            )
-        else:
-            self.wallet = bt.wallet(config=self.config)
-            self.subtensor = bt.subtensor(config=self.config)
-            self.metagraph = self.subtensor.metagraph(self.config.netuid)
+
+        self.wallet = bt.wallet(config=self.config)
+        self.subtensor = bt.subtensor(config=self.config)
+        self.metagraph = self.subtensor.metagraph(self.config.netuid)
 
         bt.logging.info(f"Wallet: {self.wallet}")
         bt.logging.info(f"Subtensor: {self.subtensor}")
@@ -107,8 +98,7 @@ class BaseNeuron(ABC):
             f"Running neuron on subnet: {self.config.netuid} with uid {self.uid} using network: {self.subtensor.chain_endpoint}"
         )
         self.step = 0
-        subprocess.run(["ipfs", "init"])
-        subprocess.Popen(["ipfs", "daemon"])
+
     @abstractmethod
     async def forward(self, synapse: bt.Synapse) -> bt.Synapse:
         ...
@@ -123,15 +113,14 @@ class BaseNeuron(ABC):
         """
         # Ensure miner or validator hotkey is still registered on the network.
         self.check_registered()
-#        if self.should_sync_metagraph():
-        bt.logging.info("Syncing")
-        self.resync_metagraph()
+        if self.should_sync_metagraph():
+            self.resync_metagraph()
 
         if self.should_set_weights():
             self.set_weights()
 
         # Always save state.
-        self.save_state()
+        #self.save_state()
 
     def check_registered(self):
         # --- Check for registration.

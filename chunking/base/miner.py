@@ -21,7 +21,6 @@ import asyncio
 import threading
 import argparse
 import traceback
-import subprocess
 
 import bittensor as bt
 
@@ -48,14 +47,13 @@ class BaseMinerNeuron(BaseNeuron):
         #     )
         # The axon handles request processing, allowing validators to send this miner requests.
         self.axon = bt.axon(wallet=self.wallet, config=self.config)
-        self.tok = self.config.token
         # Attach determiners which functions are called when servicing a request.
         bt.logging.info(f"Attaching forward function to miner axon.")
         self.axon.attach(
             forward_fn=self.forward,
             blacklist_fn=self.blacklist,
             priority_fn=self.priority,
-            verify_fn=self.verify#(None if self.config.verify else self.verify),
+            verify_fn=(self.verify if self.config.neuron.disable_verification else None),
         )
         bt.logging.info(f"Axon created: {self.axon}")
         # Instantiate runner
@@ -122,7 +120,6 @@ class BaseMinerNeuron(BaseNeuron):
         # If someone intentionally stops the miner, it'll safely terminate operations.
         except KeyboardInterrupt:
             self.axon.stop()
-            subprocess.run(['ipfs', 'shutdown'])
             bt.logging.success("Miner killed by keyboard interrupt.")
             exit()
 

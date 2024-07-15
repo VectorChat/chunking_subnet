@@ -24,7 +24,6 @@ import argparse
 import threading
 import bittensor as bt
 import time
-import subprocess
 
 from typing import List, Union
 from traceback import print_exception
@@ -62,6 +61,7 @@ class BaseValidatorNeuron(BaseNeuron):
         self.rankings = np.array(range(self.metagraph.n))
         #self.load_state()
         # Init sync with the network. Updates the metagraph.
+        self.sync_articles()
         self.sync()
 
         # Serve axon to enable external connections.
@@ -132,7 +132,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Check that validator is registered on the network.
         self.sync()
-
+        self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
 
         # This loop maintains the validator's operations until intentionally stopped.
@@ -148,21 +148,19 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # Sync metagraph and potentially set weights.
                 self.sync()
-
+                self.sync_articles()
                 self.step += 1
 
-                time.sleep(10)
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
             self.axon.stop()
-            subprocess.run(['ipfs', 'shutdown'])
             bt.logging.success("Validator killed by keyboard interrupt.")
             exit()
 
         # In case of unforeseen errors, the validator will log the error and continue operations.
         except Exception as err:
             bt.logging.error("Error during validation", str(err))
-            bt.logging.debug(print_exception(type(err), err, err.__traceback__))
+            bt.logging.debug(str(print_exception(type(err), err, err.__traceback__)))
 
     def run_in_background_thread(self):
         """
@@ -256,19 +254,19 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug("uint_uids", uint_uids)
 
         # Set the weights on chain via our subtensor connection.
-        # result, msg = self.subtensor.set_weights(
-        #     wallet=self.wallet,
-        #     netuid=self.config.netuid,
-        #     uids=uint_uids,
-        #     weights=uint_weights,
-        #     wait_for_finalization=False,
-        #     wait_for_inclusion=False,
-        #     version_key=self.spec_version,
-        # )
-        # if result is True:
-        #     bt.logging.info("set_weights on chain successfully!")
-        # else:
-        #     bt.logging.error("set_weights failed", msg)
+        result, msg = self.subtensor.set_weights(
+            wallet=self.wallet,
+            netuid=self.config.netuid,
+            uids=uint_uids,
+            weights=uint_weights,
+            wait_for_finalization=False,
+            wait_for_inclusion=False,
+            version_key=self.spec_version,
+        )
+        if result is True:
+            bt.logging.info("set_weights on chain successfully!")
+        else:
+            bt.logging.error("set_weights failed", msg)
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
@@ -319,15 +317,12 @@ class BaseValidatorNeuron(BaseNeuron):
         # Compute forward pass rewards, assumes uids are mutually exclusive.
         # shape: [ metagraph.n ]
         scattered_rewards: np.ndarray = np.full_like(self.scores, len(self.scores))
-        bt.logging.debug(f"uids: {uids_array}")
-        bt.logging.debug(f"rewars: {rewards}")
         scattered_rewards[uids_array] = rewards
         bt.logging.debug(f"Scattered scores: {scattered_rewards}")
 
         # Update scores with rewards produced by this step.
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
-        bt.logging.debug(f"Scores: {self.scores}")
         self.scores: np.ndarray = (
             alpha * scattered_rewards
             + (1 - alpha) * self.scores
@@ -352,21 +347,49 @@ class BaseValidatorNeuron(BaseNeuron):
             self.config.neuron.full_path + "/state.npz",
             step=self.step,
             scores=self.scores,
+            rankings=self.rankings,
+            articles=self.articles,
             hotkeys=self.hotkeys,
         )
 
 
     def load_state(self):
         """Loads the state of the validator from a file."""
+        bt.logging.info("Loading validator state.")
         if not os.path.exists(self.config.neuron.full_path + "/state.npz"):
             return
-
-        bt.logging.info("Loading validator state.")
 
         # Load the state of the validator from file.
         state = np.load(self.config.neuron.full_path + "/state.npz")
         self.step = state["step"]
         self.scores = state["scores"]
         self.hotkeys = state["hotkeys"]
-
+        self.rankings = stat["rankings"]
+        self.articles = stat["articles2:00 AM"]
         bt.logging.info(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}")
+
+def sync_articles(self):
+    articles = []
+    response = requests.get('https://en.wikipedia.org/w/api.php', params={
+        'action': 'query', 
+        'format': 'json', 
+        'list': 'categorymembers',
+        'cmpageid': '8966941', 
+        'cmprop': 'ids', 
+        'cmlimit': 'max'
+        }).json()
+    articles.extend([page['pageid'] for page in response['query']['categorymembers']])
+    continuation = response.get('continue')
+    while continuation is not None:
+        response = requests.get('https://en.wikipedia.org/w/api.php', params={
+            'action': 'query', 
+            'format': 'json', 
+            'list': 'categorymembers',
+            'cmpageid': '8966941', 
+            'cmprop': 'ids', 
+            'cmlimit': 'max'
+            'cmcontinue': continuation.get('cmcontinue')
+            }).json()                
+        continuation = response.get('continue')
+        articles.extend([page['pageid'] for page in response['query']['categorymembers']])
+    self.articles = articles

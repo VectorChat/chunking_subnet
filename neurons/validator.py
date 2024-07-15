@@ -36,18 +36,31 @@ class Validator(BaseValidatorNeuron):
         super(Validator, self).__init__()
         
         bt.logging.info("load_state()")
-        # self.load_state()
-        if not self.config.openaikey:
-            bt.logging.error("Must provide OpenAI API key with --openaikey <OPENAIKEY>")
+        self.load_state()
+
+        if self.config.openaikey:
+            os.environ['OPENAI_API_KEY'] = self.config.openaikey
+    
+        if not os.environ.get('OPENAI_API_KEY'):
+            raise Exception("Must provide OpenAI API key with --openaikey <OPENAIKEY>")
         
-        os.environ["OPENAI_API_KEY"] = self.config.openaikey
+        if self.config.accept_organic_queries:
+            os.environ['ALLOW_ORGANIC_CHUNKING_QUERIES'] = str(self.config.accept_organic_queries)
+        
+        if not os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES'):
+            os.environ['ALLOW_ORGANIC_CHUNKING_QUERIES'] = 'False'
+
+        if self.config.api_host:
+            os.environ['CHUNKING_API_HOST'] = self.config.api_host
+        
+        if not os.environ.get('CHUNKING_API_HOST'):
+            os.environ['CHUNKING_API_HOST'] = 'http.chunking.com/web3/api/'
+            
         self.client = OpenAI()
         self.numEmbeddings = self.config.numEmbeddings
         self.sample_size = self.config.neuron.sample_size
 
-    async def forward(
-        self, synapse: chunking.protocol.chunkSynapse=None
-        ):
+    async def forward(self):
         """
         Validator forward pass. Consists of:
         - Generating the query
@@ -57,23 +70,11 @@ class Validator(BaseValidatorNeuron):
         - Updating the scores
         """
 
-        return await forward(self, synapse)
+        return await forward(self)
 
-    async def blacklist(self, synapse: chunking.protocol.chunkSynapse) -> Tuple[bool, str]:
-        # TODO add hotkeys to blacklist her as needed
-        # blacklist the hotkeys mining on the subnet to prevent any potential issues
-        #hotkeys_to_blacklist = [h for i,h in enumerate(self.hotkeys) if self.metagraph.S[i] < 20000 and h != self.wallet.hotkey.ss58_address]
-        #if synapse.dendrite.hotkey in hotkeys_to_blacklist:
-        #    return True, "Blacklisted hotkey - miners can't connect, use a diff hotkey."
-        return [False, ""]
-
-    async def priority(self, synapse: chunking.protocol.chunkSynapse) -> float:
-        # high priority for organic traffic
-        return 1000000.0
-        
 # The main function parses the configuration and runs the validator.
 if __name__ == "__main__":
     with Validator() as validator:
         while True:
             bt.logging.info(f"Validator running... {time.time()}")
-            time.sleep(10)
+            time.sleep(5)

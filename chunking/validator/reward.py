@@ -19,14 +19,12 @@
 from typing import List
 from chunking.protocol import chunkSynapse
 from random import sample
-from nltk.tokenize import sent_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
 import bittensor as bt
-import time
-import subprocess
-import os
 
-def reward(self, document: str, response: chunkSynapse) -> float:
+
+def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
     value for the miner, which is used to update the miner's score.
@@ -35,33 +33,49 @@ def reward(self, document: str, response: chunkSynapse) -> float:
     - float: The reward value for the miner.
     """
     if not response.chunks:
+        print("no response")
         return 0
-    filename = str(hash(time.time())) + '.txt'
-    subprocess.run(["ipfs", "get", response.chunks, '-o', filename])
-    with open(filename, 'r') as file:
-        chunks = file.read().split('\n\n')
-        file.close()
-    os.remove(filename)
-    
-    reward = 0
+    chunks = response.chunks
+    reward = 0.0
     smallChunks = []
-
-    if not document == ' '.join(' '.join(chunks).split()):
-        return 0
-        
+    size_penalty = 0
+    document_words = word_tokenize(document)
+    combined_chunk_words = ''
     for i in range(len(chunks)):
+
+        # check that every word in chunk exists and is in the same order as the source document
+        chunk_words = ' '.join(word_tokenize(chunks[i]))
+        combined_chunk_words += ' ' + chunk_words
+        if chunks_words not in ' '.join(document_words):
+            return 0
+
+        # add up size penalty to be applied later
+        if len(chunks[i]) > chunk_size:
+            size_penalty += ((chunk_length / chunk_size) - 1) * 10
+
+        # create test segments
         sentences = sent_tokenize(chunks[i])
-        for j in range(-(len(sentences) // -3)):
-            if (j * 3 + 2) < len(sentences):
-                text = " ".join([sentences[j * 3], sentences[j * 3 + 1], sentences[j * 3 + 2]])
-            else:
-                text = " ".join(sentences[j*3:])
+        for j in range(0, len(sentences), 3):
+            text = " ".join(sentences[j:j+3])
             smallChunks.append(smallChunk(i, text))
-    if self.numEmbeddings < len(smallChunks):
-        testChunks = sample(smallChunks, self.numEmbeddings)
+
+    # check that every set of 3 adjacent words from the document appears in the chunks
+    for i in range(0, len(document_words), 3):
+        if (len(' '.join(document_words[i:i+3])) < chunk_size
+            and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
+            return 0
+
+    # pick out segments to use for evalutaion
+    if self.num_embeddings < len(smallChunks):
+        testChunks = sample(smallChunks, self.num_embeddings)
     else:
         testChunks = smallChunks
-    embeddings = self.client.embeddings.create(input=[testChunk.text for testChunk in testChunks], model="text-embedding-ada-002").data
+
+    # calculate rewards using embeddings of test chunks
+    embeddings = self.client.embeddings.create(
+        input=[testChunk.text for testChunk in testChunks],
+        model="text-embedding-ada-002"
+    ).data
     embeddings = [item.embedding for item in embeddings]
     for i in range(len(testChunks) - 1):
         j = i + 1
@@ -71,18 +85,22 @@ def reward(self, document: str, response: chunkSynapse) -> float:
             else:
                 reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
             j += 1
-    if response.dendrite.process_time > 2.75:
-        reward *= (2/3) ** (response.dendrite.process_time - 2.75)
-    return 1.01 ** reward
 
+    # calculate and return final reward
+    reward = 1.01 ** reward # ensures that all rewards are positive
+    if response.dendrite.process_time > response.time_soft_max:
+        reward *= (2/3) ** (response.dendrite.process_time - time_soft_max)
+    reward *= (2/3) ** size_penalty
+    return reward
 
-def rank_responses(
+def get_rewards(
         self,
         document: str,
+        chunk_size: int,
         responses: List[chunkSynapse],
 ) -> np.ndarray:
     """
-    Returns a tensor of rewards for the given query and responses.
+    Returns an array of rewards for the given query and responses.
 
     Args:
     - query (int): The query sent to the miner.
@@ -92,15 +110,28 @@ def rank_responses(
     - np.ndarray: 
     """
     # Get all the reward results by iteratively calling your reward() function.
-    rewards = np.array([float(reward(self, document, response)) for response in responses])
-    bt.logging.debug(f"Scored responses: {rewards}")
-    responseRanks = np.zeros_like(rewards)
-    i = 0
-    while np.sum(np.isfinite(rewards)) != 0:
-        responseRanks[rewards.argmax()] = i
+    rewards = np.array([float(reward(self, document, chunk_size, response)) for response in responses])
+    return rewards
+
+def rank_responses(
+        rewards: np.ndarray,
+) -> np.ndarray:
+    """
+    Returns an array containing the ranks of the responses using their rewards.
+
+    Args:
+    - rewards (List[float]): The list of rewards that were calculated.
+
+    Returns:
+    - np.ndarray: 
+    """
+
+    response_ranks = np.zeros_like(rewards)
+
+    for i in range(len(rewards)):
+        response_ranks[rewards.argmax()] = i
         rewards[rewards.argmax()] = np.NINF
-        i += 1
-    return responseRanks
+    return response_ranks
     
 class smallChunk():
     def __init__(self, sourceChunk, text):

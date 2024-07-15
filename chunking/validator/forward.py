@@ -16,26 +16,32 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import time
 import bittensor as bt
 from random import choice
 from math import ceil
 import numpy as np
-from chunking.protocol import chunkSynapse
-from chunking.validator.reward import rank_responses
+from chunking.validator.reward import get_rewards, rank_responses
 from chunking.utils.uids import get_random_uids
-import requests
-import subprocess
-import time
-import os
+from chunking.validator.task_api import Task
 
-async def forward(self, synapse: chunkSynapse=None):
+def get_miner_groups(self) -> (np.ndarray, np.ndarray, int):
+    group_size = min(len(self.rankings), self.sample_size)
+    group_ranks = []
+    miner_groups = []
+    for i in range(-floor(group_size / 2), len(self.rankings) - group_size + 1, floor(group_size / 2)):
+        group_ranks.append(range(i, i+group_size))
+        miner_groups.append(np.array(self.rankings[group_ranks[-1]]))
+    return (miner_groups, group_ranks, group_size)
+    
+
+async def forward(self):
     """
     The forward function is called by the validator every time step.
 
     It is responsible for querying the network and scoring the responses.
 
-    Handles 3 cases:
-     - Organic query coming in through the axon
+    Handles 2 cases:
      - Organic query coming in through API
      - Generated query when there are no queries coming in
 
@@ -44,81 +50,89 @@ async def forward(self, synapse: chunkSynapse=None):
         synapse: The chunkSynapse containing the organic query
     """
 
-    # don't grab miner ids if they are passed in from the organic axon request
-    if self.sample_size > len(self.rankings):
-        miner_uids = get_random_uids(self, k=min(self.sample_size, self.metagraph.n.item()))
-        ranks = np.zeros_like(miner_uids)
-        minerGroup = 1
-    else:
-        minerGroup = choice(range(ceil(2 * len(self.rankings) / self.sample_size)))
-        centerRank = minerGroup * self.sample_size // 2
-        if centerRank > len(self.rankings) - ceil(self.sample_size / 2):
-            ranks = range((floor(centerRank) - (self.sample_size // 2)), len(self.rankings))
-        else:
-            ranks = range((floor(centerRank) - (self.sample_size // 2)), (floor(centerRank) + ceil(self.sample_size / 2)))
-        miner_uids = np.array(self.rankings[ranks])
-    bt.logging.info(f"Getting miner uids: {miner_uids}")
 
+    hotkey = self.wallet.get_hotkey()
+    miner_groups, group_ranks, group_size = get_miner_groups(self)    
+    task = Task.get_new_task(self)
 
-    if synapse:
-        bt.logging.debug("Synapse was passed in")
-        # if len(synapse.miner_uids) > 0:
-        #     miner_uids = synapse.miner_uids
-        #     bt.logging.info(f"Parsed uids: {miner_uids}")
-        
-        if not synapse.timeout:
-            synapse.timeout = 10.0
-        
-        if not synapse.maxTokensPerChunk:
-            synapse.maxTokensPerChunk = 200
-
-    else:
-        page = 312990#choice([312990, 9046237, 585013, 444081, 12559806, 30873232, 9236, 9577500, 21501970])
-        # page = requests.get('https://en.wikipedia.org/w/api.php', params={
-        #     'action': 'query',
-        #     'format': 'json',
-        #     'list': 'random',
-        #     'rnnamespace': 0,
-        # }).json()['query']['random'][0]['id']
-
-        document_text = requests.get('https://en.wikipedia.org/w/api.php', params={
-            'action': 'query',
-            'format': 'json',
-            'pageids': page,
-            'prop': 'extracts',
-            'explaintext': True,
-            'exsectionformat': 'plain',
-            }).json()['query']['pages'][str(page)]['extract']
-        document_text = document_text.replace("\n", " ").replace("\t", " ")
-        document_text = ' '.join(document_text.split())
-        filename = str(hash(time.time())) + '.txt'
-        with open(filename, 'x') as file:
-            file.write(document_text)
-            file.close()
-        bt.logging.debug(f"Wrote document text to {filename}")
-        cid = subprocess.run(["ipfs", "add", filename], capture_output=True).stdout[6:52]
-        os.remove(filename)
-        bt.logging.debug(f"Uploaded document with cid: {cid}")
-        synapse = chunkSynapse(document=cid, timeout=5.0, maxTokensPerChunk=200)
+    if task.miner_uids is not None:
+        found_match = False
+        for uid in task.miner_uids:
+            if found_match:
+                break
+            for i in range(1, len(miner_groups)):
+                if uid in miner_groups[i]:
+                    miner_group = i
+                    found_match = True
+                    break
+                
+    if task.miner_uids is None or not found_match:
+        miner_group = choice(range(len(miner_groups)))
     
     # The dendrite client queries the network.
     responses = self.dendrite.query(
-        axons=[self.metagraph.axons[uid] for uid in miner_uids],
-        synapse=synapse,
+        axons=[self.metagraph.axons[uid] for uid in miner_groups[miner_group]],
+        timeout=task.synapse.timeout,
+        synapse=task.synapse,
         deserialize=False,
-        timeout=synapse.timeout,
     )
-    subprocess.run(['ipfs', 'pin', 'rm', cid])
-    bt.logging.info(
-        "Received responses: ", 
-        ['\n' + f'{miner_uids[i]} ({ranks[i]}): {[chunk[:10] + ' ...' for chunk in responses[i].chunks]}' for i in range(len(responses))]
-        ) 
-    if minerGroup != 0:
-        responseRanks = [reward + ranks[0] for reward in rank_responses(self, document=document_text, responses=responses)]
-    else:
-        responseRanks = np.concatenate([reward + ranks[0] + len(self.rankings) for reward in rank_responses(self, document=document_text, responses=responses[:(self.sample_size // 2)])], 
-            [reward for reward in rank_responses(self, document=document_text, responses=responses[(self.sample_size // 2):])])
-    
-    bt.logging.info(f"Ranked responses: {responseRanks}")
 
-    self.update_scores(responseRanks, miner_uids)
+    bt.logging.info(f"Received responses: {responses}")
+    rewards = get_rewards(self, document=task.synapse.document, chunk_size=task.synapse.chunk_size, responses=responses)
+    bt.logging.debug(f"Scored responses: {rewards}")
+    
+    log_data = {
+        'hotkey': hotkey.ss58_address,
+        'nonce': self.step,
+        'task_id': task.task_id,
+        'miner_uids': miner_groups[miner_group].tolist(),
+        'rewards': rewards.tolist(),
+    }
+
+    Task.upload_logs(self, log_data)
+
+    if miner_group != 0:
+        response_ranks = np.array(
+            [reward + group_ranks[miner_group][0] for reward in rank_responses(rewards)]
+            )
+    else:
+        response_ranks = np.concatenate((
+            [
+                reward + len(self.rankings) + group_ranks[miner_group][0]
+                for reward in rank_responses(rewards[:(group_size // 2)])
+            ], 
+            [
+                reward for reward in rank_responses(rewards[(group_size // 2):])
+            ]
+        ))
+
+    bt.logging.info(f"Ranked responses: {response_ranks}")
+
+    if task.task_type == "organic":
+        if task.miner_uids is None or not found_match:
+            response = responses[response_ranks.argmin()]
+            
+        else:
+            for i in range(len(task.miner_uids)):
+                if task.miner_uids[i] in miner_groups[miner_group]:
+                    response = responses[i]
+                    break
+
+        task_data = {
+            'document': response.document,
+            'chunk_size': response.chunk_size,
+            'chunks': response.chunks,
+        }
+
+        response_data = {
+            'task_data': task_data,
+            'miner_signature': response.miner_signature,
+            'miner_hotkey': response.axon.hotkey,
+            'validator_hotkey': hotkey.ss58_address,
+            'task_id': task.task_id,            
+            'nonce': self.step,
+        }
+
+        Task.return_response(self, response_data)
+    self.update_scores(response_ranks, miner_groups[miner_group])
+    time.sleep(5)
