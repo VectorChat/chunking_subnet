@@ -24,6 +24,7 @@ import argparse
 import threading
 import bittensor as bt
 import time
+import requests
 
 from typing import List, Union
 from traceback import print_exception
@@ -364,23 +365,12 @@ class BaseValidatorNeuron(BaseNeuron):
         self.step = state["step"]
         self.scores = state["scores"]
         self.hotkeys = state["hotkeys"]
-        self.rankings = stat["rankings"]
-        self.articles = stat["articles2:00 AM"]
+        self.rankings = state["rankings"]
+        self.articles = state["articles"]
         bt.logging.info(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}")
 
-def sync_articles(self):
-    articles = []
-    response = requests.get('https://en.wikipedia.org/w/api.php', params={
-        'action': 'query', 
-        'format': 'json', 
-        'list': 'categorymembers',
-        'cmpageid': '8966941', 
-        'cmprop': 'ids', 
-        'cmlimit': 'max'
-        }).json()
-    articles.extend([page['pageid'] for page in response['query']['categorymembers']])
-    continuation = response.get('continue')
-    while continuation is not None:
+    def sync_articles(self):
+        articles = []
         response = requests.get('https://en.wikipedia.org/w/api.php', params={
             'action': 'query', 
             'format': 'json', 
@@ -388,8 +378,19 @@ def sync_articles(self):
             'cmpageid': '8966941', 
             'cmprop': 'ids', 
             'cmlimit': 'max'
-            'cmcontinue': continuation.get('cmcontinue')
-            }).json()                
-        continuation = response.get('continue')
+            }).json()
         articles.extend([page['pageid'] for page in response['query']['categorymembers']])
-    self.articles = articles
+        continuation = response.get('continue')
+        while continuation is not None:
+            response = requests.get('https://en.wikipedia.org/w/api.php', params={
+                'action': 'query', 
+                'format': 'json', 
+                'list': 'categorymembers',
+                'cmpageid': '8966941', 
+                'cmprop': 'ids', 
+                'cmlimit': 'max',
+                'cmcontinue': continuation.get('cmcontinue')
+                }).json()                
+            continuation = response.get('continue')
+            articles.extend([page['pageid'] for page in response['query']['categorymembers']])
+        self.articles = articles

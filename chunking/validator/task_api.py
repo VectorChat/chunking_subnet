@@ -1,3 +1,4 @@
+from typing import Optional, List
 import bittensor as bt
 from chunking.protocol import chunkSynapse
 import requests
@@ -20,7 +21,7 @@ class Task():
         self.task_id = task_id
         self.miner_uids = miner_uids
     @classmethod
-    def get_new_task(cls, validator):
+    def get_new_task(self, cls, validator):
 
         if os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES') == 'True':
             hotkey = validator.wallet.get_hotkey()
@@ -76,7 +77,7 @@ class Task():
     @classmethod
     def return_response(cls, validator, response_data):
         validator_hotkey = validator.wallet.get_hotkey()
-        validator_signature = sign(
+        validator_sig = sign(
             (validator_hotkey.public_key, validator_hotkey.private_key),
             str.encode(json.dumps(response_data))
             ).hex()

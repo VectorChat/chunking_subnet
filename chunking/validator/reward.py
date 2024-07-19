@@ -46,11 +46,12 @@ def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> floa
         # check that every word in chunk exists and is in the same order as the source document
         chunk_words = ' '.join(word_tokenize(chunks[i]))
         combined_chunk_words += ' ' + chunk_words
-        if chunks_words not in ' '.join(document_words):
+        if chunk_words not in ' '.join(document_words):
             return 0
 
         # add up size penalty to be applied later
-        if len(chunks[i]) > chunk_size:
+        chunk_length = len(chunks[i])
+        if chunk_length > chunk_size:
             size_penalty += ((chunk_length / chunk_size) - 1) * 10
 
         # create test segments
@@ -89,7 +90,7 @@ def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> floa
     # calculate and return final reward
     reward = 1.01 ** reward # ensures that all rewards are positive
     if response.dendrite.process_time > response.time_soft_max:
-        reward *= (2/3) ** (response.dendrite.process_time - time_soft_max)
+        reward *= (2/3) ** (response.dendrite.process_time - response.time_soft_max)
     reward *= (2/3) ** size_penalty
     return reward
 

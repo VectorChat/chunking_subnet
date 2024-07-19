@@ -1,1 +1,9 @@
 __pycache__/
+*.pyc
+venv
+*egg-info
+.DS_Store
+*.pem
+*.key
+*.cert
+.env*

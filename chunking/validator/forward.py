@@ -19,17 +19,26 @@
 import time
 import bittensor as bt
 from random import choice
-from math import ceil
+from math import ceil, floor
 import numpy as np
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.utils.uids import get_random_uids
 from chunking.validator.task_api import Task
 
-def get_miner_groups(self) -> (np.ndarray, np.ndarray, int):
-    group_size = min(len(self.rankings), self.sample_size)
+def get_miner_groups(self) -> tuple[np.ndarray, np.ndarray, int]:
+    bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
+    group_size = min(len(self.rankings), self.sample_size)    
+    bt.logging.debug(f"group_size {group_size}")    
     group_ranks = []
     miner_groups = []
-    for i in range(-floor(group_size / 2), len(self.rankings) - group_size + 1, floor(group_size / 2)):
+
+    start = -floor(group_size / 2)
+    stop = len(self.rankings) - group_size + 1
+    step = floor(group_size / 2)
+    
+    bt.logging.debug(f"start: {start}, stop: {stop}, step: {step}")
+    
+    for i in range(start, stop, step):
         group_ranks.append(range(i, i+group_size))
         miner_groups.append(np.array(self.rankings[group_ranks[-1]]))
     return (miner_groups, group_ranks, group_size)
@@ -52,7 +61,12 @@ async def forward(self):
 
 
     hotkey = self.wallet.get_hotkey()
-    miner_groups, group_ranks, group_size = get_miner_groups(self)    
+    miner_groups, group_ranks, group_size = get_miner_groups(self)  
+    
+    bt.logging.debug(f"Miner groups: {miner_groups}")
+    bt.logging.debug(f"Group ranks: {group_ranks}")
+    bt.logging.debug(f"Group size: {group_size}")    
+      
     task = Task.get_new_task(self)
 
     if task.miner_uids is not None:
