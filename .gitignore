@@ -7,3 +7,4 @@ venv
 *.key
 *.cert
 .env*
+*.sh
