@@ -224,7 +224,6 @@ class BaseValidatorNeuron(BaseNeuron):
         if np.isnan(self.scores).any():
             bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
 
-        bt.logging.debug("hi")
 
         # Calculate the average reward for each uid across non-zero values.        
         bt.logging.debug(f"self.scores = {self.scores}")
@@ -236,9 +235,11 @@ class BaseValidatorNeuron(BaseNeuron):
         
         # Calculate weights
         n = len(self.scores)
-        raw_weights = np.zeros(n)
+        raw_weights = np.zeros(n)        
         for i, idx in enumerate(sorted_indices):
-            raw_weights[idx] = (1/2) ** i  # (1/2)^n where n is the rank (0-indexed)
+            if self.scores[idx] <= 0:
+                break
+            raw_weights[idx] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
             
         # min_index = raw_weights.argmin()
         # raw_weights[min_index] = -1 * (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)

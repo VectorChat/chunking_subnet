@@ -103,7 +103,7 @@ class Task():
             ).hex()
             
         API_host = os.environ['CHUNKING_API_HOST']
-        task_url = f"{API_host}/task_api/log/"
+        task_url = f"{API_host}/task_api/log/" 
         headers = {"Content-Type": "application/json"}
         data = {
             'log_data': log_data,
