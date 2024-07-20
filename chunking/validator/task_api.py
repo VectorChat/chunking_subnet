@@ -21,7 +21,7 @@ class Task():
         self.task_id = task_id
         self.miner_uids = miner_uids
     @classmethod
-    def get_new_task(self, cls, validator):
+    def get_new_task(self, validator):
 
         if os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES') == 'True':
             hotkey = validator.wallet.get_hotkey()
@@ -71,7 +71,7 @@ class Task():
             except Exception as e:
                 bt.logging.error(f"Failed to get task from API host: \'{API_host}\'. Exited with exception\n{e}")
         bt.logging.debug("Generating synthetic query")
-        synapse = generate_synthetic_synapse(self)
+        synapse = generate_synthetic_synapse(validator)
         return Task(synapse=synapse, task_type="synthetic", task_id=-1)
 
     @classmethod
@@ -102,7 +102,7 @@ class Task():
             str.encode(json.dumps(log_data))
             ).hex()
             
-        API_host = os.environ['CHUNKNIG_API_HOST']
+        API_host = os.environ['CHUNKING_API_HOST']
         task_url = f"{API_host}/task_api/log/"
         headers = {"Content-Type": "application/json"}
         data = {
@@ -111,6 +111,7 @@ class Task():
         }
         try:
             response = requests.post(task_url, headers=headers, json=data)
+            bt.logging.debug(f"uploaded logs, response: {response.status_code}")
         except Exception as e:
             bt.logging.error(f"Failed to upload logs to API host: \'{API_host}\'. Exited with exception\n{e}")
 
@@ -127,5 +128,5 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
         }).json()['query']['pages'][str(page)]['extract']
     document = document.replace("\n", " ").replace("\t", " ")
     document = ' '.join(document.split())
-    synapse = chunkSynapse(document=document, timeout=5.0, chunk_size=4096)
+    synapse = chunkSynapse(document=document, time_soft_max=5.0, chunk_size=4096)
     return synapse
