@@ -12,8 +12,16 @@ This repository requires python3.8 or higher. To install, simply clone this repo
 ```bash
 git clone https://github.com/VectorChat/chunking_subnet
 cd chunking_subnet
-python -m pip install -r requirements.txt
-python -m pip install -e .
+pip3 install -e .
+```
+
+Install `punkt` tokenizer via the python REPL
+```bash
+python3
+>>> import nltk
+>>> nltk.download('punkt')
+... 
+>>> quit()
 ```
 
 It is highly recomended that you write your own logic for neurons/miner.py:forward to optimize chunking and maximize rewards. For guidance creating a custom miner, please refer to the [Custom Miner](#custom-miner) section.
