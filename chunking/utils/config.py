@@ -16,7 +16,6 @@
 # DEALINGS IN THE SOFTWARE.
 
 import os
-import torch
 import argparse
 import bittensor as bt
 from loguru import logger

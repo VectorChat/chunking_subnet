@@ -99,7 +99,6 @@ substrate-interface==1.7.5
 sympy==1.13.1
 termcolor==2.4.0
 toolz==0.12.1
-torch==2.3.1
 tqdm==4.66.4
 typing_extensions==4.12.2
 urllib3==2.2.2
