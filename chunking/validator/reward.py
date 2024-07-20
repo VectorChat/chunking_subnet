@@ -66,7 +66,7 @@ def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> floa
             and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
             return 0
 
-    # pick out segments to use for evalutaion
+    # pick out segments to use for evaluation
     if self.num_embeddings < len(smallChunks):
         testChunks = sample(smallChunks, self.num_embeddings)
     else:
@@ -131,7 +131,7 @@ def rank_responses(
 
     for i in range(len(rewards)):
         response_ranks[rewards.argmax()] = i
-        rewards[rewards.argmax()] = np.NINF
+        rewards[rewards.argmax()] = -np.inf
     return response_ranks
     
 class smallChunk():

@@ -21,6 +21,7 @@ import bittensor as bt
 from random import choice
 from math import ceil, floor
 import numpy as np
+from chunking.protocol import chunkSynapse
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.utils.uids import get_random_uids
 from chunking.validator.task_api import Task
@@ -30,9 +31,9 @@ def get_miner_groups(self) -> tuple[np.ndarray, np.ndarray, int]:
     group_size = min(len(self.rankings), self.sample_size)    
     bt.logging.debug(f"group_size {group_size}")    
     group_ranks = []
-    miner_groups = []
+    miner_groups: list[np.array] = []
 
-    start = -floor(group_size / 2)
+    start = 0
     stop = len(self.rankings) - group_size + 1
     step = floor(group_size / 2)
     
@@ -40,7 +41,7 @@ def get_miner_groups(self) -> tuple[np.ndarray, np.ndarray, int]:
     
     for i in range(start, stop, step):
         group_ranks.append(range(i, i+group_size))
-        miner_groups.append(np.array(self.rankings[group_ranks[-1]]))
+        miner_groups.append(np.array(self.rankings[group_ranks[-1]], dtype=int))
     return (miner_groups, group_ranks, group_size)
     
 
@@ -67,7 +68,7 @@ async def forward(self):
     bt.logging.debug(f"Group ranks: {group_ranks}")
     bt.logging.debug(f"Group size: {group_size}")    
       
-    task = Task.get_new_task(self)
+    task = Task.get_new_task(validator=self)
 
     if task.miner_uids is not None:
         found_match = False
@@ -84,14 +85,15 @@ async def forward(self):
         miner_group = choice(range(len(miner_groups)))
     
     # The dendrite client queries the network.
-    responses = self.dendrite.query(
+    responses: list[chunkSynapse] = self.dendrite.query(
         axons=[self.metagraph.axons[uid] for uid in miner_groups[miner_group]],
         timeout=task.synapse.timeout,
         synapse=task.synapse,
         deserialize=False,
     )
 
-    bt.logging.info(f"Received responses: {responses}")
+    bt.logging.info(f"Received {len(responses)} responses for miner_group: {miner_group} ({[int(uid) for uid in miner_groups[miner_group]]})")    
+    
     rewards = get_rewards(self, document=task.synapse.document, chunk_size=task.synapse.chunk_size, responses=responses)
     bt.logging.debug(f"Scored responses: {rewards}")
     
@@ -102,6 +104,8 @@ async def forward(self):
         'miner_uids': miner_groups[miner_group].tolist(),
         'rewards': rewards.tolist(),
     }
+    
+    bt.logging.debug(f"log_data: {log_data}")
 
     Task.upload_logs(self, log_data)
 

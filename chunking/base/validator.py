@@ -148,9 +148,11 @@ class BaseValidatorNeuron(BaseNeuron):
                     break
 
                 # Sync metagraph and potentially set weights.
-                self.sync()
-                self.sync_articles()
+                self.sync()                
+                self.sync_articles()                            
+                bt.logging.debug(f"step({self.step}) block({self.block}) completed!, sleeping for 5 seconds")
                 self.step += 1
+                time.sleep(5)
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
@@ -216,17 +218,36 @@ class BaseValidatorNeuron(BaseNeuron):
         Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
         """
 
+        bt.logging.debug("setting weights")
+    
         # Check if self.scores contains any NaN values and log a warning if it does.
         if np.isnan(self.scores).any():
             bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
 
-        # Calculate the average reward for each uid across non-zero values.
-        raw_weights = self.scores
-        raw_weights[raw_weights.argmin()] = -1 * (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)
-        next_best_weight = raw_weights.min()
-        while raw_weights.max() > 0:
-            next_best_weight /= 2
-            raw_weights[raw_weights.argmin()] = next_best_weight
+        bt.logging.debug("hi")
+
+        # Calculate the average reward for each uid across non-zero values.        
+        bt.logging.debug(f"self.scores = {self.scores}")
+        
+        # Sort the UIDs based on their scores (lower score is better)
+        sorted_indices = np.argsort(self.scores)
+        
+        bt.logging.debug(f"argsort: {sorted_indices}")
+        
+        # Calculate weights
+        n = len(self.scores)
+        raw_weights = np.zeros(n)
+        for i, idx in enumerate(sorted_indices):
+            raw_weights[idx] = (1/2) ** i  # (1/2)^n where n is the rank (0-indexed)
+            
+        # min_index = raw_weights.argmin()
+        # raw_weights[min_index] = -1 * (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)
+        # bt.logging.debug(f"weight at min_index ({min_index}): {raw_weights[min_index]}")
+        # next_best_weight = raw_weights.min()
+        # bt.logging.debug(f"initial next_best_weight: f{next_best_weight}")
+        # while raw_weights.max() > 0:
+        #     next_best_weight /= 2
+        #     raw_weights[raw_weights.argmin()] = next_best_weight
         
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
@@ -276,11 +297,16 @@ class BaseValidatorNeuron(BaseNeuron):
         # Copies state of metagraph before syncing.
         previous_metagraph = copy.deepcopy(self.metagraph)
 
+
+        bt.logging.debug("metagraph syncing")
         # Sync the metagraph.
         self.metagraph.sync(subtensor=self.subtensor)
+        
+        bt.logging.debug("metagraph synced")
 
         # Check if the metagraph axon info has changed.
         if previous_metagraph.axons == self.metagraph.axons:
+            bt.logging.debug("metagraph axons are the same, nothing to update")
             return
 
         bt.logging.info("Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages")
@@ -322,7 +348,7 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(f"Scattered scores: {scattered_rewards}")
 
         # Update scores with rewards produced by this step.
-        # shape: [ metagraph.n ]
+
         alpha: float = self.config.neuron.moving_average_alpha
         self.scores: np.ndarray = (
             alpha * scattered_rewards
@@ -337,6 +363,7 @@ class BaseValidatorNeuron(BaseNeuron):
             self.rankings[i] = tempScores.argmin()
             tempScores[tempScores.argmin()] = np.inf
             i += 1
+                        
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 
     def save_state(self):
@@ -370,6 +397,7 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.info(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}")
 
     def sync_articles(self):
+        bt.logging.debug(f"syncing articles")
         articles = []
         response = requests.get('https://en.wikipedia.org/w/api.php', params={
             'action': 'query', 
@@ -394,3 +422,4 @@ class BaseValidatorNeuron(BaseNeuron):
             continuation = response.get('continue')
             articles.extend([page['pageid'] for page in response['query']['categorymembers']])
         self.articles = articles
+        bt.logging.debug(f"synced articles!")
