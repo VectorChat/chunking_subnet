@@ -50,8 +50,12 @@ class Miner(BaseMinerNeuron):
         """
         # default miner logic, see docs/miner.md for help writing your own miner logic
 
+        bt.logging.debug(f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}")
+
         document = sent_tokenize(synapse.document)
-        bt.logging.Debug(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
+        bt.logging.debug(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
+        
+        
         chunks = []       
         while len(document) > 0:
             chunks.append(document[0])
@@ -59,7 +63,9 @@ class Miner(BaseMinerNeuron):
             while len(document) > 0:
                 if len(chunks[-1] + " " + document[0]) > synapse.chunk_size:
                     break
-                chunks[-1] += (" " + document.pop[0])
+                chunks[-1] += (" " + document.pop(0))
+
+        bt.logging.debug(f"Created {len(chunks)} chunks")
 
         synapse.chunks = chunks
 
@@ -68,11 +74,13 @@ class Miner(BaseMinerNeuron):
             'chunk_size': synapse.chunk_size,
             'chunks': synapse.chunks,
         }
-        
+                
         synapse.miner_signature = sign(
             (self.wallet.get_hotkey().public_key, self.wallet.get_hotkey().private_key),
             str.encode(json.dumps(response_data))
         ).hex()
+        
+        bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
         
         return synapse
 
