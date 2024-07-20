@@ -12,10 +12,17 @@ This repository requires python3.8 or higher. To install, simply clone this repo
 ```bash
 git clone https://github.com/VectorChat/chunking_subnet
 cd chunking_subnet
-python -m pip install -r requirements.txt
-python -m pip install -e .
+pip3 install -e .
 ```
 
+Install `punkt` model via the python repl
+```bash
+python3
+>>> import nltk
+>>> nltk.download('punkt')
+...
+>>> quit()
+```
 
 Running a validator requires an OpenAI API key. To run the validator issue the following command:
 ```bash

@@ -16,10 +16,8 @@
 # DEALINGS IN THE SOFTWARE.
 
 import time
-import torch
 import asyncio
 import threading
-import argparse
 import traceback
 
 import bittensor as bt
