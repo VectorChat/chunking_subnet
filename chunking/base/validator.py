@@ -448,5 +448,6 @@ class BaseValidatorNeuron(BaseNeuron):
                 }).json()                
             continuation = response.get('continue')
             articles.extend([page['pageid'] for page in response['query']['categorymembers']])
+        bt.logging.debug(f"articles: {articles[:5]}")
         self.articles = articles
         bt.logging.debug(f"synced articles!")

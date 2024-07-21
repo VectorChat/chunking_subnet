@@ -56,7 +56,7 @@ class Validator(BaseValidatorNeuron):
         if not os.environ.get('CHUNKING_API_HOST'):
             os.environ['CHUNKING_API_HOST'] = 'https://chunking.com/web3/api/'
             
-        self.client = OpenAI()
+        self.client: OpenAI = OpenAI()
         self.num_embeddings = int(self.config.num_embeddings)
         self.sample_size = int(self.config.neuron.sample_size)
 

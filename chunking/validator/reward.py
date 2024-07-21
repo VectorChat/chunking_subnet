@@ -17,14 +17,18 @@
 # DEALINGS IN THE SOFTWARE.
 
 from typing import List
+
+from openai import OpenAI
 from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
-import bittensor as bt
 
+from neurons.validator import Validator
 
-def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> float:
+        
+
+def reward(self: Validator | None, document: str, chunk_size: int, response: chunkSynapse, override_client: OpenAI | None = None, override_num_embeddings: int | None = None) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
     value for the miner, which is used to update the miner's score.
@@ -34,6 +38,10 @@ def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> floa
     """
     if not response.chunks:        
         return 0
+    
+    if not self and not override_client and not override_num_embeddings:
+        raise Exception("Either self or override_client and override_num_embeddings must be provided")
+    
     chunks = response.chunks
     reward = 0.0
     smallChunks = []
@@ -65,14 +73,20 @@ def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> floa
             and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
             return 0
 
+    num_embeddings = override_num_embeddings if override_num_embeddings else self.num_embeddings
+
+    testChunks: list[smallChunk]
+
     # pick out segments to use for evaluation
-    if self.num_embeddings < len(smallChunks):
+    if num_embeddings < len(smallChunks):
         testChunks = sample(smallChunks, self.num_embeddings)
     else:
         testChunks = smallChunks
 
+    client = override_client if override_client else self.client
+
     # calculate rewards using embeddings of test chunks
-    embeddings = self.client.embeddings.create(
+    embeddings = client.embeddings.create(
         input=[testChunk.text for testChunk in testChunks],
         model="text-embedding-ada-002"
     ).data
@@ -143,6 +157,6 @@ def rank_responses(
     return response_ranks
     
 class smallChunk():
-    def __init__(self, sourceChunk, text):
+    def __init__(self, sourceChunk: str, text: str):
         self.sourceChunk = sourceChunk
         self.text = text
