@@ -57,8 +57,8 @@ class Validator(BaseValidatorNeuron):
             os.environ['CHUNKING_API_HOST'] = 'https://chunking.com/web3/api/'
             
         self.client = OpenAI()
-        self.num_embeddings = self.config.num_embeddings
-        self.sample_size = self.config.neuron.sample_size
+        self.num_embeddings = int(self.config.num_embeddings)
+        self.sample_size = int(self.config.neuron.sample_size)
 
     async def forward(self):
         """
@@ -76,5 +76,5 @@ class Validator(BaseValidatorNeuron):
 if __name__ == "__main__":
     with Validator() as validator:
         while True:
-            bt.logging.info(f"Validator running... {time.time()}")
+            # bt.logging.info(f"Validator running... {time.time()}")
             time.sleep(20)

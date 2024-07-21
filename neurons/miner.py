@@ -50,10 +50,10 @@ class Miner(BaseMinerNeuron):
         """
         # default miner logic, see docs/miner.md for help writing your own miner logic
 
-        bt.logging.debug(f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}")
+        bt.logging.debug(f"from hotkey {synapse.dendrite.hotkey[:10]}...: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}")
 
         document = sent_tokenize(synapse.document)
-        bt.logging.debug(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
+        bt.logging.debug(f"From hotkey {synapse.dendrite.hotkey[:10]}...: Received query: \"{document[0]} ...\"")
         
         
         chunks = []       
@@ -175,5 +175,5 @@ class Miner(BaseMinerNeuron):
 if __name__ == "__main__":
     with Miner() as miner:
         while True:
-            bt.logging.info("Miner running...", time.time())
+            # bt.logging.info("Miner running...", time.time())
             time.sleep(10)

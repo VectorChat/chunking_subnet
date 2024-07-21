@@ -8,3 +8,5 @@ venv
 *.cert
 .env*
 *.sh
+script.py
+*.js

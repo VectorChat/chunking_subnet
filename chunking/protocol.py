@@ -32,6 +32,8 @@ class chunkSynapse(bt.Synapse):
     - miner_signature: str containing the miner's signature of a json object containing document, chunk_size, and chunks.
     """
 
+    name: str = 'chunkSynapse'
+    
     # Required request input, filled by sending dendrite caller. It is a base64 encoded string.
     document: str
     chunk_size: int = None

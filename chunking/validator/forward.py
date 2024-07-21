@@ -25,8 +25,9 @@ from chunking.protocol import chunkSynapse
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.utils.uids import get_random_uids
 from chunking.validator.task_api import Task
+from neurons.validator import Validator
 
-def get_miner_groups(self) -> tuple[np.ndarray, np.ndarray, int]:
+def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
     bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
     group_size = min(len(self.rankings), self.sample_size)    
     bt.logging.debug(f"group_size {group_size}")    
@@ -44,8 +45,8 @@ def get_miner_groups(self) -> tuple[np.ndarray, np.ndarray, int]:
         miner_groups.append(np.array(self.rankings[group_ranks[-1]], dtype=int))
     return (miner_groups, group_ranks, group_size)
     
-
-async def forward(self):
+    
+async def forward(self: Validator):
     """
     The forward function is called by the validator every time step.
 
@@ -84,15 +85,37 @@ async def forward(self):
     if task.miner_uids is None or not found_match:
         miner_group = choice(range(len(miner_groups)))
     
+    miner_group_uids = list(map(lambda x: int(x), miner_groups[miner_group]))
+    
+    bt.logging.debug(f"Quering miner group: {miner_group}, with uids: {miner_group_uids}, timeout: {task.synapse.timeout}")
+    
+    axons = [self.metagraph.axons[uid] for uid in miner_group_uids]
+    
+    bt.logging.debug(f"Querying axons: {axons}")
+    
     # The dendrite client queries the network.
-    responses: list[chunkSynapse] = self.dendrite.query(
-        axons=[self.metagraph.axons[uid] for uid in miner_groups[miner_group]],
-        timeout=task.synapse.timeout,
-        synapse=task.synapse,
-        deserialize=False,
-    )
+    try: 
+        responses: list[chunkSynapse] = self.dendrite.query(
+            axons=axons,
+            timeout=task.synapse.timeout,
+            synapse=task.synapse,
+            deserialize=False,
+        )
+    except Exception as e:
+        bt.logging.error(f"Error querying the network: {e}")
 
-    bt.logging.info(f"Received {len(responses)} responses for miner_group: {miner_group} ({[int(uid) for uid in miner_groups[miner_group]]})")    
+    def print_response(response: chunkSynapse):                
+        num_chunks = len(response.chunks) if response.chunks is not None else 0
+        sig = response.miner_signature[:10] + "..." if response.miner_signature is not None else "No signature found"
+        
+        string = f"{response.axon.hotkey[:10]}: received {num_chunks} chunks"        
+        string += f", signature: {sig}, total_size: {response.total_size} bytes"
+        
+        bt.logging.debug(string)
+    
+    bt.logging.debug("Responses:")
+    for response in responses:        
+        print_response(response)    
     
     rewards = get_rewards(self, document=task.synapse.document, chunk_size=task.synapse.chunk_size, responses=responses)
     bt.logging.debug(f"Scored responses: {rewards}")
@@ -108,27 +131,40 @@ async def forward(self):
     bt.logging.debug(f"log_data: {log_data}")
 
     Task.upload_logs(self, log_data)
+    
+    ranked_responses = rank_responses(rewards)    
+    
+    # inf means the response should not be ranked
+    ranked_responses_global = np.full_like(ranked_responses, np.inf)
+    
+    # Offset ranks by the group offset to get 'global' ranks
+    group_offset = group_ranks[miner_group][0]
 
-    if miner_group != 0:
-        response_ranks = np.array(
-            [reward + group_ranks[miner_group][0] for reward in rank_responses(rewards)]
-            )
-    else:
-        response_ranks = np.concatenate((
-            [
-                reward + len(self.rankings) + group_ranks[miner_group][0]
-                for reward in rank_responses(rewards[:(group_size // 2)])
-            ], 
-            [
-                reward for reward in rank_responses(rewards[(group_size // 2):])
-            ]
-        ))
+    for i, rank in enumerate(ranked_responses):
+        if rank != -1:
+            ranked_responses_global[i] = ranked_responses[i] + group_offset                      
+    
+    # if miner_group != 0:
+    # ranked_responses_global = np.array(
+    #     [reward + group_ranks[miner_group][0] for reward in ranked_responses]
+    #     )
+    # else:
+    #     response_ranks = np.concatenate((
+    #         [
+    #             reward + len(self.rankings) + group_ranks[miner_group][0]
+    #             for reward in rank_responses(rewards[:(group_size // 2)])
+    #         ], 
+    #         [
+    #             reward for reward in rank_responses(rewards[(group_size // 2):])
+    #         ]
+    #     ))
 
-    bt.logging.info(f"Ranked responses: {response_ranks}")
+    bt.logging.info(f"Ranked responses: {ranked_responses}")
+    bt.logging.info(f"Global ranked responses: {ranked_responses_global}")
 
     if task.task_type == "organic":
         if task.miner_uids is None or not found_match:
-            response = responses[response_ranks.argmin()]
+            response = responses[ranked_responses.argmin()]
             
         else:
             for i in range(len(task.miner_uids)):
@@ -152,5 +188,5 @@ async def forward(self):
         }
 
         Task.return_response(self, response_data)
-    self.update_scores(response_ranks, miner_groups[miner_group])
+    self.update_scores(ranked_responses_global, miner_groups[miner_group])
     time.sleep(5)

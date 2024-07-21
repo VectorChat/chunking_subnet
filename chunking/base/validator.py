@@ -16,11 +16,11 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import enum
 import os
 import copy
 import numpy as np
 import asyncio
-import argparse
 import threading
 import bittensor as bt
 import time
@@ -150,9 +150,9 @@ class BaseValidatorNeuron(BaseNeuron):
                 # Sync metagraph and potentially set weights.
                 self.sync()                
                 self.sync_articles()                            
-                bt.logging.debug(f"step({self.step}) block({self.block}) completed!, sleeping for 5 seconds")
+                bt.logging.debug(f"step({self.step}) block({self.block}) completed!, sleeping for 30 seconds")
                 self.step += 1
-                time.sleep(5)
+                time.sleep(30)
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
@@ -238,7 +238,7 @@ class BaseValidatorNeuron(BaseNeuron):
         raw_weights = np.zeros(n)        
         for i, idx in enumerate(sorted_indices):
             if self.scores[idx] <= 0:
-                break
+                continue
             raw_weights[idx] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
             
         # min_index = raw_weights.argmin()
@@ -282,8 +282,8 @@ class BaseValidatorNeuron(BaseNeuron):
             netuid=self.config.netuid,
             uids=uint_uids,
             weights=uint_weights,
-            wait_for_finalization=False,
-            wait_for_inclusion=False,
+            wait_for_finalization=True,
+            wait_for_inclusion=True,
             version_key=self.spec_version,
         )
         if result is True:
@@ -328,14 +328,14 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-    def update_scores(self, rewards: np.ndarray, uids: List[int]):
+    def update_scores(self, ranks: np.ndarray, uids: List[int]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
 
         # Check if rewards contains NaN values.
-        if np.isnan(rewards).any():
-            bt.logging.warning(f"NaN values detected in rewards: {rewards}")
-            # Replace any NaN values in rewards with 0.
-            rewards = np.nan_to_num(rewards, nan=len(self.scores))
+        if np.isnan(ranks).any():
+            bt.logging.warning(f"NaN values detected in rewards: {ranks}")
+            # Replace any NaN values in rewards with inf.
+            ranks = np.nan_to_num(ranks, nan=np.inf)
 
         if isinstance(uids, np.ndarray):
             uids_array = uids.copy()
@@ -344,26 +344,51 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Compute forward pass rewards, assumes uids are mutually exclusive.
         # shape: [ metagraph.n ]
-        scattered_rewards: np.ndarray = np.full_like(self.scores, len(self.scores))
-        scattered_rewards[uids_array] = rewards
-        bt.logging.debug(f"Scattered scores: {scattered_rewards}")
+        # scattered_rewards: np.ndarray = np.full_like(self.scores, len(self.scores))
+        # scattered_rewards[uids_array] = rewards
+        # bt.logging.debug(f"Scattered scores: {scattered_rewards}")
+
 
         # Update scores with rewards produced by this step.
-
         alpha: float = self.config.neuron.moving_average_alpha
-        self.scores: np.ndarray = (
-            alpha * scattered_rewards
-            + (1 - alpha) * self.scores
-        )
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
-        tempScores = np.copy(self.scores)
-        self.rankings = np.full_like(tempScores, len(self.scores))
-        i = 0
-        while np.sum(np.isfinite(tempScores)) != 0:
-            self.rankings[i] = tempScores.argmin()
-            tempScores[tempScores.argmin()] = np.inf
-            i += 1
+        temp_scores = np.copy(self.scores)  
+        
+        bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
+        
+        for rank, uid in zip(ranks, uids_array):
+            if np.isinf(rank):
+                continue
+            
+            # initialize score if it is np.inf
+            if np.isinf(temp_scores[uid]):
+                temp_scores[uid] = alpha * rank
+            else:            
+                temp_scores[uid] = alpha * rank + (1 - alpha) * temp_scores[uid]                
+         
+        self.scores = temp_scores
+         
+        # self.scores: np.ndarray = (
+        #     alpha * scattered_rewards
+        #     + (1 - alpha) * self.scores
+        # )
+        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+        
+        for i, score in enumerate(self.scores):
+            if score <= 0:
+                self.scores[i] = np.inf
+        
+        bt.logging.debug(f"Null scores removed: {self.scores}")    
+        
+        self.rankings = np.argsort(self.scores)
+
+        # tempScores = np.copy(self.scores)
+        # self.rankings = np.full_like(tempScores, len(self.scores))
+        # i = 0
+        # while np.sum(np.isfinite(tempScores)) != 0:
+        #     self.rankings[i] = tempScores.argmin()
+        #     tempScores[tempScores.argmin()] = np.inf
+        #     i += 1
                         
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 
@@ -408,6 +433,7 @@ class BaseValidatorNeuron(BaseNeuron):
             'cmprop': 'ids', 
             'cmlimit': 'max'
             }).json()
+        
         articles.extend([page['pageid'] for page in response['query']['categorymembers']])
         continuation = response.get('continue')
         while continuation is not None:

@@ -32,8 +32,7 @@ def reward(self, document: str, chunk_size: int, response: chunkSynapse) -> floa
     Returns:
     - float: The reward value for the miner.
     """
-    if not response.chunks:
-        print("no response")
+    if not response.chunks:        
         return 0
     chunks = response.chunks
     reward = 0.0
@@ -118,7 +117,7 @@ def rank_responses(
         rewards: np.ndarray,
 ) -> np.ndarray:
     """
-    Returns an array containing the ranks of the responses using their rewards.
+    Returns an array containing the ranks of the responses using their rewards. Higher reward is better.
 
     Args:
     - rewards (List[float]): The list of rewards that were calculated.
@@ -129,9 +128,18 @@ def rank_responses(
 
     response_ranks = np.zeros_like(rewards)
 
-    for i in range(len(rewards)):
-        response_ranks[rewards.argmax()] = i
-        rewards[rewards.argmax()] = -np.inf
+    rank = 0
+    for _ in range(len(rewards)):
+        next_best_index = rewards.argmax()
+        
+        if rewards[next_best_index] == 0:
+            # should not be ranked
+            response_ranks[next_best_index] = -1
+        else:
+            response_ranks[next_best_index] = rank
+            rank += 1
+            
+        rewards[next_best_index] = -np.inf
     return response_ranks
     
 class smallChunk():

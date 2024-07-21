@@ -8,6 +8,8 @@ import json
 import os
 from random import choice
 
+from neurons.validator import Validator
+
 class Task():
     def __init__(
         self,
@@ -21,7 +23,7 @@ class Task():
         self.task_id = task_id
         self.miner_uids = miner_uids
     @classmethod
-    def get_new_task(self, validator):
+    def get_new_task(self, validator: Validator):
 
         if os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES') == 'True':
             hotkey = validator.wallet.get_hotkey()
@@ -110,8 +112,18 @@ class Task():
             'signature': signature,
         }
         try:
-            response = requests.post(task_url, headers=headers, json=data)
-            bt.logging.debug(f"uploaded logs, response: {response.status_code}")
+            response = requests.post(task_url, headers=headers, json=data)            
+            bt.logging.debug(f"upload_logs: response: {response.status_code}")
+            
+            if response.status_code == 502:
+                raise Exception(f"API Host: \'{API_host}\' is down")
+            elif response.status_code == 403:
+                raise Exception(response.text())
+            elif response.status_code != 200:
+                raise Exception(f"Post to API failed with status code: {response.status_code}")
+            else:
+                bt.logging.debug(f"Successfully uploaded logs to API host: \'{API_host}\'")            
+                            
         except Exception as e:
             bt.logging.error(f"Failed to upload logs to API host: \'{API_host}\'. Exited with exception\n{e}")
 
