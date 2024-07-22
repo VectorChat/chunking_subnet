@@ -58,7 +58,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = np.zeros(self.metagraph.n, dtype=np.float32)
+        self.scores = np.full_like(self.metagraph.n, np.inf, dtype=np.float32)
         self.rankings = np.array(range(self.metagraph.n))
         #self.load_state()
         # Init sync with the network. Updates the metagraph.
@@ -378,13 +378,7 @@ class BaseValidatorNeuron(BaseNeuron):
         #     alpha * scattered_rewards
         #     + (1 - alpha) * self.scores
         # )
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
-        
-        for i, score in enumerate(self.scores):
-            if score <= 0:
-                self.scores[i] = np.inf
-        
-        bt.logging.debug(f"Null scores removed: {self.scores}")    
+        bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
         
         self.rankings = np.argsort(self.scores)
 
