@@ -58,7 +58,10 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = np.full_like(self.metagraph.n, np.inf, dtype=np.float32)
+        self.scores = np.full(shape=self.metagraph.n, fill_value=np.inf, dtype=np.float32)
+        
+        bt.logging.debug(f"Initial scores: {self.scores}")
+        
         self.rankings = np.array(range(self.metagraph.n))
         #self.load_state()
         # Init sync with the network. Updates the metagraph.
@@ -447,7 +450,6 @@ class BaseValidatorNeuron(BaseNeuron):
                 'cmcontinue': continuation.get('cmcontinue')
                 }).json()                
             continuation = response.get('continue')
-            articles.extend([page['pageid'] for page in response['query']['categorymembers']])
-        bt.logging.debug(f"articles: {articles[:5]}")
+            articles.extend([page['pageid'] for page in response['query']['categorymembers']])        
         self.articles = articles
-        bt.logging.debug(f"synced {len(articles)} articles!")
+        bt.logging.debug(f"synced articles!")
