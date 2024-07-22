@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from math import ceil
 from typing import List
 
 from openai import OpenAI
@@ -23,24 +24,31 @@ from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
+import bittensor as bt
 
 from neurons.validator import Validator
+    
 
-        
-
-def reward(self: Validator | None, document: str, chunk_size: int, response: chunkSynapse, override_client: OpenAI | None = None, override_num_embeddings: int | None = None) -> float:
+def reward(self: Validator | None, document: str, chunk_size: int, response: chunkSynapse, override_client: OpenAI | None = None, override_num_embeddings: int | None = None, verbose: bool = False) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
     value for the miner, which is used to update the miner's score.
 
     Returns:
     - float: The reward value for the miner.
-    """
-    if not response.chunks:        
-        return 0
+    """    
     
     if not self and not override_client and not override_num_embeddings:
         raise Exception("Either self or override_client and override_num_embeddings must be provided")
+    
+    def _verbose(msg: str):                
+        if verbose:
+            bt.logging.debug(msg)
+                
+    
+    if not response.chunks: 
+        bt.logging.debug(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")       
+        return 0
     
     chunks = response.chunks
     reward = 0.0
@@ -58,14 +66,17 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
 
         # add up size penalty to be applied later
         chunk_length = len(chunks[i])
-        if chunk_length > chunk_size:
-            size_penalty += ((chunk_length / chunk_size) - 1) * 10
+        if chunk_length > chunk_size:            
+            size_penalty += ((chunk_length / chunk_size) - 1) * 10            
+            _verbose(f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}")                
 
         # create test segments
         sentences = sent_tokenize(chunks[i])
         for j in range(0, len(sentences), 3):
             text = " ".join(sentences[j:j+3])
             smallChunks.append(smallChunk(i, text))
+                
+        _verbose(f"Chunk {i} has {len(sentences)} sentences. Added {ceil(len(sentences) / 3)} test segments")
 
     # check that every set of 3 adjacent words from the document appears in the chunks
     for i in range(0, len(document_words), 3):
@@ -73,15 +84,19 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
             and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
             return 0
 
+    _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
+        
     num_embeddings = override_num_embeddings if override_num_embeddings else self.num_embeddings
 
     testChunks: list[smallChunk]
 
     # pick out segments to use for evaluation
     if num_embeddings < len(smallChunks):
-        testChunks = sample(smallChunks, self.num_embeddings)
+        testChunks = sample(smallChunks, num_embeddings)
     else:
         testChunks = smallChunks
+
+    _verbose(f"Using {len(testChunks)} test segments for evaluation")
 
     client = override_client if override_client else self.client
 
@@ -91,6 +106,8 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
         model="text-embedding-ada-002"
     ).data
     embeddings = [item.embedding for item in embeddings]
+    
+    _verbose(f"Calculated embeddings for {len(embeddings)} test segments")
     for i in range(len(testChunks) - 1):
         j = i + 1
         while j < len(testChunks):
@@ -98,13 +115,22 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
                 reward += np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
             else:
                 reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
-            j += 1
+            j += 1            
+    
+    _verbose(f"Embedding reward: {reward}")
+    _verbose(f"Size penalty: {size_penalty}")     
 
     # calculate and return final reward
-    reward = 1.01 ** reward # ensures that all rewards are positive
+    reward = 1.01 ** reward # ensures that all rewards are positive    
+    _verbose(f"Ensuring reward is positive (1.01 ** reward):\n{reward}")    
+    
     if response.dendrite.process_time > response.time_soft_max:
-        reward *= (2/3) ** (response.dendrite.process_time - response.time_soft_max)
-    reward *= (2/3) ** size_penalty
+        over_time = response.dendrite.process_time - response.time_soft_max
+        _verbose(f"Applying time penalty: {over_time} seconds over time")
+        reward *= (2/3) ** over_time
+                
+    reward *= (2/3) ** size_penalty    
+    
     return reward
 
 def get_rewards(

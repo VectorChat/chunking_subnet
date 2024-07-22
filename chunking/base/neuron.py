@@ -152,17 +152,24 @@ class BaseNeuron(ABC):
         # Don't set weights on initialization.
         if self.step == 0:
             return False
-
-        # Check if enough epoch blocks have elapsed since the last epoch.
+        
         if self.config.neuron.disable_set_weights:
             return False
 
-        # Define appropriate logic for when set weights.
-        return (
-            (self.block - self.metagraph.last_update[self.uid])
-            > self.config.neuron.epoch_length
-            and self.neuron_type != "MinerNeuron"
-        )  # don't set weights if you're a miner
+        updated = self.block - self.metagraph.last_update[self.uid]
+        
+        bt.logging.debug(f"Block: {self.block}, Last update: {self.metagraph.last_update[self.uid]}, Diff: {updated}")
+        
+        should_set = updated > self.config.neuron.epoch_length and self.neuron_type != "MinerNeuron"
+        
+        bt.logging.debug(f"Should set weights: {should_set}")
+        
+        if should_set:
+            bt.logging.debug("Setting weights. Diff: {updated}, Epoch length: {self.config.neuron.epoch_length}")
+            return True       
+        else:
+            bt.logging.debug(f"Not setting weights. Diff: {updated}, Epoch length: {self.config.neuron.epoch_length}")
+            return False
 
     def save_state(self):
         pass

@@ -342,13 +342,6 @@ class BaseValidatorNeuron(BaseNeuron):
         else:
             uids_array = np.array(uids)
 
-        # Compute forward pass rewards, assumes uids are mutually exclusive.
-        # shape: [ metagraph.n ]
-        # scattered_rewards: np.ndarray = np.full_like(self.scores, len(self.scores))
-        # scattered_rewards[uids_array] = rewards
-        # bt.logging.debug(f"Scattered scores: {scattered_rewards}")
-
-
         # Update scores with rewards produced by this step.
         alpha: float = self.config.neuron.moving_average_alpha
 
@@ -359,6 +352,17 @@ class BaseValidatorNeuron(BaseNeuron):
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
+            
+            # uids: [0, 1, 2]
+            # rankded: [0, 2, 1] local
+            
+            # Previous
+            # [0.36675003 1.6840354  0.48990285 2.5501432  2.0185351, inf, inf]
+            
+            # Moving Avg
+            # [0.31173754 1.5814301  0.71641743 2.5501432  2.0185351, inf, inf]
+            
+            # [0 2 1 4 3 5 6] global
             
             # initialize score if it is np.inf
             if np.isinf(temp_scores[uid]):
@@ -450,4 +454,4 @@ class BaseValidatorNeuron(BaseNeuron):
             articles.extend([page['pageid'] for page in response['query']['categorymembers']])
         bt.logging.debug(f"articles: {articles[:5]}")
         self.articles = articles
-        bt.logging.debug(f"synced articles!")
+        bt.logging.debug(f"synced {len(articles)} articles!")
