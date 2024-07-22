@@ -130,7 +130,7 @@ async def forward(self: Validator):
     
     bt.logging.debug(f"log_data: {log_data}")
 
-    Task.upload_logs(self, log_data)
+    # Task.upload_logs(self, log_data)
     
     ranked_responses = rank_responses(rewards)    
     
