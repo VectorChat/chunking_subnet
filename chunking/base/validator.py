@@ -229,17 +229,19 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(f"self.scores = {self.scores}")
         
         # Sort the UIDs based on their scores (lower score is better)
-        sorted_indices = np.argsort(self.scores)
+        sorted_uids = np.argsort(self.scores)
         
-        bt.logging.debug(f"argsort: {sorted_indices}")
+        bt.logging.debug(f"argsort: {sorted_uids}")
         
         # Calculate weights
         n = len(self.scores)
-        raw_weights = np.zeros(n)        
-        for i, idx in enumerate(sorted_indices):
-            if self.scores[idx] <= 0:
+        raw_weights = np.zeros(n)    
+        i = 0    
+        for uid in sorted_uids:
+            if np.isinf(self.scores[uid]):
                 continue
-            raw_weights[idx] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
+            raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
+            i += 1
             
         # min_index = raw_weights.argmin()
         # raw_weights[min_index] = -1 * (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)
