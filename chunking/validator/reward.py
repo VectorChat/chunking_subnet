@@ -43,7 +43,7 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
     
     def _verbose(msg: str):                
         if verbose:
-            bt.logging.debug(msg)
+            print(msg)
                 
     
     if not response.chunks: 
