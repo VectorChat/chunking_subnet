@@ -43,10 +43,10 @@ We believe the best solutions are yet to come and we are excited to see how mine
 
 
 # Architecture
-* [📝 Evaluation](./docs/evaluation.md)
-* [💰 Incentive Mechanism](./docs/evaluation.md)
-* [🧪 Synthetic Queries]()
-* [🌱 Organic Queries & the Task API(s)]()
+* 📝 [Evaluation](./docs/evaluation.md)
+* 💰 [Incentive Mechanism](./docs/evaluation.md)
+* 🧪 [Synthetic Queries]()
+* 🌱 [Organic Queries & the Task API(s)]()
 
 # Ethos
 ### *Models always stay on your machine and remain under your full ownership!*
