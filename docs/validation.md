@@ -6,6 +6,8 @@
 
 - Ensure that you have registered a hotkey for our subnet and stake > X TAO
 
+- Running a validator requires an OpenAI API key.
+
 # Installation
 
 This repository requires python3.8 or higher. To install, simply clone this repository and install the requirements.
@@ -24,7 +26,7 @@ python3
 >>> quit()
 ```
 
-Running a validator requires an OpenAI API key. To run the validator issue the following command:
+To run the validator issue the following command using your OpenAI key:
 ```bash
 python3 neurons/validator.py --netuid $uid  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
 ```

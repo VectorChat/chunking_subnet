@@ -1,83 +1,94 @@
 <div align="center">
 
-# **Chunking Subnet on Bittensor** <!-- omit in toc -->
+# **The Chunking Subnet** <!-- omit in toc -->
+### Intelligent RAG for Intelligent Applications <!-- omit in toc -->
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![hero](./assets/title.png)
 
----
 
-## Leading the way for better NLP <!-- omit in toc -->
 
-[Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/) • [Research](https://bittensor.com/whitepaper)
+[VectorChat](https://vectorchat.ai) • [Chunking.com](https://chunking.com) • [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+
+
 
 </div>
 
-## Introduction
+# Introduction
 
-### Description
+Welcome to the Chunking subnet, Subnet 40 on the Bittensor Protocol! This subnet is designed to advance the field of Retrieval-Augmented Generation (RAG) by incentivizing the development and service of sophisticated chunking solutions. Specifically, the subnet aims to create, host, and serve an intelligent chunking solution that maximizes intrachunk similarity and interchunk dissimilarity.
 
-[Chunking](./docs/chunking.md), or the process of breaking down large datasets into smaller, manageable pieces or “chunks,” is a foundational component of Retrieval-Augmented Generation (RAG). By developing increasingly intelligent chunking techniques, we aim to significantly enhance the efficacy of RAG-based applications.
+Explore our subnet pitch deck: [placeholder]
 
-### Frontends
+Our article on why this is a valuable problem to solve: [The Case for Intelligent Chunking](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c)
 
-While the subnet remains permissionless in the ethos of Bittensor, we are developing the service [Chunking.com](https://chunking.com) in order to drive demand to this subnet. Chunking.com will initially recieve its demand from [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae), before branching out to onboard developers and enterprises. Learn more about our project [here](https://vectorchat.ai).
+Learn more about our project at [vectorchat.ai](https://vectorchat.ai)
 
-If you have created, or are developing, your own frontend to this subnet, feel free to submit a pull request to append it here.
+## Advancing the Cutting-Edge
 
-## Getting Started
+### *From the onset, this subnet will feature the most intelligent chunking algorithm publicly available!*
 
-- Review the minimum compute requirements for your desired role
+*Explore our benchmarks, methodology, and interactive demo here: [placeholder]().*
 
-- Ensure you've gone through the [checklist for validating and mining](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
+At VectorChat, our mission is to create the most immersive conversational AI experience. Our upcoming platform, [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae), therefore leverages RAG to offer users seemingly endless memory and domain-specific knowledge.
 
-### Computation Requirements
+While developing Toffee, we quickly found that the existing chunking solutions were either extremely rudimentary or were too resource-intensive, making RAG at scale both cost-prohibitive and less effective. In response, our team was able to develop an algorithm that significantly outperforms the current industry leaders.
 
-**Validators:** There are no specific computation requirements as all major computer architectures are optimized for vector operations. Additionally, most process time is likely to be I/O bound.
+However, our goal is to keep pushing the boundaries. The field of intelligent chunking is still in its infancy, and as LLMs begin to use increasingly large and diverse datasets (e.g., audio, image, video), the importance of intelligent chunking will only grow. Learn more about why this is the case [here](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c).
 
-**Miners:** There are no specific computation requirements as the amount of compute is entirely dependent on your method of chunking. The default miner we provide should run on any hardware.
+Therefore, we designed this subnet to have a straightforward, transparent, and fair incentive mechanism to surpass our own achievements. Explore the [subnet architecture](#architecture) below to learn how responses are evaluated fairly.
 
-### Installation & Guides
+We believe the best solutions are yet to come and we are excited to see how miners can push the boundaries of this technology! 
 
-#### Validating
 
-Please see [Validator Setup](./docs/validator_setup.md) to learn how to validate.
+# Architecture
+* [📝 Evaluation](./docs/evaluation.md)
+* [💰 Incentive Mechanism](./docs/evaluation.md)
+* [🧪 Synthetic Queries]()
+* [🌱 Organic Queries & the Task API(s)]()
 
-#### Miner
+# Ethos
+### *Models always stay on your machine and remain under your full ownership!*
 
-Please see [Miner Setup](./docs/miner_setup.md) to learn how to set up a miner, along with general tips to help you develop a custom solution.
+As mentioned in our pitch deck, chunking is an infinitely complex problem that can be approached from countless different avenues. Given sufficiently long, semantically meaningful text, there is no single correct answer, only "more" correct ones. Bittensor is an excellent way to tackle such a problem, as it incentivizes both innovation and fine-tuned optimization to find the most effective solution.
 
-## Ranking
+We **do not open-source** the models created, **nor do we ever receive them**. We believe this greatly increases the incentive for developing the best solution, as miners retain full ownership of their work, thereby enhancing the effectiveness of this subnet.
 
-The default validator uses a form of group tournament ranking to determine the ranking of miners.
+At the same time, we believe this increases the value brought to the Bittensor protocol, as access to the best chunking model will require a **constant sufficient stake**. Since validators never receive the model, but only the right to serve queries, losing stake in the network also results in losing access to any model produced by the subnet.
 
-Specifically, validators maintain an internal ranking of all miners from which they decide whom to query and what weights to set. When selecting which miners to query, validators create groups of miners with adjacent ranks. They then select one of these groups at random and query all of the miners in that group. Once all of the miners' responses have been scored, the validator ranks them relative to one another and then adjusts these rankings to reflect their overall rankings. For organic queries, groups are created to include the miners specified by the user.
+# Getting Started
 
-Here is an example of this system with 12 miners and a sample size of 4:
+## Helpful Resources
+For those new to chunking or Retrieval Augmented Generation (RAG), we strongly recommend you check out our articles here:
 
-![ranking_visualization](./assets/ranking_visualization.png)
+* [What is Chunking?]()
+* [The Case for Intelligent Chunking](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c)
 
-### Incentive Curve
+We also recommend these resources by [Pinecone.io](https://www.pinecone.io/):
+* [Retrieval-Augmented Generation](https://www.pinecone.io/learn/retrieval-augmented-generation/)
+* [Chunking Strategies for LLM Applications](https://www.pinecone.io/learn/chunking-strategies/)
+* [What is a Vector Database?](https://www.pinecone.io/learn/vector-database/)
 
-When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. This is so that improving a miner's rank by one spot will always result in more emissions than running more miners.
+## Installation
 
-Here is an example of the incentive curve with 5 miners:
+To learn how to set up a miner, see [Default Miner](./docs/default_miner.md). This is a very simple miner to get you started. We highly recommend you read our [Guide to Mining](./docs/miner_guide.md) to create your own logic.
 
-![incentive_curve](./assets/incentive_curve.png)
+For validator setup and considerations, please view [Validation](./docs/validation.md).
 
-## Evaluating
+# Roadmap
 
-Described in more detail in the validator and mining setup documentation, validators need to consider the number of embeddings they will generate while evaluating a miner. When scoring, a random-sample of 3-sentence segments is taken from the response and is then embedded. The dot product of every possible pair of these embeddings is then compared. If the embeddings originated from the same chunk, it is added to the final score, whereas if the embeddings originated from different chunks, it is subtracted from the final score.
+Our goal is to establish this subnet as the premier source for the most advanced chunking solution, thereby achieving profitability in the near future.
 
-Here is a visualization of how the validator calculates a miner’s score:
+**Phase 1:** 
+- [ ] Release our opt-in Task API, enabling validators to receive and monetize organic queries.
+- [ ] Release framework for validators to create their own Task API network.
+- [ ] Launch subnet dashboards for miners and validators, displaying performance, statistics, and tracking compensation.
 
-![evaluations](./assets/evaluations.png)
+**Phase 2:**
+- [ ] Launch of Chunking.com, our front-end service delivering cutting-edge RAG to developers and enterprises.
+- [ ] Launch of Toffee, our conversational AI platform using RAG to create an unparalleled user experience.
 
-Taking a greater sample size will likely result in more accurate evaluations and higher yields, although this will come at the cost of more API calls to generate the additional embeddings and potentially more time and resources comparing them against each other.
-
-If the chunks generated by the miner have more tokens than specified by the validator, their score is penalized exponentially for each token above the limit.
-
-## Resources
-
-For miners, there are various approaches to chunking that can produce high-quality chunks. We recommend that you start out with recursive or semantic chunking. To learn more about the basics of chunking, we recommend you read through this [article](https://www.pinecone.io/learn/chunking-strategies/). Additional resources are provided in the [Miner Setup](./docs/miner_setup.md) documentation.
-
-For background information on RAG, check out this [article](https://www.pinecone.io/learn/retrieval-augmented-generation/) by pinecone to get you started.
+**Phase 3:**
+- [ ] Expand to include special queries and evaluations for structure-dependent data (e.g., CSV).
+- [ ] Expand to include new data modalities requiring novel chunking solutions (e.g., image, audio, and video).
