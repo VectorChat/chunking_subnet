@@ -2,18 +2,13 @@
 
 ## Evaluation
 
-First and foremost, we recommend you gain a strong understand of the Incentive Mechanism used by Validators, as that is what you are optimizing for.
+First and foremost, we recommend you gain a strong understand of the [Incentive Mechanism](./incentive_mechanism.md) and [Evaluation](./evaluation.md) used by the [default validators](./validation.md), as this is what you are optimizing for.
 
-Validators check each chunk that is sent to them against the source document that they sent out. To ensure that your chunks match the source document, it is highly encouraged that you use NLTK's sentence_tokenizer to split the document by sentences before combining them into chunks.
+Especially understand the [Penalties](./evaluation.md/#penalties) section, as these **exponentially** decrease your score.
 
-Each incoming query contains a variable called tokensPerChunk. Exceeding this number of tokens in any of your chunks results in exponentially severe reductions to your score, so ensure that your logic does not produce chunks that exceed that number of tokens.
+Validators begin by verifying that the tokens in each chunk correspond to those in the source document. To ensure that your chunks match the source document, it is highly encouraged that you use NLTK's sentence_tokenizer to split the document by sentences before combining them into chunks.
 
-Chunk quality is calculated based on the semantic similarity within a given chunk and its dissimilarity to other chunks. In order to produce the best chunks, ensure that all text in a chunk is related and that text from different chunks are not.
-
-Finally, note that there is a soft-time limit, currently set to X seconds. Validators exponentially penalize responses for each second they are late.
-```python
-reward *= (2/3) ** over_time
-```
+Since this subnet evaluates chunk quality based on the semantic similarity within a given chunk and its dissimilarity to other chunks, **do not overlap or repeat data**. While overlapping chunks is a commonly method in RAG, it comes with many added costs such as increased storage and inference costs, and is therefore not aligned with the goals of this subnet.
 
 ## Chunking Strategies
 There are various approaches to chunking that can produce high-quality chunks. We recommend that you start by exploring recursive and semantic chunking. To learn more about chunking, we recommend you read this [Pinecone article](https://www.pinecone.io/learn/chunking-strategies/).
@@ -39,3 +34,9 @@ Here is an example with a threshold of 1:
 There exist many freely available chunking utilities that can help you get a head start on your chunking algorithm, see the following links:
 [Pinecone's Respository](https://github.com/pinecone-io/examples/tree/master/learn/generation/better-rag)
 [LangChain Text Splitting Documentation](https://js.langchain.com/v0.1/docs/modules/data_connection/document_transformers/)
+
+## Prioritzation & Blacklist
+
+Finally, as the load increases, miners may need to deprioritize or ignore requests from lower-stake validators. Not responding to a request, or taking too long to respond, will result in a score of zero.
+
+By default, miners prioritize requests by stake. Edit the logic in ```blacklist()``` and ```priority()``` in [miner.py](../neurons/miner.py) to protect your miner.

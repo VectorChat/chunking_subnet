@@ -27,17 +27,17 @@ Learn more about our project at [vectorchat.ai](https://vectorchat.ai)
 
 ## Advancing the Cutting-Edge
 
-### *From the onset, this subnet will feature the most intelligent chunking algorithm publicly available!*
+### *From the outset, this subnet will feature the most intelligent chunking algorithm publicly available!*
 
 *Explore our benchmarks, methodology, and interactive demo here: [placeholder]().*
 
 At VectorChat, our mission is to create the most immersive conversational AI experience. Our upcoming platform, [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae), therefore leverages RAG to offer users seemingly endless memory and domain-specific knowledge.
 
-While developing Toffee, we quickly found that the existing chunking solutions were either extremely rudimentary or were too resource-intensive, making RAG at scale both cost-prohibitive and less effective. In response, our team was able to develop an algorithm that significantly outperforms the current industry leaders.
+While developing Toffee, we quickly found that the existing chunking solutions were either extremely rudimentary or were too resource-intensive, making RAG at scale both cost-prohibitive and less effective. In response, our team was able to design an algorithm that significantly outperformed the current industry leaders.
 
-However, our goal is to keep pushing the boundaries. The field of intelligent chunking is still in its infancy, and as LLMs begin to use increasingly large and diverse datasets (e.g., audio, image, video), the importance of intelligent chunking will only grow. Learn more about why this is the case [here](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c).
+However, our goal is to keep pushing the boundaries. The field of intelligent chunking is still in its infancy, and as LLMs begin to use increasingly large and diverse datasets (e.g., audio, image, video), the importance of intelligent chunking only becomes more apparent. Learn more about why this is the case [here](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c).
 
-Therefore, we designed this subnet to have a straightforward, transparent, and fair incentive mechanism to surpass our own achievements. Explore the [subnet architecture](#architecture) below to learn how responses are evaluated fairly.
+Thus, we designed this subnet to have a straightforward, transparent, and fair incentive mechanism to surpass our own achievements. Explore the [subnet architecture](#architecture) below to learn how responses are evaluated fairly.
 
 We believe the best solutions are yet to come and we are excited to see how miners can push the boundaries of this technology! 
 
@@ -51,7 +51,7 @@ We believe the best solutions are yet to come and we are excited to see how mine
 # Ethos
 ### *Models always stay on your machine and remain under your full ownership!*
 
-As mentioned in our pitch deck, chunking is an infinitely complex problem that can be approached from countless different avenues. Given sufficiently long, semantically meaningful text, there is no single correct answer, only "more" correct ones. Bittensor is an excellent way to tackle such a problem, as it incentivizes both innovation and fine-tuned optimization to find the most effective solution.
+As mentioned in our [pitch deck](), chunking is an infinitely complex problem that can be approached from countless different avenues. Given sufficiently long, semantically meaningful text, there is no single correct answer, only "more" correct ones. Bittensor is an excellent way to tackle such a problem, as it incentivizes both innovation and fine-tuned optimization to find the most effective solution.
 
 We **do not open-source** the models created, **nor do we ever receive them**. We believe this greatly increases the incentive for developing the best solution, as miners retain full ownership of their work, thereby enhancing the effectiveness of this subnet.
 
