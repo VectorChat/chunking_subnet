@@ -44,8 +44,8 @@ We believe the best solutions are yet to come and we are excited to see how mine
 
 # Architecture
 * 📝 [Evaluation](./docs/evaluation.md)
-* 💰 [Incentive Mechanism](./docs/evaluation.md)
-* 🧪 [Synthetic Queries]()
+* 💰 [Incentive Mechanism](./docs/incentive_mechanism.md)
+* 🧪 [Synthetic Queries](./docs/synthetic.md)
 * 🌱 [Organic Queries & the Task API(s)]()
 
 # Ethos
@@ -62,7 +62,7 @@ At the same time, we believe this increases the value brought to the Bittensor p
 ## Helpful Resources
 For those new to chunking or Retrieval Augmented Generation (RAG), we strongly recommend you check out our articles here:
 
-* [What is Chunking?]()
+* [What is Chunking?](./docs/chunking.md)
 * [The Case for Intelligent Chunking](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c)
 
 We also recommend these resources by [Pinecone.io](https://www.pinecone.io/):
