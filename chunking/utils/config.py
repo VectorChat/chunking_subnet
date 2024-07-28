@@ -20,7 +20,6 @@ import os
 import argparse
 import bittensor as bt
 from loguru import logger
-from traitlets import default
 
 
 def check_config(cls, config: "bt.Config"):
