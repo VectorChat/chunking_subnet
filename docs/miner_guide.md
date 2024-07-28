@@ -11,11 +11,12 @@ Validators begin by verifying that the tokens in each chunk correspond to those 
 Since this subnet evaluates chunk quality based on the semantic similarity within a given chunk and its dissimilarity to other chunks, **do not overlap or repeat data**. While overlapping chunks is a commonly method in RAG, it comes with many added costs such as increased storage and inference costs, and is therefore not aligned with the goals of this subnet.
 
 ## Chunking Strategies
+
 There are various approaches to chunking that can produce high-quality chunks. We recommend that you start by exploring recursive and semantic chunking. To learn more about chunking, we recommend you read this [Pinecone article](https://www.pinecone.io/learn/chunking-strategies/).
 
 ### Recursive Chunking
 
-Recursive chunking begins by splitting the data set into a small number of chunks. It then checks whether each chunk meets the desired criteria (such as size or semantic self-similarity.) If a chunk does not meet these criteria, the algorithm recursively splits that chunk into smaller chunks. This process continues until all chunks satisfy the specified criteria. 
+Recursive chunking begins by splitting the data set into a small number of chunks. It then checks whether each chunk meets the desired criteria (such as size or semantic self-similarity.) If a chunk does not meet these criteria, the algorithm recursively splits that chunk into smaller chunks. This process continues until all chunks satisfy the specified criteria.
 
 Here is a diagram of this process:
 
@@ -32,11 +33,12 @@ Here is an example with a threshold of 1:
 ### Prebuilt Solutions
 
 There exist many freely available chunking utilities that can help you get a head start on your chunking algorithm, see the following links:
-[Pinecone's Respository](https://github.com/pinecone-io/examples/tree/master/learn/generation/better-rag)
-[LangChain Text Splitting Documentation](https://js.langchain.com/v0.1/docs/modules/data_connection/document_transformers/)
+
+- [Pinecone's Repo](https://github.com/pinecone-io/examples/tree/master/learn/generation/better-rag)
+- [LangChain Text Splitting Documentation](https://js.langchain.com/v0.1/docs/modules/data_connection/document_transformers/)
 
 ## Prioritzation & Blacklist
 
 Finally, as the load increases, miners may need to deprioritize or ignore requests from lower-stake validators. Not responding to a request, or taking too long to respond, will result in a score of zero.
 
-By default, miners prioritize requests by stake. Edit the logic in ```blacklist()``` and ```priority()``` in [miner.py](../neurons/miner.py) to protect your miner.
+By default, miners prioritize requests by stake. Edit the logic in `blacklist()` and `priority()` in [miner.py](../neurons/miner.py) to protect your miner.

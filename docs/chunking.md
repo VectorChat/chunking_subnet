@@ -2,8 +2,7 @@
 
 Chunking is the process of breaking down a set of data into smaller, more manageable "chunks" of data. This technique is essential in natural language processing (NLP) and particularly useful when working with large language models (LLMs). Chunking can involve various methods of segmentation, such as splitting an article into sections, a screenplay into scenes, or a recording of a concerto into movements.
 
-
-## Why Chunk? 
+## Why Chunk?
 
 For LLMs to provide accurate information, it must have access to that information. Thus, when LLMs need to access extensive knowledge beyond its training data, that information needs to be part of the request to prevent hallucinations. Due to the high cost of inference, including the entire corpus of data in every request is impractical.
 

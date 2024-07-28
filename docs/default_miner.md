@@ -5,6 +5,7 @@ The default miner simply splits the incoming document into individual sentences 
 For tips on how build a better miner, [view our guide](./miner_guide.md).
 
 ## Prerequisites
+
 - Review the minimum computational requirements for the desired role
 
 - Ensure you have gone through the [checklist for validating and mining](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
@@ -13,25 +14,18 @@ For tips on how build a better miner, [view our guide](./miner_guide.md).
 
 - This repository requires python3.8 or higher
 
-## Installation
+## Installation/Setup
 
-To install, simply clone this repository and install the requirements.
+This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
+
 ```bash
-git clone https://github.com/VectorChat/chunking_subnet
-cd chunking_subnet
-pip3 install -e .
+curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
 ```
 
-Install `punkt` tokenizer via the python REPL
-```bash
-python3
->>> import nltk
->>> nltk.download('punkt')
-... 
->>> quit()
-```
+It is highly recomended that you write your own logic for neurons/miner.py:forward to optimize chunking and maximize rewards. For guidance creating a custom miner, check out [the miner guide](./miner_guide.md).
 
 To run the miner, issue the following command:
+
 ```bash
 python3 neurons/miner.py --netuid $uid --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug
 ```
