@@ -1,39 +1,30 @@
 # Prerequisites
+
 - Review the minimum computational requirements for the desired role
 
 - Ensure you have gone through the [checklist for validating and mining](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
 
 - Ensure that you have registered a hotkey for our subnet
 
+# Installation/Setup
 
-# Installation
+This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
 
-This repository requires python3.8 or higher. To install, simply clone this repository and install the requirements.
 ```bash
-git clone https://github.com/VectorChat/chunking_subnet
-cd chunking_subnet
-pip3 install -e .
-```
-
-Install `punkt` tokenizer via the python REPL
-```bash
-python3
->>> import nltk
->>> nltk.download('punkt')
-... 
->>> quit()
+curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
 ```
 
 It is highly recomended that you write your own logic for neurons/miner.py:forward to optimize chunking and maximize rewards. For guidance creating a custom miner, please refer to the [Custom Miner](#custom-miner) section.
 
 To run the miner, issue the following command:
+
 ```bash
 python3 neurons/miner.py --netuid $uid --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug
 ```
 
 # Default Miner
-The default miner simply splits the incoming document into individual sentences and then forms each chunk by concatenating adjacent sentences until the token limit specified by the validator is reached. This is not an optimal strategy and will likely result in lower yields or deregistration. For help on writing a custom miner, see [Custom Miner](#custom-miner).
 
+The default miner simply splits the incoming document into individual sentences and then forms each chunk by concatenating adjacent sentences until the token limit specified by the validator is reached. This is not an optimal strategy and will likely result in lower yields or deregistration. For help on writing a custom miner, see [Custom Miner](#custom-miner).
 
 # Custom Miner
 
@@ -48,11 +39,12 @@ Each incoming query contains a variable called tokensPerChunk. Exceeding this nu
 Chunk quality is calculated based on the semantic similarity within a given chunk and its dissimilarity to other chunks. In order to produce the best chunks, ensure that all text in a chunk is related and that text from different chunks are not.
 
 ### Chunking Strategies
+
 There are various approaches to chunking that can produce high-quality chunks. We recommend that you use recursive or semantic chunking, but there are possibly better strategies. To learn more about chunking, we recommend you read this [Pinecone article](https://www.pinecone.io/learn/chunking-strategies/).
 
 #### Recursive Chunking
 
-Recursive chunking begins by splitting the data set into a small number of chunks. It then checks whether each chunk meets the desired criteria (such as size or semantic self-similarity.) If a chunk does not meet these criteria, the algorithm recursively splits that chunk into smaller chunks. This process continues until all chunks satisfy the specified criteria. 
+Recursive chunking begins by splitting the data set into a small number of chunks. It then checks whether each chunk meets the desired criteria (such as size or semantic self-similarity.) If a chunk does not meet these criteria, the algorithm recursively splits that chunk into smaller chunks. This process continues until all chunks satisfy the specified criteria.
 
 Here is a diagram of this process:
 

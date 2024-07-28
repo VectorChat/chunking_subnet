@@ -15,10 +15,12 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from ast import parse
 import os
 import argparse
 import bittensor as bt
 from loguru import logger
+from traitlets import default
 
 
 def check_config(cls, config: "bt.Config"):
@@ -125,6 +127,20 @@ def add_args(cls, parser):
             type=int,
             help="The number of miners to query in a single step.",
             default=25,
+        )
+
+        parser.add_argument(
+            "--neuron.set_weights_timeout_seconds",
+            type=int,
+            help="The timeout for set_weights extrinsic call in seconds.",
+            default=180, # 3 minutes
+        )
+        
+        parser.add_argument(
+            "--neuron.synthetic_query_interval_seconds",
+            type=int,
+            help="The interval between synthetic queries in seconds.",
+            default=60
         )
 
         parser.add_argument(

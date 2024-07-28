@@ -8,23 +8,14 @@
 
 # Installation
 
-This repository requires python3.8 or higher. To install, simply clone this repository and install the requirements.
-```bash
-git clone https://github.com/VectorChat/chunking_subnet
-cd chunking_subnet
-pip3 install -e .
-```
+This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
 
-Install `punkt` model via the python repl
 ```bash
-python3
->>> import nltk
->>> nltk.download('punkt')
-...
->>> quit()
+curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
 ```
 
 Running a validator requires an OpenAI API key. To run the validator issue the following command:
+
 ```bash
 python3 neurons/validator.py --netuid $uid  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
 ```
@@ -33,14 +24,16 @@ python3 neurons/validator.py --netuid $uid  --wallet.name <COLDKEY> --wallet.hot
 
 When validating, something to consider is number of embeddings you’re willing to generate per miner evaluation.
 
-When evaluating a miner, a random sample of 3-sentence segments are taken from the response and embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score if the embeddings originated from the same chunk or are subtracted from the final score if they originated from different chunks. A greater sample size will likely result in more accurate evaluation and higher dividends, but comes at the cost of increased API calls to generate the embeddings and more time and resources to then compare them against each other. 
+When evaluating a miner, a random sample of 3-sentence segments are taken from the response and embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score if the embeddings originated from the same chunk or are subtracted from the final score if they originated from different chunks. A greater sample size will likely result in more accurate evaluation and higher dividends, but comes at the cost of increased API calls to generate the embeddings and more time and resources to then compare them against each other.
 
 You can set this value with the following argument when running your validator:
+
 ```bash
---numEmbeddings <VALUE>
+--num_embeddings <VALUE>
 ```
 
 To earn additional revenue, you can opt into receiving organic queries from users wanting to use the subnet. To do this, set the environment variable: ACCEPT_ORGANIC_CHUNKING_QUERIES to 'True' or use the following argument when running your validator:
+
 ```bash
 --accept_organic_queries
 ```

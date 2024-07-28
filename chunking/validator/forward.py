@@ -189,4 +189,4 @@ async def forward(self: Validator):
 
         Task.return_response(self, response_data)
     self.update_scores(ranked_responses_global, miner_groups[miner_group])
-    time.sleep(5)
+    # time.sleep(5)
