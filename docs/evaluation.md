@@ -31,8 +31,6 @@ If either don't hold true, the score is 0.
 
 ## Evaluating
 
-When scoring, a random-sample of 3-sentence segments are taken from the response and then embedded. The dot product of every possible pair of these embeddings is then compared. If the embeddings originated from the same chunk, it is added to the final score, whereas if the embeddings originated from different chunks, it is subtracted from the final score.
-
 After passing the fail states, the validator parses through each chunk, creating 'small chunks' of 3 sentences or fewer.
 
 ```python
@@ -53,7 +51,7 @@ A random sample, of `num_embeddings` size, is taken and then embedded. The defau
         testChunks = smallChunks
 ```
 
-Then, to calculate the similarity score, the dot product of every possible pair of embeddings is calculated. For each pair that originated from the same chunk, the result is added to the score. For each pair originating from different chunks, the result is subtracted from the score.
+Then, to calculate the similarity score, the dot product of every possible pair of embeddings is calculated. For each pair that originated from the same chunk, the result is added to the score (intrachunk similarity). For each pair originating from different chunks, the result is subtracted from the score (interchunk dissimilarity).
 
 ```python
     for i in range(len(testChunks) - 1):
@@ -74,7 +72,7 @@ Here is a visualization of how the validator calculates a miner’s score:
 
 Finally, penalities are deducted from the score.
 
-Responses are penalized exponentially for each token over the maximum chunk length.
+Responses are penalized exponentially for each character over the maximum chunk length.
 ```python
     # add up size penalty to be applied later
     chunk_length = len(chunks[i])
