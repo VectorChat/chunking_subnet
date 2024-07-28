@@ -6,6 +6,8 @@
 
 - Ensure that you have registered a hotkey for our subnet and stake > X TAO
 
+- Running a validator requires an OpenAI API key.
+
 # Installation
 
 This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
@@ -14,8 +16,7 @@ This repository requires python 3.8 or higher. The following command will instal
 curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
 ```
 
-Running a validator requires an OpenAI API key. To run the validator issue the following command:
-
+To run the validator issue the following command using your OpenAI key:
 ```bash
 python3 neurons/validator.py --netuid $uid  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
 ```
