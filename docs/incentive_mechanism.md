@@ -6,13 +6,13 @@ The possible range of scores is heavily dependent on the given document. For exa
 
 While those are extreme examples, all documents vary in degree of similarity and dissimilarity. Therefore, in order to control for the document, responses of miners are compared relatively—between all miners who were asked the same question. As a result, any given query can only change the ranks of miners within the queried group.
 
-## Group Tournament Ranking
+# Group Tournament Ranking
 
 This subnet uses a form of Group Tournament Ranking to control for the confounding effects of the input document. All validators maintain their own internal ranking of miners, from which they create groups and set weights.
 
-### 1. Forming Groups
+## 1. Forming Groups
 
-#### Synthetic Queries
+### Synthetic Queries
 For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 20 miners, only one group is made. Otherwise, each group consists of 20 miners. Groups are overlapping, with miners appearing in up to two groups. From [reward.py](../chunking/validator/reward.py):
 
 ```python
@@ -24,7 +24,7 @@ From there, a random group is selected. This is the group of miners that will be
 ```
 ```
 
-#### Organic Queries
+### Organic Queries
 
 > [!NOTE] 
 > Organic queries are still in beta.
@@ -36,11 +36,11 @@ For organic queries, validators specify a list of miners from which to query. Fr
 
 As organic data is of higher quality than synthetic data, by default, the validator also queries random miners in addition to requested miners. The default group size is 20 miners.
 
-### 2. Evaluating
+## 2. Evaluating
 
 The document is then sent to all miners in the selected group, alongside the constraints of maximum `chunk_size` and `soft_time_max`. The responses are then scored as described in [Evaluation](./evaluation.md).
 
-### 3. Ranking
+## 3. Ranking
 
 Miners are first ranked within their group based on their performance. From [reward.py](../chunking/validator/reward.py):
 ```python
@@ -130,11 +130,12 @@ def update_scores(self, ranks: np.ndarray, uids: List[int]):
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 ```
 
+## Example
 Here is an example of this system with 12 miners and a sample size of 4:
 
 ![ranking_visualization](../assets/ranking_visualization.png)
 
-## Incentive Curve
+# Incentive Curve
 When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. From `set_weights(self: "BaseValidatorNeuron")` in [validator.py](../neurons/validator.py):
 ```python
 # Calculate weights
