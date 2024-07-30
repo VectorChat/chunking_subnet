@@ -8,7 +8,7 @@ Especially understand the [Penalties](./evaluation.md/#penalties) section, as th
 
 Validators begin by verifying that the tokens in each chunk correspond to those in the source document. To ensure that your chunks match the source document, it is highly encouraged that you use NLTK's sentence_tokenizer to split the document by sentences before combining them into chunks.
 
-Since this subnet evaluates chunk quality based on the semantic similarity within a given chunk and its dissimilarity to other chunks, **do not overlap or repeat data**. While overlapping chunks is a commonly method in RAG, it comes with many added costs such as increased storage and inference costs, and is therefore not aligned with the goals of this subnet.
+Since this subnet evaluates chunk quality based on the semantic similarity within a given chunk and its dissimilarity to other chunks, **do not overlap or repeat data**. While overlapping chunks is a commonly used method in RAG, it comes with many added costs such as increased storage and inference costs, and is therefore not aligned with the goals of this subnet.
 
 ## Chunking Strategies
 
