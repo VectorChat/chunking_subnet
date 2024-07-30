@@ -2,13 +2,13 @@
 
 ## Evaluation
 
-First and foremost, we recommend you gain a strong understand of the [Incentive Mechanism](./incentive_mechanism.md) and [Evaluation](./evaluation.md) used by the [default validators](./validation.md), as this is what you are optimizing for.
+First and foremost, we recommend you gain a strong understanding of the [Incentive Mechanism](./incentive_mechanism.md) and [Evaluation](./evaluation.md) used by the [default validators](./validator.md), as this is what you are optimizing for.
 
 Especially understand the [Penalties](./evaluation.md/#penalties) section, as these **exponentially** decrease your score.
 
 Validators begin by verifying that the tokens in each chunk correspond to those in the source document. To ensure that your chunks match the source document, it is highly encouraged that you use NLTK's sentence_tokenizer to split the document by sentences before combining them into chunks.
 
-Since this subnet evaluates chunk quality based on the semantic similarity within a given chunk and its dissimilarity to other chunks, **do not overlap or repeat data**. While overlapping chunks is a commonly used method in RAG, it comes with many added costs such as increased storage and inference costs, and is therefore not aligned with the goals of this subnet.
+Since this subnet evaluates chunk quality based on the semantic similarity within a given chunk and its dissimilarity to other chunks, **do not overlap or repeat data**. Repeating data across chunks will severely hurt dissimilarity, and thus tank your score. While overlapping chunks is a commonly used method in RAG, it comes with many drawbacks such as increased storage and inference costs, and is therefore not aligned with the goal of this subnet.
 
 ## Chunking Strategies
 

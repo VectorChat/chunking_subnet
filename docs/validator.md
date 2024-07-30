@@ -1,14 +1,61 @@
-# Prerequisites
+# Validator
+
+The default validator is responsible for evaluating the responses of miners and setting weights accordingly. These mechanisms are defined in detail throughout the [subnet architecture](../README.md#architecture).
+
+## Computational Requirements
+
+The computing power needed to successfully validate on this subnet is relatively low and should work on most configurations with a stable internet connection.
+
+The minimum and suggested specs are outlined in the [min_compute.yml](../min_compute.yml):
+
+```yml
+validator:
+
+    cpu:
+      min_cores: 2            # Minimum number of CPU cores
+      min_speed: 2.5          # Minimum speed per core (GHz)
+      recommended_cores: 4    # Recommended number of CPU cores
+      recommended_speed: 3.5  # Recommended speed per core (GHz)
+      architecture: "x86_64"  # Architecture type (e.g., x86_64, arm64)
+
+    gpu:
+      required: False                       # Does the application require a GPU?      
+
+    memory:
+      min_ram: 4          # Minimum RAM (GB)
+      min_swap: 2          # Minimum swap space (GB)
+      recommended_swap: 4  # Recommended swap space (GB)
+      ram_type: "DDR4"     # RAM type (e.g., DDR4, DDR3, etc.)
+
+    storage:
+      min_space: 10           # Minimum free storage space (GB)
+      recommended_space: 32  # Recommended free storage space (GB)
+      type: "SSD"             # Preferred storage type (e.g., SSD, HDD)
+      min_iops: 1000          # Minimum I/O operations per second (if applicable)
+      recommended_iops: 5000  # Recommended I/O operations per second
+
+    os:
+      name: "Ubuntu"  # Name of the preferred operating system(s)
+      version: 20.04  # Version of the preferred operating system(s)
+
+network_spec:
+  bandwidth:
+    download: 100  # Minimum download bandwidth (Mbps)
+    upload: 100     # Minimum upload bandwidth (Mbps)
+
+```
+
+## Prerequisites
 
 - Review the minimum computational requirements for the desired role
 
 - Ensure that you have gone through the [checklist for validating and mining](https://docs.bittensor.com/subnets/checklist-for-validating-mining)
 
-- Ensure that you have registered a hotkey for our subnet and stake > X TAO
+- Ensure that you have registered a hotkey for our subnet
 
-- Running a validator requires an OpenAI API key.
+- Running a validator requires an OpenAI API key
 
-# Installation
+## Installation/Setup
 
 This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
 
@@ -21,7 +68,7 @@ To run the validator issue the following command using your OpenAI key:
 python3 neurons/validator.py --netuid $uid  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
 ```
 
-# Considerations
+## Flags
 
 When validating, something to consider is number of embeddings you’re willing to generate per miner evaluation.
 

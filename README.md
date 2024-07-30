@@ -46,8 +46,8 @@ Thus, we designed this subnet to have a straightforward, transparent, and fair i
 We believe the best solutions are yet to come, and we are excited to see how miners can push the boundaries of this technology! 
 
 # Architecture
-* 📝 [Evaluation](./docs/evaluation.md)
 * 💰 [Incentive Mechanism](./docs/incentive_mechanism.md)
+* 📝 [Evaluation](./docs/evaluation.md)
 * 🧪 [Synthetic Queries](./docs/synthetic.md)
 * 🌱 [Organic Queries & the Task API(s)]()
 
