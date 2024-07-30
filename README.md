@@ -25,22 +25,25 @@ Our article on why this is a valuable problem to solve: [The Case for Intelligen
 
 Learn more about our project at [vectorchat.ai](https://vectorchat.ai)
 
-## Advancing the Cutting-Edge
+## Leading The Way
 
-### *From the outset, this subnet will feature the most intelligent chunking algorithm publicly available!*
+### *Even from the outset, this subnet will feature the most cutting-edge solutions:*
 
 *Explore our benchmarks, methodology, and interactive demo here: [placeholder]().*
 
-At VectorChat, our mission is to create the most immersive conversational AI experience. Our upcoming platform, [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae), therefore leverages RAG to offer users seemingly endless memory and domain-specific knowledge.
+### Background
 
-While developing Toffee, we quickly found that the existing chunking solutions were either extremely rudimentary or were too resource-intensive, making RAG at scale both cost-prohibitive and less effective. In response, our team was able to design an algorithm that significantly outperformed the current industry leaders.
+At VectorChat, our mission is to create the most immersive conversational AI experience. Our upcoming platform, [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae), leverages Retrieval-Augmented Generation (RAG) to offer users seemingly endless memory, conversation length, and domain-specific knowledge.
 
-However, our goal is to keep pushing the boundaries. The field of intelligent chunking is still in its infancy, and as LLMs begin to use increasingly large and diverse datasets (e.g., audio, image, video), the importance of intelligent chunking only becomes more apparent. Learn more about why this is the case [here](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c).
+During the development of Toffee, we found that while many improvements had been made to RAG, chunking had been severely neglected. Existing solutions were either too rudimentary or resource-intensive, making the RAG pipeline both cost-prohibitive and less accurate. Traditional chunking methods (e.g., chunking every X tokens with Y overlap) were cheaper but resulted in higher runtime costs. Unnecessary information was included as context for every LLM query, which is unaffordable when the user base of entertainment apps largely consists of free users and low-cost subscriptions. Conversely, existing semantic chunking solutions, such as Unstructured.io, [were prohibitively expensive and slow](), which would have severely limited the number of files users could upload.
+
+In response, to realize the vision of Toffee, our team had to design an algorithm that significantly outperformed the current offerings by industry leaders. [We achieved this]() not by training proprietary models, but by leveraging the severely underdeveloped state of the field. The necessary information to develop solutions that match or exceed our current model is provided in this documentation.
+
+Our goal is to continue driving down costs, increasing accuracy, and enabling new possibilities. As LLMs begin to use larger and more diverse datasets (e.g., audio, image, video), the importance of intelligent chunking will only grow.
 
 Thus, we designed this subnet to have a straightforward, transparent, and fair incentive mechanism to surpass our own achievements. Explore the [subnet architecture](#architecture) below to learn how responses are evaluated fairly.
 
-We believe the best solutions are yet to come and we are excited to see how miners can push the boundaries of this technology! 
-
+We believe the best solutions are yet to come, and we are excited to see how miners can push the boundaries of this technology! 
 
 # Architecture
 * 📝 [Evaluation](./docs/evaluation.md)
@@ -53,7 +56,7 @@ We believe the best solutions are yet to come and we are excited to see how mine
 
 As mentioned in our [pitch deck](), chunking is an infinitely complex problem that can be approached from countless different avenues. Given sufficiently long, semantically meaningful text, there is no single correct answer, only "more" correct ones. Bittensor is an excellent way to tackle such a problem, as it incentivizes both innovation and fine-tuned optimization to find the most effective solution.
 
-We **do not open-source** the models created, **nor do we ever receive them**. We believe this greatly increases the incentive for developing the best solution, as miners retain full ownership of their work, thereby enhancing the effectiveness of this subnet.
+We **do not open-source** the models created, **nor do we ever receive them**. We believe this greatly increases the incentive for developing and/or providing the best solution, as miners retain full ownership of their work.
 
 At the same time, we believe this increases the value brought to the Bittensor protocol, as access to the best chunking model will require a **constant sufficient stake**. Since validators never receive the model, but only the right to serve queries, losing stake in the network also results in losing access to any model produced by the subnet.
 
@@ -80,15 +83,16 @@ For validator setup and considerations, please view [Validation](./docs/validati
 
 Our goal is to establish this subnet as the premier source for the most advanced chunking solution, thereby achieving profitability in the near future.
 
-**Phase 1:** 
+**Phase 1: Foundation** 
 - [ ] Release our opt-in Task API, enabling validators to receive and monetize organic queries.
 - [ ] Release framework for validators to create their own Task API network.
 - [ ] Launch subnet dashboards for miners and validators, displaying performance, statistics, and tracking compensation.
 
-**Phase 2:**
+**Phase 2: Demand**
 - [ ] Launch of Chunking.com, our front-end service delivering cutting-edge RAG to developers and enterprises.
 - [ ] Launch of Toffee, our conversational AI platform using RAG to create an unparalleled user experience.
 
-**Phase 3:**
-- [ ] Expand to include special queries and evaluations for structure-dependent data (e.g., CSV).
+**Phase 3: Expansion**
+- [ ] Expand to include custom queries and evaluations for structure-dependent data (e.g., CSV).
 - [ ] Expand to include new data modalities requiring novel chunking solutions (e.g., image, audio, and video).
+- [ ] Advance other areas of Retrieval-Augmented Generation, such as hybrid search.
