@@ -29,7 +29,7 @@ Learn more about our project at [vectorchat.ai](https://vectorchat.ai)
 
 ### *Even from the outset, this subnet will feature the most cutting-edge solutions:*
 
-*Explore our benchmarks, methodology, and interactive demo here: [placeholder]().*
+*Explore our benchmarks and methodology here:* [text-only](https://github.com/VectorChat/text-chunking-benchmarks/blob/main/benchmark.ipynb) and [multimodal](https://github.com/VectorChat/chunking_benchmarks).
 
 ### Background
 
@@ -46,10 +46,12 @@ Thus, we designed this subnet to have a straightforward, transparent, and fair i
 We believe the best solutions are yet to come, and we are excited to see how miners can push the boundaries of this technology! 
 
 # Architecture
+* ⚖️ [Default Validator](./docs/validator.md)
+* ⛏️ [Default Miner](./docs/default_miner.md)
 * 💰 [Incentive Mechanism](./docs/incentive_mechanism.md)
 * 📝 [Evaluation](./docs/evaluation.md)
 * 🧪 [Synthetic Queries](./docs/synthetic.md)
-* 🌱 [Organic Queries & the Task API(s)]()
+* 🌱 [Organic Queries & the Task API(s)](./docs/organic.md)
 
 # Ethos
 ### *Models always stay on your machine and remain under your full ownership!*
@@ -77,7 +79,7 @@ We also recommend these resources by [Pinecone.io](https://www.pinecone.io/):
 
 To learn how to set up a miner, see [Default Miner](./docs/default_miner.md). This is a very simple miner to get you started. We highly recommend you read our [Guide to Mining](./docs/miner_guide.md) to create your own logic.
 
-For validator setup and considerations, please view [Validation](./docs/validation.md).
+For validator setup and considerations, please view [Validation](./docs/validatior.md).
 
 # Roadmap
 

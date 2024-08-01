@@ -44,7 +44,8 @@ if task.miner_uids is None or not found_match:
 
 ### Organic Queries
 
-> [!NOTE] Organic queries are still in development.
+> [!NOTE]
+> Organic queries are still in development.
 
 For organic queries, validators specify a list of miners from which to query. From [forward.py](../chunking/validator/task_api.py):
 
