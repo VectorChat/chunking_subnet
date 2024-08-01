@@ -13,28 +13,48 @@ This subnet uses a form of Group Tournament Ranking to control for the confoundi
 ## 1. Forming Groups
 
 ### Synthetic Queries
-For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 20 miners, only one group is made. Otherwise, each group consists of 20 miners. Groups are overlapping, with miners appearing in up to two groups. From [reward.py](../chunking/validator/reward.py):
+For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 20 miners, only one group is made. Otherwise, each group consists of 20 miners. Groups are overlapping, with miners appearing in up to two groups. From [forward.py](../chunking/validator/forward.py):
 
 ```python
+def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
+    bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
+    group_size = min(len(self.rankings), self.sample_size)    
+    bt.logging.debug(f"group_size {group_size}")    
+    group_ranks = []
+    miner_groups: list[np.array] = []
 
+    start = 0
+    stop = len(self.rankings) - group_size + 1
+    step = floor(group_size / 2)
+    
+    bt.logging.debug(f"start: {start}, stop: {stop}, step: {step}")
+    
+    for i in range(start, stop, step):
+        group_ranks.append(range(i, i+group_size))
+        miner_groups.append(np.array(self.rankings[group_ranks[-1]], dtype=int))
+    return (miner_groups, group_ranks, group_size)
 ```
 
 From there, a random group is selected. This is the group of miners that will be given the synthetic query.
 
-```
+```python
+if task.miner_uids is None or not found_match:
+        miner_group = choice(range(len(miner_groups)))
 ```
 
 ### Organic Queries
 
-> [!NOTE] 
-> Organic queries are still in beta.
+> [!NOTE] Organic queries are still in development.
 
-For organic queries, validators specify a list of miners from which to query. From [forward.py](../chunking/validator/forward.py):
+For organic queries, validators specify a list of miners from which to query. From [forward.py](../chunking/validator/task_api.py):
 
 ```python
+if task["task_id"] != -1:
+    task_id = task["task_id"]
+    miner_uids = task.get('miner_uids')
 ```
 
-As organic data is of higher quality than synthetic data, by default, the validator also queries random miners in addition to requested miners. The default group size is 20 miners.
+As organic data is of higher quality than synthetic data, validators still aim to query at least 20 miners. If a miner is specified by the origin source (i.e., Chunking.com), the validator queries a group of 20 miners of adjacent rank while ensuring that the miner specified is in that group.
 
 ## 2. Evaluating
 
