@@ -8,6 +8,10 @@ args=()
 version_location="./chunking/validator/__init__.py"
 version="__version__"
 
+source .env
+
+cron_schedule=${CRON_SCHEDULE:-"0 */1 * * *"}  # Default to every 1 hours if not set
+
 old_args=$@
 
 # Check if pm2 is installed
@@ -211,14 +215,15 @@ echo "module.exports = {
     interpreter: 'python3',
     min_uptime: '5m',
     max_restarts: '5',
-    args: [$joined_args]
+    args: [$joined_args],
+    cron_restart: '$cron_schedule',        
   }]
 }" > app.config.js
 
 # Print configuration to be used
 cat app.config.js
 
-pm2 start app.config.js
+pm2 start app.config.js 
 
 # Check if packages are installed.
 check_package_installed "jq"

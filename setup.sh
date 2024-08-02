@@ -34,7 +34,7 @@ cat << EOF > .env
 NETUID=40
 COLDKEY=
 HOTKEY=
-CRON_SCHEDULE="0 */6 * * *" # Every 6 hours
+CRON_SCHEDULE="0 */1 * * *" # Every 1 hours
 OPENAI_API_KEY=     # Only required if you are a validator
 EOF
 

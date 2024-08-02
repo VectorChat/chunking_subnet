@@ -13,3 +13,4 @@ script.py
 c*.sh
 .vscode/
 .env
+start.sh
