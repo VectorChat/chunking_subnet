@@ -321,8 +321,11 @@ class BaseValidatorNeuron(BaseNeuron):
 
         bt.logging.debug("metagraph syncing")
         # Sync the metagraph.
-        self.metagraph.sync(subtensor=self.subtensor)
-        
+        try:
+            self.metagraph.sync(subtensor=self.subtensor)
+        except:
+            bt.logging.warning("Failed to sync metagraph")
+            return
         bt.logging.debug("metagraph synced")
 
         # Check if the metagraph axon info has changed.
