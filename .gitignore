@@ -12,3 +12,4 @@ script.py
 *.js
 c*.sh
 .vscode/
+.env
