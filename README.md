@@ -79,7 +79,7 @@ We also recommend these resources by [Pinecone.io](https://www.pinecone.io/):
 
 To learn how to set up a miner, see [Default Miner](./docs/default_miner.md). This is a very simple miner to get you started. We highly recommend you read our [Guide to Mining](./docs/miner_guide.md) to create your own logic.
 
-For validator setup and considerations, please view [Validation](./docs/validatior.md).
+For validator setup and considerations, please view [Validation](./docs/validator.md).
 
 # Roadmap
 
