@@ -2,7 +2,7 @@
 
 In the [default validator](./validator.md), synthetic queries are generated only in the absence of organic queries. Initially, requests will be primarily synthetic until the [Chunking.com Task API](./organic.md) is up and running. After that, the subnet will gradually shift to primarily organic queries.
 
-Note that the load while the subnet is delivering primarily synthetic requests is likely far lower than the load when handling the subnet is handling organic queries. Miners must be able to meet this demand, as non-answers are treated as zeros in the [Evaluation](./evaluation.md). 
+Note that the load while the subnet is delivering primarily synthetic requests is likely far lower than the load when the subnet is primarily handling organic queries. Miners must be able to meet this demand, as non-answers are treated as zeros in the [Evaluation](./evaluation.md). 
 
 Miners may have to deprioritize or ignore requests from lower-stake validators. See [Prioritzation & Blacklist](./miner_guide.md/#prioritzation--blacklist) in our [Guide to Mining](./miner_guide.md) to learn more.
 
