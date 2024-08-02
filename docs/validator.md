@@ -65,11 +65,11 @@ curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setu
 
 To run the validator issue the following command using your OpenAI key:
 ```bash
-# without AUTO UPDATES
-python3 neurons/validator.py --netuid 40  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
+# manual start command
+pm2 start neurons/validator.py --name <NAME> -- --netuid 40  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
 
 # with AUTO UPDATES (recommended)
-pm2 start run.sh --name chunking_validators_autoupdate -- --netuid 40 --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug --openaikey <OPENAIKEY>
+bash run-validator.sh
 ```
 
 ## Flags
