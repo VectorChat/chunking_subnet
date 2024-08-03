@@ -13,7 +13,7 @@ This subnet uses a form of Group Tournament Ranking to control for the confoundi
 ## 1. Forming Groups
 
 ### Synthetic Queries
-For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 20 miners, only one group is made. Otherwise, each group consists of 20 miners. Groups are overlapping, with miners appearing in up to two groups. From [forward.py](../chunking/validator/forward.py):
+For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 25 miners, only one group is made. Otherwise, each group consists of 25 miners. Groups are overlapping, with miners appearing in up to two groups. From [forward.py](../chunking/validator/forward.py):
 
 ```python
 def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
@@ -55,7 +55,7 @@ if task["task_id"] != -1:
     miner_uids = task.get('miner_uids')
 ```
 
-As organic data is of higher quality than synthetic data, validators still aim to query at least 20 miners. If a miner is specified by the origin source (i.e., Chunking.com), the validator queries a group of 20 miners of adjacent rank while ensuring that the miner specified is in that group.
+As organic data is of higher quality than synthetic data, validators still aim to query at least 25 miners. If a miner is specified by the origin source (i.e., Chunking.com), the validator queries a group of 25 miners of adjacent rank while ensuring that the miner specified is in that group.
 
 ## 2. Evaluating
 
