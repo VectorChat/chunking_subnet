@@ -59,6 +59,8 @@ class BaseMinerNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: threading.Thread = None
         self.lock = asyncio.Lock()
+        
+        self.last_sync_block = 1        
 
     def run(self):
         """
