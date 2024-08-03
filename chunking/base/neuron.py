@@ -155,12 +155,15 @@ class BaseNeuron(ABC):
         
         if self.config.neuron.disable_set_weights:
             return False
+                        
+        if self.neuron_type == "MinerNeuron":
+            return False
 
         updated = self.block - self.metagraph.last_update[self.uid]
         
         bt.logging.debug(f"Block: {self.block}, Last update: {self.metagraph.last_update[self.uid]}, Diff: {updated}")
         
-        should_set = updated > self.config.neuron.epoch_length and self.neuron_type != "MinerNeuron"
+        should_set = updated > self.config.neuron.epoch_length
         
         bt.logging.debug(f"Should set weights: {should_set}")
         
