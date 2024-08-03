@@ -168,7 +168,7 @@ class BaseNeuron(ABC):
         bt.logging.debug(f"Should set weights: {should_set}")
         
         if should_set:
-            bt.logging.debug("Setting weights. Diff: {updated}, Epoch length: {self.config.neuron.epoch_length}")
+            bt.logging.debug(f"Setting weights. Diff: {updated}, Epoch length: {self.config.neuron.epoch_length}")
             return True       
         else:
             bt.logging.debug(f"Not setting weights. Diff: {updated}, Epoch length: {self.config.neuron.epoch_length}")
