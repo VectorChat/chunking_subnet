@@ -27,5 +27,6 @@ It is highly recomended that you write your own logic for neurons/miner.py:forwa
 To run the miner, issue the following command:
 
 ```bash
-python3 neurons/miner.py --netuid $uid --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug
+bash run-miner.sh
 ```
+Make sure to have your environment variables properly set in your `.env` file.
