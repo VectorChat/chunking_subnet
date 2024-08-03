@@ -89,7 +89,7 @@ def add_args(cls, parser):
         "--neuron.sync_metagraph_interval",
         type=int,
         help="The interval between metagraph syncs in blocks.",
-        default=100
+        default=50
     )
 
     parser.add_argument(
