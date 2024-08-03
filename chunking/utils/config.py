@@ -84,6 +84,13 @@ def add_args(cls, parser):
         help="The default epoch length (how often we set weights, measured in 12 second blocks).",
         default=100,
     )
+    
+    parser.add_argument(
+        "--neuron.sync_metagraph_interval",
+        type=int,
+        help="The interval between metagraph syncs in blocks.",
+        default=50
+    )
 
     parser.add_argument(
         "--neuron.events_retention_size",

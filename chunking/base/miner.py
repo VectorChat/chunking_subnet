@@ -59,6 +59,8 @@ class BaseMinerNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: threading.Thread = None
         self.lock = asyncio.Lock()
+        
+        self.last_sync_block = 1        
 
     def run(self):
         """
@@ -174,15 +176,27 @@ class BaseMinerNeuron(BaseNeuron):
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
-        bt.logging.info("resync_metagraph()")
-
+        bt.logging.info("resync_metagraph()")        
+    
         # Sync the metagraph.
         try:
             self.metagraph.sync(subtensor=self.subtensor)
         except:
-            bt.logging.warning("Failed to sync metagraph")
-            return
-        self.metagraph.sync(subtensor=self.subtensor)
+            bt.logging.error("Failed to sync metagraph")
+            self.last_sync_block = 1
+            return        
         self.last_sync_block = self.block
         
         bt.logging.info("metagraph synced!")
+        
+    def should_sync_metagraph(self):
+                        
+        diff = self.block - self.last_sync_block
+        
+        bt.logging.debug(f"Block: {self.block}, Last sync: {self.last_sync_block}, Diff: {diff}")
+        
+        should_sync = diff > self.config.neuron.sync_metagraph_interval
+        
+        bt.logging.debug(f"BaseMinerNeuron: Should sync metagraph: {should_sync}")
+        
+        return should_sync

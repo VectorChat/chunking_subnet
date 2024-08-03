@@ -1,3 +1,12 @@
 #!/bin/bash
 source .env
-pm2 start neurons/miner.py --name chunking_miner --cron-restart="$CRON_SCHEDULE" -- --netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug
+
+NAME=chunking_miner
+
+if pm2 describe $NAME > /dev/null 2>&1; then
+    echo "Process '$NAME' is running. Stopping it..."
+    pm2 stop $NAME
+    pm2 delete $NAME
+fi
+
+pm2 start neurons/miner.py --name $NAME --cron-restart="$CRON_SCHEDULE" -- --netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug
