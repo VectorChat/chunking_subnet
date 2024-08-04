@@ -429,7 +429,8 @@ class BaseValidatorNeuron(BaseNeuron):
             hotkeys=self.hotkeys,
         )
         
-        bt.logging.debug(f"Saved state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
+        bt.logging.info(f"Saved validator state.")
+        bt.logging.debug(f"Saved state for {len(self.hotkeys)} hotkeys, saved {len(self.articles)} articles")
 
     
     def load_state(self):
@@ -445,7 +446,9 @@ class BaseValidatorNeuron(BaseNeuron):
         self.hotkeys = state["hotkeys"]
         self.rankings = state["rankings"]
         self.articles = state["articles"]
-        bt.logging.info(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
+        
+        bt.logging.info(f"Loaded validator state.")
+        bt.logging.debug(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
 
     def sync_articles(self):
         bt.logging.debug(f"syncing articles")
