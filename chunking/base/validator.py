@@ -427,7 +427,7 @@ class BaseValidatorNeuron(BaseNeuron):
             hotkeys=self.hotkeys,
         )
 
-
+    
     def load_state(self):
         """Loads the state of the validator from a file."""
         bt.logging.info("Loading validator state.")

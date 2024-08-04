@@ -60,6 +60,8 @@ class Validator(BaseValidatorNeuron):
         self.num_embeddings = int(self.config.num_embeddings)
         self.sample_size = int(self.config.neuron.sample_size)
 
+        
+
     async def forward(self):
         """
         Validator forward pass. Consists of:
