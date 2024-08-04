@@ -112,7 +112,7 @@ def add_args(cls, parser):
         default=False,
     )
 
-    if neuron_type == "validator":
+    if neuron_type == "validator":        
 
         parser.add_argument(
             "--neuron.timeout",

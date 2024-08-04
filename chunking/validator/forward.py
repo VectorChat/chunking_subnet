@@ -61,7 +61,6 @@ async def forward(self: Validator):
         synapse: The chunkSynapse containing the organic query
     """
 
-
     hotkey = self.wallet.get_hotkey()
     miner_groups, group_ranks, group_size = get_miner_groups(self)  
     
