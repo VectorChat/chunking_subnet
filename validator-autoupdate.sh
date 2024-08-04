@@ -298,4 +298,5 @@ if [ "$?" -eq 1 ]; then
     done
 else
     echo "Missing package 'jq'. Please install it for your system first."
+    exit 1
 fi
