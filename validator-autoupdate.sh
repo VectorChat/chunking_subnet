@@ -108,8 +108,9 @@ check_variable_value_on_github() {
     local repo="$1"
     local file_path="$2"
     local variable_name="$3"
+    local branch="$4"
 
-    local url="https://api.github.com/repos/$repo/contents/$file_path"
+    local url="https://api.github.com/repos/$repo/contents/$file_path?ref=$branch"
     local response=$(curl -s "$url")
 
     # Check if the response contains an error message
@@ -185,7 +186,7 @@ if [[ -z "$script" ]]; then
     exit 1
 fi
 
-branch=$(git branch --show-current)            # get current branch.
+branch=$(git rev-parse --abbrev-ref HEAD)         # get current branch.
 echo watching branch: $branch
 echo pm2 process name: $proc_name
 
@@ -234,7 +235,7 @@ if [ "$?" -eq 1 ]; then
         if [ -d "./.git" ]; then
 
             # check value on github remotely
-            latest_version=$(check_variable_value_on_github "VectorChat/chunking_subnet" "chunking/validator/__init__.py" "__version__ ")
+            latest_version=$(check_variable_value_on_github "VectorChat/chunking_subnet" "chunking/validator/__init__.py" "__version__ " "$branch")
 
             # If the file has been updated
             if version_less_than $current_version $latest_version; then
