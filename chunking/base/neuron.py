@@ -117,10 +117,7 @@ class BaseNeuron(ABC):
             self.resync_metagraph()
 
         if self.should_set_weights():
-            self.set_weights()
-
-        # Always save state.
-        self.save_state()
+            self.set_weights()        
 
     def check_registered(self):
         # --- Check for registration.
@@ -173,7 +170,7 @@ class BaseNeuron(ABC):
         else:
             bt.logging.debug(f"Not setting weights. Diff: {updated}, Epoch length: {self.config.neuron.epoch_length}")
             return False
-
+    
     def save_state(self):
         pass
         #bt.logging.warning(

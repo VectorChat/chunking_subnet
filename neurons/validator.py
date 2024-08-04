@@ -33,10 +33,7 @@ from openai import OpenAI
 class Validator(BaseValidatorNeuron):
 
     def __init__(self):
-        super(Validator, self).__init__()
-        
-        bt.logging.info("load_state()")
-        self.load_state()
+        super(Validator, self).__init__()                
 
         if self.config.openaikey:
             os.environ['OPENAI_API_KEY'] = self.config.openaikey

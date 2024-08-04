@@ -64,7 +64,8 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(f"Initial scores: {self.scores}")
         
         self.rankings = np.array(range(self.metagraph.n))
-        #self.load_state()
+                        
+        self.load_state()        
         # Init sync with the network. Updates the metagraph.
         self.sync_articles()
         self.sync()
@@ -155,7 +156,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # Sync metagraph and potentially set weights.
                 self.sync()                                   
-                self.sync_articles()                            
+                self.sync_articles()                      
+                self.save_state()                      
                 
                 bt.logging.debug(f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds")
                 self.step += 1
@@ -426,6 +428,8 @@ class BaseValidatorNeuron(BaseNeuron):
             articles=self.articles,
             hotkeys=self.hotkeys,
         )
+        
+        bt.logging.debug(f"Saved state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
 
     
     def load_state(self):
@@ -441,7 +445,7 @@ class BaseValidatorNeuron(BaseNeuron):
         self.hotkeys = state["hotkeys"]
         self.rankings = state["rankings"]
         self.articles = state["articles"]
-        bt.logging.info(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}")
+        bt.logging.info(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
 
     def sync_articles(self):
         bt.logging.debug(f"syncing articles")
