@@ -38,4 +38,4 @@ if [ $? -eq 0 ]; then
     exit 1
 fi
 
-pm2 start validator-autoupdate.sh --name $NAME --max-restarts 5 -- --netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug --openaikey $OPENAI_API_KEY "$@"
+pm2 start validator-autoupdate.sh --name $NAME --max-restarts 5 -- --netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug "$@"
