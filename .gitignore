@@ -14,3 +14,4 @@ c*.sh
 .vscode/
 .env
 start.sh
+wandb/

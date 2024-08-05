@@ -16,7 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -24,6 +24,8 @@ __spec_version__ = (
     + (1 * int(version_split[2]))
 )
 
+PROJECT_NAME = "chunking-subnet"
+ENTITY = "chunking-subnet"
 # Import all submodules.
 from . import protocol
 from . import base

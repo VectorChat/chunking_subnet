@@ -61,6 +61,14 @@ async def forward(self: Validator):
         synapse: The chunkSynapse containing the organic query
     """
 
+    wandb_data = {
+        "modality": "text",
+        "rankings": {},
+        "scores": {},
+        "rewards": {},
+        "process_times": {},
+    }
+
     hotkey = self.wallet.get_hotkey()
     miner_groups, group_ranks, group_size = get_miner_groups(self)  
     
@@ -103,6 +111,12 @@ async def forward(self: Validator):
     except Exception as e:
         bt.logging.error(f"Error querying the network: {e}")
 
+    for response, uid in zip(responses, miner_group_uids):
+        if response.dendrite.process_time is None:
+            wandb_data["process_times"][str(uid)] = np.inf
+        else:
+            wandb_data["process_times"][str(uid)] = response.dendrite.process_time
+
     def print_response(response: chunkSynapse):                
         num_chunks = len(response.chunks) if response.chunks is not None else 0
         sig = response.miner_signature[:10] + "..." if response.miner_signature is not None else "No signature found"
@@ -116,14 +130,23 @@ async def forward(self: Validator):
     for response in responses:        
         print_response(response)    
     
-    rewards = get_rewards(self, document=task.synapse.document, chunk_size=task.synapse.chunk_size, responses=responses)
+    rewards = get_rewards(
+        self,
+        document=task.synapse.document,
+        chunk_size=task.synapse.chunk_size,
+        responses=responses,
+    )
+    
+    for reward, uid in zip(rewards, miner_group_uids):
+        wandb_data["rewards"][str(uid)] = reward
+
     bt.logging.debug(f"Scored responses: {rewards}")
     
     log_data = {
         'hotkey': hotkey.ss58_address,
         'nonce': self.step,
         'task_id': task.task_id,
-        'miner_uids': miner_groups[miner_group].tolist(),
+        'miner_uids': miner_group_uids,
         'rewards': rewards.tolist(),
     }
     
@@ -142,6 +165,12 @@ async def forward(self: Validator):
     for i, rank in enumerate(ranked_responses):
         if rank != -1:
             ranked_responses_global[i] = ranked_responses[i] + group_offset                      
+        elif not np.isinf(self.scores[miner_group_uids[i]]):
+            # give response worst rank in the group
+            ranked_responses_global[i] = (
+                group_offset +
+                np.sum(np.greater_equal(ranked_responses, np.zeros_like(ranked_responses)))
+            )
     
     # if miner_group != 0:
     # ranked_responses_global = np.array(
@@ -167,7 +196,7 @@ async def forward(self: Validator):
             
         else:
             for i in range(len(task.miner_uids)):
-                if task.miner_uids[i] in miner_groups[miner_group]:
+                if task.miner_uids[i] in miner_group_uids:
                     response = responses[i]
                     break
 
@@ -187,5 +216,5 @@ async def forward(self: Validator):
         }
 
         Task.return_response(self, response_data)
-    self.update_scores(ranked_responses_global, miner_groups[miner_group])
+    self.update_scores(wandb_data, ranked_responses_global, miner_groups[miner_group])
     # time.sleep(5)

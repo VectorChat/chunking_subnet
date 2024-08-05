@@ -118,7 +118,7 @@ def add_args(cls, parser):
             "--neuron.timeout",
             type=float,
             help="The timeout for each forward call in seconds.",
-            default=10,
+            default=20,
         )
 
         parser.add_argument(
@@ -181,13 +181,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--openaikey",
-            type=str,
-            help="OpenAI API key for fetching embeddings.",
-            default=None,
-        )
-
-        parser.add_argument(
             "--num_embeddings",
             type=int,
             help="Number of embeddings to generate and compare.",
@@ -198,13 +191,6 @@ def add_args(cls, parser):
             action="store_true",
             help="Set this flag to accept organic queries",
             default=False,
-        )
-
-        parser.add_argument(
-            "--api_host",
-            type=str,
-            help="Host to query if accept_organic_queries is enabled.",
-            default=None
         )
 
     #Miner

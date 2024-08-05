@@ -33,24 +33,21 @@ from openai import OpenAI
 class Validator(BaseValidatorNeuron):
 
     def __init__(self):
-        super(Validator, self).__init__()                
+        super(Validator, self).__init__()
+        bt.logging.info("load_state()")
+        self.load_state()
 
-        if self.config.openaikey:
-            os.environ['OPENAI_API_KEY'] = self.config.openaikey
-    
         if not os.environ.get('OPENAI_API_KEY'):
-            raise Exception("Must provide OpenAI API key with --openaikey <OPENAIKEY>")
+            raise Exception("OPENAI_API_KEY environment variable must be set.")
         
         if self.config.accept_organic_queries:
             os.environ['ALLOW_ORGANIC_CHUNKING_QUERIES'] = str(self.config.accept_organic_queries)
-        
+
         if not os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES'):
             os.environ['ALLOW_ORGANIC_CHUNKING_QUERIES'] = 'False'
-
-        if self.config.api_host:
-            os.environ['CHUNKING_API_HOST'] = self.config.api_host
         
         if not os.environ.get('CHUNKING_API_HOST'):
+            bt.logging.warning("CHUNKING_API_HOST variable not set; defaulting to https://chunking.com/web3/api")
             os.environ['CHUNKING_API_HOST'] = 'https://chunking.com/web3/api/'
             
         self.client: OpenAI = OpenAI()

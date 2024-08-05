@@ -26,12 +26,15 @@ import bittensor as bt
 import time
 import requests
 import concurrent.futures
+import chunking
 
 from typing import List, Union
 from traceback import print_exception
+from math import floor
 
 from chunking.base.neuron import BaseNeuron
 from chunking.base.utils.weight_utils import process_weights_for_netuid, convert_weights_and_uids_for_emit
+import wandb
 #from chunking.utils.config import add_validator_argos
 
 class BaseValidatorNeuron(BaseNeuron):
@@ -48,6 +51,38 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def __init__(self, config=None):
         super().__init__(config=self.config())
+        if not self.config.neuron.wandb_off:
+            if os.environ.get("WANDB_API_KEY") is None:
+                bt.logging.error("WANDB_API_KEY environment variable must be set if neuron.wandb_off is not set")
+                self.config.neuron.wandb_off = True
+            else:
+                try:
+                    run_name = f"validator-{self.uid}-{chunking.__version__}"
+                    self.config.uid = self.uid
+                    self.config.hotkey = self.wallet.hotkey.ss58_address
+                    self.config.run_name = run_name
+                    self.config.version = chunking.__version__
+                    self.config.type = "validator"
+
+                    # Initialize the wandb run for the single project
+                    run = wandb.init(
+                        name=run_name,
+                        project=chunking.PROJECT_NAME,
+                        entity=chunking.ENTITY,
+                        config=self.config,
+                        dir=self.config.full_path,
+                        reinit=True,
+                    )
+
+                    # Sign the run to ensure it's from the correct hotkey
+                    signature = self.wallet.hotkey.sign(run.id.encode()).hex()
+                    self.config.signature = signature
+                    wandb.config.update(self.config, allow_val_change=True)
+
+                    bt.logging.success(f"Started wandb run for project '{chunking.PROJECT_NAME}'")
+                except Exception as e:
+                    bt.logging.error(f"Error in init_wandb: {e}")
+                    self.config.neuron.wandb_off = True
 
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
@@ -238,16 +273,12 @@ class BaseValidatorNeuron(BaseNeuron):
         # Calculate the average reward for each uid across non-zero values.        
         bt.logging.debug(f"self.scores = {self.scores}")
         
-        # Sort the UIDs based on their scores (lower score is better)
-        sorted_uids = np.argsort(self.scores)
-        
-        bt.logging.debug(f"argsort: {sorted_uids}")
         
         # Calculate weights
         n = len(self.scores)
         raw_weights = np.zeros(n)    
         i = 0    
-        for uid in sorted_uids:
+        for uid in self.rankings:
             if np.isinf(self.scores[uid]):
                 continue
             raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
@@ -289,6 +320,12 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug("uint_uids", uint_uids)
 
         timeout_seconds = self.config.set_weights_timeout_seconds
+
+        if not self.config.neuron.wandb_off:
+            wandb_data = {"weights": {}}
+            for uid, weight in zip(uint_uids, uint_weights):
+                wandb_data["weights"][str(uid)] = weight
+            wandb.log(wandb_data)
 
         # Set the weights on chain via our subtensor connection.
         def set_weights_on_chain():
@@ -353,7 +390,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-    def update_scores(self, ranks: np.ndarray, uids: List[int]):
+    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
 
         # Check if rewards contains NaN values.
@@ -370,41 +407,28 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update scores with rewards produced by this step.
         alpha: float = self.config.neuron.moving_average_alpha
 
-        temp_scores = np.copy(self.scores)  
-        
         bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
         
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
-            
-            # uids: [0, 1, 2]
-            # rankded: [0, 2, 1] local
-            
-            # Previous
-            # [0.36675003 1.6840354  0.48990285 2.5501432  2.0185351, inf, inf]
-            
-            # Moving Avg
-            # [0.31173754 1.5814301  0.71641743 2.5501432  2.0185351, inf, inf]
-            
-            # [0 2 1 4 3 5 6] global
-            
+
             # initialize score if it is np.inf
-            if np.isinf(temp_scores[uid]):
-                temp_scores[uid] = alpha * rank
+            if np.isinf(self.scores[uid]):
+                self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
             else:            
-                temp_scores[uid] = alpha * rank + (1 - alpha) * temp_scores[uid]                
-         
-        self.scores = temp_scores
-         
-        # self.scores: np.ndarray = (
-        #     alpha * scattered_rewards
-        #     + (1 - alpha) * self.scores
-        # )
+                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]                
+
         bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
         
         self.rankings = np.argsort(self.scores)
 
+        if not self.config.neuron.wandb_off:
+            for uid in uids_array:
+                wandb_data["scores"][str(uid)] = self.scores[uid]
+                wandb_data["rankings"][str(uid)] = list(self.rankings).index(uid)
+            bt.logging.info(f"Logging wandb_data: {wandb_data}")
+            wandb.log(wandb_data)
         # tempScores = np.copy(self.scores)
         # self.rankings = np.full_like(tempScores, len(self.scores))
         # i = 0

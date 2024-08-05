@@ -140,5 +140,6 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
         }).json()['query']['pages'][str(page)]['extract']
     document = document.replace("\n", " ").replace("\t", " ")
     document = ' '.join(document.split())
-    synapse = chunkSynapse(document=document, time_soft_max=5.0, chunk_size=4096)
+    timeout = validator.config.neuron.timeout
+    synapse = chunkSynapse(document=document, time_soft_max=timeout * 0.75, chunk_size=4096, timeout=timeout)
     return synapse
