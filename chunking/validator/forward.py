@@ -169,7 +169,7 @@ async def forward(self: Validator):
             # give response worst rank in the group
             ranked_responses_global[i] = (
                 group_offset +
-                np.sum(np.greater_equal(ranked_responses, np.zeros_like(ranked_responses)))
+                np.sum(np.positive(ranked_responses))
             )
     
     # if miner_group != 0:

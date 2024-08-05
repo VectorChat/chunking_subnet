@@ -416,6 +416,8 @@ class BaseValidatorNeuron(BaseNeuron):
             # initialize score if it is np.inf
             if np.isinf(self.scores[uid]):
                 self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
+            elif self.scores[uid] < 0:
+                self.scores[uid] = np.inf
             else:            
                 self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]                
 
