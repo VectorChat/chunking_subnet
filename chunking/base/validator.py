@@ -392,7 +392,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
-
+        self.scores = self.scores.astype(np.float)
         # Check if rewards contains NaN values.
         if np.isnan(ranks).any():
             bt.logging.warning(f"NaN values detected in rewards: {ranks}")
