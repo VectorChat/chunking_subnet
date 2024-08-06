@@ -358,34 +358,34 @@ class BaseValidatorNeuron(BaseNeuron):
         # Copies state of metagraph before syncing.
         previous_metagraph = copy.deepcopy(self.metagraph)
 
-        bt.logging.debug("metagraph syncing")
-        # Sync the metagraph.
-        try:
-            self.metagraph.sync(subtensor=self.subtensor)
-        except:
-            bt.logging.warning("Failed to sync metagraph")
+        success = super().resync_metagraph()
+        
+        if not success:
+            bt.logging.error("Metagraph sync failed, skipping this step.")
             return
-        bt.logging.debug("metagraph synced")
 
         # Check if the metagraph axon info has changed.
         if previous_metagraph.axons == self.metagraph.axons:
             bt.logging.debug("metagraph axons are the same, nothing to update")
             return
 
-        bt.logging.info("Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages")
-        # Zero out all hotkeys that have been replaced.
+        bt.logging.info("Metagraph updated, re-syncing hotkeys")
+        
+        # Reset scores for all hotkeys that have been replaced
         for uid, hotkey in enumerate(self.hotkeys):
-            if hotkey != self.metagraph.hotkeys[uid]:
-                self.scores[uid] = 0  # hotkey has been replaced
+            if hotkey != self.metagraph.hotkeys[uid]:                
+                self.scores[uid] = np.inf
 
         # Check to see if the metagraph has changed size.
-        # If so, we need to add new hotkeys and moving averages.
-        if len(self.hotkeys) < len(self.metagraph.hotkeys):
-            # Update the size of the moving average scores.
-            new_moving_average = np.full((self.metagraph.n), self.metagraph.n)
-            min_len = min(len(self.hotkeys), len(self.scores))
-            new_moving_average[:min_len] = self.scores[:min_len]
-            self.scores = new_moving_average
+        # If so, we need to add new hotkeys and scores
+        if len(self.hotkeys) < len(self.metagraph.hotkeys):            
+            cur_scores = self.scores                               
+            placeholder_scores = np.full((self.metagraph.n), np.inf).astype(np.float64)            
+            
+            placeholder_scores[:len(cur_scores)] = cur_scores
+            
+            self.scores = placeholder_scores          
+            bt.logging.debug(f"Added new hotkeys, new scores: {self.scores}")              
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
@@ -477,30 +477,33 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
 
     def sync_articles(self):
-        bt.logging.debug(f"syncing articles")
-        articles = []
-        response = requests.get('https://en.wikipedia.org/w/api.php', params={
-            'action': 'query', 
-            'format': 'json', 
-            'list': 'categorymembers',
-            'cmpageid': '8966941', 
-            'cmprop': 'ids', 
-            'cmlimit': 'max'
-            }).json()
-        
-        articles.extend([page['pageid'] for page in response['query']['categorymembers']])
-        continuation = response.get('continue')
-        while continuation is not None:
+        try: 
+            bt.logging.debug(f"syncing articles")
+            articles = []
             response = requests.get('https://en.wikipedia.org/w/api.php', params={
                 'action': 'query', 
                 'format': 'json', 
                 'list': 'categorymembers',
                 'cmpageid': '8966941', 
                 'cmprop': 'ids', 
-                'cmlimit': 'max',
-                'cmcontinue': continuation.get('cmcontinue')
-                }).json()                
+                'cmlimit': 'max'
+                }).json()
+            
+            articles.extend([page['pageid'] for page in response['query']['categorymembers']])
             continuation = response.get('continue')
-            articles.extend([page['pageid'] for page in response['query']['categorymembers']])        
-        self.articles = articles
-        bt.logging.debug(f"synced articles!")
+            while continuation is not None:
+                response = requests.get('https://en.wikipedia.org/w/api.php', params={
+                    'action': 'query', 
+                    'format': 'json', 
+                    'list': 'categorymembers',
+                    'cmpageid': '8966941', 
+                    'cmprop': 'ids', 
+                    'cmlimit': 'max',
+                    'cmcontinue': continuation.get('cmcontinue')
+                    }).json()                
+                continuation = response.get('continue')
+                articles.extend([page['pageid'] for page in response['query']['categorymembers']])        
+            self.articles = articles
+            bt.logging.debug(f"synced articles!")
+        except Exception as e:
+            bt.logging.error(f"Error syncing articles: {e}")

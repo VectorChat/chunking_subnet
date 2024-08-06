@@ -72,6 +72,9 @@ class BaseNeuron(ABC):
 
         # Log the configuration for reference.
         bt.logging.info(self.config)
+        
+        # Set the last sync block to 1 to ensure the metagraph is synced on initialization.
+        self.last_sync_block = 1        
 
         # Build Bittensor objects
         # These are core Bittensor classes to interact with the network.
@@ -131,30 +134,48 @@ class BaseNeuron(ABC):
             )
             exit()
 
+    def resync_metagraph(self) -> bool:  
+        """
+        Resync the metagraph with the network. Returns True if successful, False otherwise.
+        """      
+        bt.logging.info("resync_metagraph(), neuron: ", self.neuron_type)        
+    
+        # Sync the metagraph.
+        try:
+            self.metagraph.sync(subtensor=self.subtensor)
+        except Exception as e:
+            bt.logging.error(f"Failed to sync metagraph with error: {e}")            
+            return False 
+        
+        self.last_sync_block = self.block
+        
+        bt.logging.info("metagraph synced!")
+        return True
+    
     def should_sync_metagraph(self):
-        """
-        Check if enough epoch blocks have elapsed since the last checkpoint to sync.
-        """
-        diff = self.block - self.metagraph.last_update[self.uid]
         
-        bt.logging.debug(f"Block: {self.block}, Last update: {self.metagraph.last_update[self.uid]}, Diff: {diff}")
+        diff = self.block - self.last_sync_block
         
-        should_sync = diff > self.config.neuron.epoch_length
+        interval = self.config.neuron.sync_metagraph_interval
         
-        bt.logging.debug(f"Should sync: {should_sync}")
+        bt.logging.debug(f"Block: {self.block}, Last sync: {self.last_sync_block}, Diff: {diff}, Interval: {interval} blocks")
+        
+        should_sync = diff > interval
+        
+        bt.logging.debug(f"BaseNeuron: Should sync metagraph: {should_sync}")
         
         return should_sync
 
     def should_set_weights(self) -> bool:
+        if self.neuron_type == "MinerNeuron":
+            return False
+        
         # Don't set weights on initialization.
         if self.step == 0:
             return False
         
         if self.config.neuron.disable_set_weights:
-            return False
-                        
-        if self.neuron_type == "MinerNeuron":
-            return False
+            return False                            
 
         updated = self.block - self.metagraph.last_update[self.uid]
         
