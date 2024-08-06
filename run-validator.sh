@@ -55,6 +55,7 @@ read use_autoupdate
 
 SCRIPT_ARGS="--netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug $@"
 export OPENAI_API_KEY=$OPENAI_API_KEY
+export WANDB_API_KEY=$WANDB_API_KEY
 
 if [ "$use_autoupdate" == "y" ]; then
     NAME="${NAME}_autoupdate"

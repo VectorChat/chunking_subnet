@@ -48,7 +48,7 @@ class Miner(BaseMinerNeuron):
             chunking.protocol.chunkSynapse: The synapse object with the 'chunks' field set to the generated chunks.
 
         """
-        # default miner logic, see docs/miner.md for help writing your own miner logic
+        # default miner logic, see docs/miner_guide.md for help writing your own miner logic
 
         bt.logging.debug(f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}")
 

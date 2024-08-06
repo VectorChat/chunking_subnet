@@ -13,22 +13,23 @@ This subnet uses a form of Group Tournament Ranking to control for the confoundi
 ## 1. Forming Groups
 
 ### Synthetic Queries
+
 For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 25 miners, only one group is made. Otherwise, each group consists of 25 miners. Groups are overlapping, with miners appearing in up to two groups. From [forward.py](../chunking/validator/forward.py):
 
 ```python
 def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
     bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
-    group_size = min(len(self.rankings), self.sample_size)    
-    bt.logging.debug(f"group_size {group_size}")    
+    group_size = min(len(self.rankings), self.sample_size)
+    bt.logging.debug(f"group_size {group_size}")
     group_ranks = []
     miner_groups: list[np.array] = []
 
     start = 0
     stop = len(self.rankings) - group_size + 1
     step = floor(group_size / 2)
-    
+
     bt.logging.debug(f"start: {start}, stop: {stop}, step: {step}")
-    
+
     for i in range(start, stop, step):
         group_ranks.append(range(i, i+group_size))
         miner_groups.append(np.array(self.rankings[group_ranks[-1]], dtype=int))
@@ -64,6 +65,7 @@ The document is then sent to all miners in the selected group, alongside the con
 ## 3. Ranking
 
 Miners are first ranked within their group based on their performance. From [reward.py](../chunking/validator/reward.py):
+
 ```python
 def rank_responses(
         rewards: np.ndarray,
@@ -75,7 +77,7 @@ def rank_responses(
     - rewards (List[float]): The list of rewards that were calculated.
 
     Returns:
-    - np.ndarray: 
+    - np.ndarray:
     """
 
     response_ranks = np.zeros_like(rewards)
@@ -83,27 +85,26 @@ def rank_responses(
     rank = 0
     for _ in range(len(rewards)):
         next_best_index = rewards.argmax()
-        
+
         if rewards[next_best_index] == 0:
             # should not be ranked
             response_ranks[next_best_index] = -1
         else:
             response_ranks[next_best_index] = rank
             rank += 1
-            
+
         rewards[next_best_index] = -np.inf
     return response_ranks
 ```
 
-These ranks are then used to update the global internal ranking of the validator. Ranks are a weighted average. From [validator.py](../neurons/validator.py):
+These ranks are then used to update the global internal ranking of the validator. Ranks are a weighted average. From [validator.py](../chunking/base/validator.py) (logs removed):
 
 ```python
-def update_scores(self, ranks: np.ndarray, uids: List[int]):
+def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
-
+        self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
         if np.isnan(ranks).any():
-            bt.logging.warning(f"NaN values detected in rewards: {ranks}")
             # Replace any NaN values in rewards with inf.
             ranks = np.nan_to_num(ranks, nan=np.inf)
 
@@ -115,58 +116,47 @@ def update_scores(self, ranks: np.ndarray, uids: List[int]):
         # Update scores with rewards produced by this step.
         alpha: float = self.config.neuron.moving_average_alpha
 
-        temp_scores = np.copy(self.scores)  
-        
-        bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
-        
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
-            
-            # Example
 
-            # uids: [0, 1, 2]
-            # ranked: [0, 2, 1] local
-            
-            # Previous
-            # [0.36675003 1.6840354  0.48990285 2.5501432  2.0185351, inf, inf]
-            
-            # Moving Avg
-            # [0.31173754 1.5814301  0.71641743 2.5501432  2.0185351, inf, inf]
-            
-            # [0 2 1 4 3 5 6] global
-            
             # initialize score if it is np.inf
-            if np.isinf(temp_scores[uid]):
-                temp_scores[uid] = alpha * rank
-            else:            
-                temp_scores[uid] = alpha * rank + (1 - alpha) * temp_scores[uid]                
-         
-        self.scores = temp_scores
-         
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
-        
+            if np.isinf(self.scores[uid]):
+                self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
+            elif self.scores[uid] < 0:
+                self.scores[uid] = np.inf
+            else:
+                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]
+
         self.rankings = np.argsort(self.scores)
-                        
-        bt.logging.debug(f"Updated rankings: {self.rankings}")
+
+        if not self.config.neuron.wandb_off:
+            for uid in uids_array:
+                wandb_data["scores"][str(uid)] = self.scores[uid]
+                wandb_data["rankings"][str(uid)] = list(self.rankings).index(uid)
+            bt.logging.info(f"Logging wandb_data: {wandb_data}")
+            wandb.log(wandb_data)
 ```
 
 ## Example
+
 Here is an example of this system with 12 miners and a sample size of 4:
 
 ![ranking_visualization](../assets/ranking_visualization.png)
 
 # Incentive Curve
-When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. From `set_weights(self: "BaseValidatorNeuron")` in [validator.py](../neurons/validator.py):
+
+When setting weights, the weight of the nth-best ranked miner will be twice that of the weight of the (n+1)th ranked miner, or (1/2)^n. From `set_weights(self: "BaseValidatorNeuron")` in [validator.py](../chunking/base//validator.py):
+
 ```python
 # Calculate weights
 n = len(self.scores)
-raw_weights = np.zeros(n)    
-i = 0    
+raw_weights = np.zeros(n)
+i = 0
 for uid in sorted_uids:
     if np.isinf(self.scores[uid]):
         continue
-    raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
+    raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)
     i += 1
 ```
 

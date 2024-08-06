@@ -52,7 +52,7 @@ class BaseValidatorNeuron(BaseNeuron):
     def __init__(self, config=None):
         super().__init__(config=self.config())
         if not self.config.neuron.wandb_off:
-            if os.environ.get("WANDB_API_KEY") is None:
+            if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
                 bt.logging.error("WANDB_API_KEY environment variable must be set if neuron.wandb_off is not set")
                 self.config.neuron.wandb_off = True
             else:
@@ -430,14 +430,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 wandb_data["scores"][str(uid)] = self.scores[uid]
                 wandb_data["rankings"][str(uid)] = list(self.rankings).index(uid)
             bt.logging.info(f"Logging wandb_data: {wandb_data}")
-            wandb.log(wandb_data)
-        # tempScores = np.copy(self.scores)
-        # self.rankings = np.full_like(tempScores, len(self.scores))
-        # i = 0
-        # while np.sum(np.isfinite(tempScores)) != 0:
-        #     self.rankings[i] = tempScores.argmin()
-        #     tempScores[tempScores.argmin()] = np.inf
-        #     i += 1
+            wandb.log(wandb_data)        
                         
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 

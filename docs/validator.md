@@ -10,39 +10,37 @@ The minimum and suggested specs are outlined in the [min_compute.yml](../min_com
 
 ```yml
 validator:
+  cpu:
+    min_cores: 2 # Minimum number of CPU cores
+    min_speed: 2.5 # Minimum speed per core (GHz)
+    recommended_cores: 4 # Recommended number of CPU cores
+    recommended_speed: 3.5 # Recommended speed per core (GHz)
+    architecture: "x86_64" # Architecture type (e.g., x86_64, arm64)
 
-    cpu:
-      min_cores: 2            # Minimum number of CPU cores
-      min_speed: 2.5          # Minimum speed per core (GHz)
-      recommended_cores: 4    # Recommended number of CPU cores
-      recommended_speed: 3.5  # Recommended speed per core (GHz)
-      architecture: "x86_64"  # Architecture type (e.g., x86_64, arm64)
+  gpu:
+    required: False # Does the application require a GPU?
 
-    gpu:
-      required: False                       # Does the application require a GPU?      
+  memory:
+    min_ram: 4 # Minimum RAM (GB)
+    min_swap: 2 # Minimum swap space (GB)
+    recommended_swap: 4 # Recommended swap space (GB)
+    ram_type: "DDR4" # RAM type (e.g., DDR4, DDR3, etc.)
 
-    memory:
-      min_ram: 4          # Minimum RAM (GB)
-      min_swap: 2          # Minimum swap space (GB)
-      recommended_swap: 4  # Recommended swap space (GB)
-      ram_type: "DDR4"     # RAM type (e.g., DDR4, DDR3, etc.)
+  storage:
+    min_space: 10 # Minimum free storage space (GB)
+    recommended_space: 32 # Recommended free storage space (GB)
+    type: "SSD" # Preferred storage type (e.g., SSD, HDD)
+    min_iops: 1000 # Minimum I/O operations per second (if applicable)
+    recommended_iops: 5000 # Recommended I/O operations per second
 
-    storage:
-      min_space: 10           # Minimum free storage space (GB)
-      recommended_space: 32  # Recommended free storage space (GB)
-      type: "SSD"             # Preferred storage type (e.g., SSD, HDD)
-      min_iops: 1000          # Minimum I/O operations per second (if applicable)
-      recommended_iops: 5000  # Recommended I/O operations per second
-
-    os:
-      name: "Ubuntu"  # Name of the preferred operating system(s)
-      version: 20.04  # Version of the preferred operating system(s)
+  os:
+    name: "Ubuntu" # Name of the preferred operating system(s)
+    version: 20.04 # Version of the preferred operating system(s)
 
 network_spec:
   bandwidth:
-    download: 100  # Minimum download bandwidth (Mbps)
-    upload: 100     # Minimum upload bandwidth (Mbps)
-
+    download: 100 # Minimum download bandwidth (Mbps)
+    upload: 100 # Minimum upload bandwidth (Mbps)
 ```
 
 ## Prerequisites
@@ -69,14 +67,10 @@ By default, logs are sent to a wandb project. Ensure that the WANDB_API_KEY envi
 --neuron.wandb_off
 ```
 
-To run the validator issue the following command after setting your OpenAI API key in the environment variable:
+To run the validator issue the following command after setting your OpenAI API key in the environment variable (brackets indicate optional arguments):
 
 ```bash
-# manual start command
-pm2 start neurons/validator.py --name <NAME> -- --netuid 40  --wallet.name <COLDKEY> --wallet.hotkey <HOTKEY> --log_level debug
-
-# with AUTO UPDATES (recommended)
-bash run-validator.sh
+bash run-validator.sh [--neuron.wandb_off] [...]
 ```
 
 ## Flags

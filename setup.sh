@@ -20,7 +20,7 @@ if ! command -v pm2 &>/dev/null; then
 fi
 
 # git + dependencies
-git clone https://github.com/VectorChat/chunking_subnet
+git clone https://github.com/VectorChat/chunking_subnet 
 cd chunking_subnet
 
 python3 -m venv venv
@@ -30,15 +30,20 @@ pip3 install -e .
 python3 -c "import nltk; nltk.download('punkt')"
 
 # .env file setup
-cat << EOF > .env
+if [ -f .env ]; then
+    echo ".env file already exists. Skipping .env creation."
+else
+    cat << EOF > .env
 NETUID=40
 COLDKEY=
 HOTKEY=
 CRON_SCHEDULE="0 */1 * * *" # Every 1 hours
-OPENAI_API_KEY=     # Only required if you are a validator
-EOF
+OPENAI_API_KEY=             # Required if you are a validator
+WANDB_API_KEY=              # Optional if you are a validator
+EOF    
+fi
 
 chmod 600 .env
 
 echo "Setup completed successfully!"
-echo "Please edit the .env file to fill in your COLDKEY and HOTKEY values, and optionally your OPENAI_API_KEY if you are a looking to run a validator."
+echo "Please edit the .env file to fill in your COLDKEY and HOTKEY values, and optionally your OPENAI_API_KEY and WANDB_API_KEY if you are a looking to run a validator."
