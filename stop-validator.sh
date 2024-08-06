@@ -1,0 +1,2 @@
+pm2 delete chunking_validator_autoupdate
+pm2 delete chunking_validators_main_process
