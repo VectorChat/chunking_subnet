@@ -1,5 +1,16 @@
-pm2 delete chunking_validator_autoupdate
-pm2 delete chunking_validators_main_process
+stop_and_delete_process() {
+    local process_name="$1"
+    if pm2 describe "$process_name" > /dev/null 2>&1; then
+        echo -e "${CYAN}Stopping and deleting process '$process_name'...${NC}"
+        pm2 stop "$process_name"
+        pm2 delete "$process_name"
+    fi
+}
+
+# Stop and delete any existing chunking validator processes
+stop_and_delete_process "chunking_validator"
+stop_and_delete_process "chunking_validator_autoupdate"
+stop_and_delete_process "chunking_validator_autoupdate_child"
 
 source .env
 
@@ -23,5 +34,5 @@ echo -e "\n${CYAN}Would you like to restart the validator? ${YELLOW}(y/n)${NC}"
 read start_validator
 
 if [ "$start_validator" == "y" ]; then
-    bash run-validator.sh     
+    bash run-validator.sh $@   
 fi

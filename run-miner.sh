@@ -9,4 +9,4 @@ if pm2 describe $NAME > /dev/null 2>&1; then
     pm2 delete $NAME
 fi
 
-pm2 start neurons/miner.py --name $NAME --cron-restart="$CRON_SCHEDULE" -- --netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug
+pm2 start neurons/miner.py --name $NAME --cron-restart="$CRON_SCHEDULE" -- --netuid $NETUID --wallet.name $COLDKEY --wallet.hotkey $HOTKEY --log_level debug "$@"
