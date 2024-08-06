@@ -48,7 +48,7 @@ stop_and_delete_process() {
 # Stop and delete any existing chunking validator processes
 stop_and_delete_process "chunking_validator"
 stop_and_delete_process "chunking_validator_autoupdate"
-stop_and_delete_process "chunking_validator_autoupdate_child"
+stop_and_delete_process "chunking_validators_main_process"
 
 echo -e "\n${CYAN}Do you want to use auto-updating? ${YELLOW}(y/n)${NC}"
 read use_autoupdate

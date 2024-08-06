@@ -3,7 +3,7 @@
 # Initialize variables
 script="neurons/validator.py"
 autoRunLoc=$(readlink -f "$0")
-proc_name="chunking_validator_autoupdate_child" 
+proc_name="chunking_validators_main_process" 
 args=()
 version_location="./chunking/validator/__init__.py"
 version="__version__"
