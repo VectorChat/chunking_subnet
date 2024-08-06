@@ -47,7 +47,7 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
                 
     
     if not response.chunks: 
-        bt.logging.debug(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")       
+        # bt.logging.debug(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")       
         return 0
     
     chunks = response.chunks
