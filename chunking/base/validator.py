@@ -94,7 +94,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = np.full(shape=self.metagraph.n, fill_value=np.inf, dtype=np.float32)
+        self.scores = np.full(shape=self.metagraph.n, fill_value=np.inf, dtype=np.float64)
         
         bt.logging.debug(f"Initial scores: {self.scores}")
         
