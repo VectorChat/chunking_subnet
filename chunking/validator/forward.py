@@ -60,9 +60,7 @@ async def forward(self: Validator):
     Args:
         self (:obj:`bittensor.neuron.Neuron`): The neuron object which contains all the necessary state for the validator.
         synapse: The chunkSynapse containing the organic query
-    """
-
-    log_time_utc_epoch = time.time()
+    """    
 
     wandb_data = {
         "modality": "text",
@@ -77,8 +75,7 @@ async def forward(self: Validator):
             "local_rankings": {},              
             "global_rankings": {},
             "scores": {}            
-        },
-        "log_time": log_time_utc_epoch,
+        },        
     }
 
     hotkey = self.wallet.get_hotkey()
