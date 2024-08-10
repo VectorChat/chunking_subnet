@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from curses import meta
 import time
 import bittensor as bt
 from random import choice
@@ -61,12 +62,23 @@ async def forward(self: Validator):
         synapse: The chunkSynapse containing the organic query
     """
 
+    log_time_utc_epoch = time.time()
+
     wandb_data = {
         "modality": "text",
-        "rankings": {},
-        "scores": {},
-        "rewards": {},
-        "process_times": {},
+        "sync_block": self.block,
+        "all": {
+            "scores": {},
+            "rankings": {},
+        },
+        "group": {            
+            "process_times": {},
+            "rewards": {},
+            "local_rankings": {},              
+            "global_rankings": {},
+            "scores": {}            
+        },
+        "log_time": log_time_utc_epoch,
     }
 
     hotkey = self.wallet.get_hotkey()
@@ -92,12 +104,14 @@ async def forward(self: Validator):
     if task.miner_uids is None or not found_match:
         miner_group = choice(range(len(miner_groups)))
     
-    miner_group_uids = list(map(lambda x: int(x), miner_groups[miner_group]))
+    miner_group_uids = list(map(lambda x: int(x), miner_groups[miner_group]))  
+    
+    wandb_data["group"]["uids"] = miner_group_uids  
     
     bt.logging.debug(f"Quering miner group: {miner_group}, with uids: {miner_group_uids}, timeout: {task.synapse.timeout}")
     
-    axons = [self.metagraph.axons[uid] for uid in miner_group_uids]
-    
+    axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]        
+        
     bt.logging.debug(f"Querying axons: {axons}")
     
     # The dendrite client queries the network.
@@ -113,9 +127,9 @@ async def forward(self: Validator):
 
     for response, uid in zip(responses, miner_group_uids):
         if response.dendrite.process_time is None:
-            wandb_data["process_times"][str(uid)] = np.inf
+            wandb_data["group"]["process_times"][str(uid)] = np.inf
         else:
-            wandb_data["process_times"][str(uid)] = response.dendrite.process_time
+            wandb_data["group"]["process_times"][str(uid)] = response.dendrite.process_time
 
     def print_response(response: chunkSynapse):                
         num_chunks = len(response.chunks) if response.chunks is not None else 0
@@ -130,6 +144,14 @@ async def forward(self: Validator):
     for response in responses:        
         print_response(response)    
     
+    hotkeys = [response.axon.hotkey for response in responses]
+    
+    for uid in miner_group_uids:
+        if uid in hotkeys:
+            wandb_data["group"]["process_times"][str(uid)] = np.inf
+        else:
+            wandb_data["group"]["process_times"][str(uid)] = 0
+    
     rewards = get_rewards(
         self,
         document=task.synapse.document,
@@ -138,7 +160,7 @@ async def forward(self: Validator):
     )
     
     for reward, uid in zip(rewards, miner_group_uids):
-        wandb_data["rewards"][str(uid)] = reward
+        wandb_data["group"]["rewards"][str(uid)] = reward
 
     bt.logging.debug(f"Scored responses: {rewards}")
     
@@ -156,6 +178,9 @@ async def forward(self: Validator):
     
     ranked_responses = rank_responses(rewards)    
     
+    for rank, uid in zip(ranked_responses, miner_group_uids):
+        wandb_data["group"]["local_rankings"][str(uid)] = rank
+    
     # inf means the response should not be ranked
     ranked_responses_global = np.full_like(ranked_responses, np.inf)
     
@@ -170,22 +195,10 @@ async def forward(self: Validator):
             ranked_responses_global[i] = (
                 group_offset +
                 np.sum(np.abs(ranked_responses))
-            )
-    
-    # if miner_group != 0:
-    # ranked_responses_global = np.array(
-    #     [reward + group_ranks[miner_group][0] for reward in ranked_responses]
-    #     )
-    # else:
-    #     response_ranks = np.concatenate((
-    #         [
-    #             reward + len(self.rankings) + group_ranks[miner_group][0]
-    #             for reward in rank_responses(rewards[:(group_size // 2)])
-    #         ], 
-    #         [
-    #             reward for reward in rank_responses(rewards[(group_size // 2):])
-    #         ]
-    #     ))
+            )       
+
+    for rank, uid in zip(ranked_responses_global, miner_group_uids):
+        wandb_data["group"]["global_rankings"][str(uid)] = rank
 
     bt.logging.info(f"Ranked responses: {ranked_responses}")
     bt.logging.info(f"Global ranked responses: {ranked_responses_global}")
