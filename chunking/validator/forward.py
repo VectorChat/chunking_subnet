@@ -16,15 +16,12 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from curses import meta
-import time
 import bittensor as bt
 from random import choice
-from math import ceil, floor
+from math import floor
 import numpy as np
 from chunking.protocol import chunkSynapse
 from chunking.validator.reward import get_rewards, rank_responses
-from chunking.utils.uids import get_random_uids
 from chunking.validator.task_api import Task
 from neurons.validator import Validator
 
@@ -74,7 +71,8 @@ async def forward(self: Validator):
             "rewards": {},
             "local_rankings": {},              
             "global_rankings": {},
-            "scores": {}            
+            "scores": {},
+            "num_chunks": {},
         },        
     }
 
@@ -127,6 +125,8 @@ async def forward(self: Validator):
             wandb_data["group"]["process_times"][str(uid)] = np.inf
         else:
             wandb_data["group"]["process_times"][str(uid)] = response.dendrite.process_time
+        
+        wandb_data["group"]["num_chunks"][str(uid)] = len(response.chunks) if response.chunks is not None else 0
 
     def print_response(response: chunkSynapse):                
         num_chunks = len(response.chunks) if response.chunks is not None else 0
