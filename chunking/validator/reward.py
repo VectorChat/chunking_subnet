@@ -16,7 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from math import ceil
+from math import ceil, e
 from typing import List
 
 from openai import OpenAI
@@ -29,7 +29,16 @@ import bittensor as bt
 from neurons.validator import Validator
     
 
-def reward(self: Validator | None, document: str, chunk_size: int, response: chunkSynapse, override_client: OpenAI | None = None, override_num_embeddings: int | None = None, verbose: bool = False) -> float:
+def reward(
+    self: Validator | None,
+    document: str,
+    chunk_size: int,
+    chunk_qty: int,
+    response: chunkSynapse,
+    override_client: OpenAI | None = None,
+    override_num_embeddings: int | None = None,
+    verbose: bool = False
+) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
     value for the miner, which is used to update the miner's score.
@@ -51,11 +60,21 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
         return 0
     
     chunks = response.chunks
-    reward = 0.0
+    intrachunk_similarities = []
+    interchunk_similarities = []
     smallChunks = []
     size_penalty = 0
     document_words = word_tokenize(document)
     combined_chunk_words = ''
+
+    # penalize an excessive number of chunks
+    num_chunks = len(chunks)
+    if num_chunks > chunk_qty:
+        qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
+        _verbose(f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}")
+    else:
+        qty_penalty = 0
+        
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
@@ -112,24 +131,33 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
         j = i + 1
         while j < len(testChunks):
             if testChunks[i].sourceChunk == testChunks[j].sourceChunk:
-                reward += np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
+                intrachunk_similarities.append(np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j])))
             else:
-                reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
+                interchunk_similarities.append(np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j])))
             j += 1            
     
+    reward = (
+        (np.mean(intrachunk_similarities) if len(intrachunk_similarities) > 0 else 0)
+        - (np.mean(interchunk_similarities) if len(interchunk_similarities) > 0 else 0)
+    )
+
     _verbose(f"Embedding reward: {reward}")
     _verbose(f"Size penalty: {size_penalty}")     
+    _verbose(f"Quantity penalty: {qty_penalty}")     
 
     # calculate and return final reward
-    reward = 1.01 ** reward # ensures that all rewards are positive    
-    _verbose(f"Ensuring reward is positive (1.01 ** reward):\n{reward}")    
+
+
     
+    reward = e ** reward # ensures that all rewards are positive
+    _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
+
     if response.dendrite.process_time > response.time_soft_max:
         over_time = response.dendrite.process_time - response.time_soft_max
         _verbose(f"Applying time penalty: {over_time} seconds over time")
         reward *= (2/3) ** over_time
-                
-    reward *= (2/3) ** size_penalty    
+    
+    reward *= (2/3) ** (size_penalty + qty_penalty)
     
     return reward
 
@@ -137,6 +165,7 @@ def get_rewards(
         self,
         document: str,
         chunk_size: int,
+        chunk_qty: int,
         responses: List[chunkSynapse],
 ) -> np.ndarray:
     """
@@ -150,7 +179,7 @@ def get_rewards(
     - np.ndarray: 
     """
     # Get all the reward results by iteratively calling your reward() function.
-    rewards = np.array([float(reward(self, document, chunk_size, response)) for response in responses])
+    rewards = np.array([float(reward(self, document, chunk_size, chunk_qty, response)) for response in responses])
     return rewards
 
 def rank_responses(

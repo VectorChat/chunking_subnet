@@ -134,6 +134,7 @@ async def forward(self: Validator):
         self,
         document=task.synapse.document,
         chunk_size=task.synapse.chunk_size,
+        chunk_qty=task.synapse.chunk_qty,
         responses=responses,
     )
     
@@ -203,6 +204,7 @@ async def forward(self: Validator):
         task_data = {
             'document': response.document,
             'chunk_size': response.chunk_size,
+            'chunk_qty': response.chunk_qty,
             'chunks': response.chunks,
         }
 

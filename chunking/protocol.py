@@ -37,6 +37,7 @@ class chunkSynapse(bt.Synapse):
     # Required request input, filled by sending dendrite caller. It is a base64 encoded string.
     document: str
     chunk_size: int = None
+    chunk_qty: int = None
     time_soft_max: float = None
 
     # Optional request output, filled by recieving axon.
