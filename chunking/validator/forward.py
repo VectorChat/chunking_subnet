@@ -102,6 +102,8 @@ async def forward(self: Validator):
     if task.miner_uids is None or not found_match:
         miner_group = choice(range(len(miner_groups)))
     
+    wandb_data["pageid"] = pageid
+    
     miner_group_uids = list(map(lambda x: int(x), miner_groups[miner_group]))  
     
     wandb_data["group"]["uids"] = miner_group_uids  
