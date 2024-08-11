@@ -1,6 +1,13 @@
 #!/bin/bash
 source .env
 
+python3 -c "import bittensor as bt" > /dev/null 2>&1
+
+if [ $? -eq 1 ]; then
+    echo "Make sure your venv is activated, usually: 'source venv/bin/activate'"
+    exit 1
+fi
+
 NAME=chunking_validator
 
 # Define color codes
