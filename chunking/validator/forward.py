@@ -86,7 +86,7 @@ async def forward(self: Validator):
     bt.logging.debug(f"Group ranks: {group_ranks}")
     bt.logging.debug(f"Group size: {group_size}")    
       
-    task = Task.get_new_task(validator=self)
+    task, pageid = Task.get_new_task(validator=self)
 
     if task.miner_uids is not None:
         found_match = False
