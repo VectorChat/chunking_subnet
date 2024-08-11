@@ -16,3 +16,4 @@ c*.sh
 start.sh
 wandb/
 *.json
+scripts/

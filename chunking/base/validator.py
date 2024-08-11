@@ -440,7 +440,7 @@ class BaseValidatorNeuron(BaseNeuron):
         if not success:
             bt.logging.error("Metagraph sync failed, skipping this step.")
             return
-
+    
         # Check if the metagraph axon info has changed.
         if previous_metagraph.axons == self.metagraph.axons:
             bt.logging.debug("metagraph axons are the same, nothing to update")
