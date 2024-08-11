@@ -29,19 +29,14 @@ source venv/bin/activate
 pip3 install -e .
 python3 -c "import nltk; nltk.download('punkt')"
 
-# .env file setup
-if [ -f .env ]; then
-    echo ".env file already exists. Skipping .env creation."
-else
-    cat << EOF > .env
+echo "
 NETUID=40
 COLDKEY=
 HOTKEY=
 CRON_SCHEDULE="0 */1 * * *" # Every 1 hours
 OPENAI_API_KEY=             # Required if you are a validator
 WANDB_API_KEY=              # Optional if you are a validator
-EOF    
-fi
+" >> .env
 
 chmod 600 .env
 
