@@ -142,4 +142,4 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
     document = ' '.join(document.split())
     timeout = validator.config.neuron.timeout
     synapse = chunkSynapse(document=document, time_soft_max=timeout * 0.75, chunk_size=4096, timeout=timeout)
-    return synapse
+    return synapse, page
