@@ -24,6 +24,9 @@ from chunking.protocol import chunkSynapse
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.validator.task_api import Task
 from neurons.validator import Validator
+import json
+import gzip
+import base64
 
 def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
     bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
@@ -72,7 +75,7 @@ async def forward(self: Validator):
             "local_rankings": {},              
             "global_rankings": {},
             "scores": {},
-            "num_chunks": {},
+            "chunks": {},            
         },        
     }
 
@@ -126,7 +129,16 @@ async def forward(self: Validator):
         else:
             wandb_data["group"]["process_times"][str(uid)] = response.dendrite.process_time
         
-        wandb_data["group"]["num_chunks"][str(uid)] = len(response.chunks) if response.chunks is not None else 0
+        # wandb_data["group"]["num_chunks"][str(uid)] = len(response.chunks) if response.chunks is not None else 0
+        
+        if response.chunks is None:            
+            continue
+        
+        json_str = json.dumps(response.chunks)
+        compressed = gzip.compress(json_str.encode())
+        encoded = base64.b64encode(compressed).decode()
+        
+        wandb_data["group"]["chunks"][str(uid)] = encoded
 
     def print_response(response: chunkSynapse):                
         num_chunks = len(response.chunks) if response.chunks is not None else 0
@@ -226,5 +238,5 @@ async def forward(self: Validator):
         }
 
         Task.return_response(self, response_data)
-    self.update_scores(wandb_data, ranked_responses_global, miner_groups[miner_group])
+    self.update_scores(wandb_data, ranked_responses_global, miner_groups[miner_group], task.task_type)
     # time.sleep(5)

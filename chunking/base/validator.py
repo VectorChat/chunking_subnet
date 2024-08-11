@@ -20,6 +20,7 @@ import chunk
 import enum
 import os
 import copy
+from turtle import bgcolor
 import numpy as np
 import asyncio
 import threading
@@ -29,7 +30,7 @@ import requests
 import concurrent.futures
 import chunking
 
-from typing import List, Union
+from typing import List, Literal, Union
 from traceback import print_exception
 from math import floor
 
@@ -37,7 +38,9 @@ from chunking.base.neuron import BaseNeuron
 from chunking.base.utils.weight_utils import process_weights_for_netuid, convert_weights_and_uids_for_emit
 import wandb
 from wandb.apis.public.runs import Runs, Run
-#from chunking.utils.config import add_validator_argos
+import json
+import sys
+#from chunking.utils.config import add_validptor_argos
 
 class BaseValidatorNeuron(BaseNeuron):
     """
@@ -462,9 +465,9 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.debug(f"Added new hotkeys, new scores: {self.scores}")              
 
         # Update the hotkeys.
-        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)    
 
-    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int]):
+    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int], task_type: Literal["organic", "synthetic"]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
@@ -499,7 +502,7 @@ class BaseValidatorNeuron(BaseNeuron):
         
         self.rankings = np.argsort(self.scores)
 
-        if not self.config.neuron.wandb_off:
+        if not self.config.neuron.wandb_off and task_type == "synthetic":
             for uid in uids_array:                
                 # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
                 wandb_data["group"]["scores"][str(uid)] = self.scores[uid]                        
@@ -508,8 +511,10 @@ class BaseValidatorNeuron(BaseNeuron):
                 wandb_data["all"]["scores"][str(uid)] = self.scores[uid]                
                 wandb_data["all"]["rankings"][str(uid)] = self.rankings[uid]
             
-            bt.logging.info(f"Logging wandb_data: {wandb_data}")
-            wandb.log(wandb_data)        
+            # bt.logging.debug(f"Logging wandb_data: {wandb_data}")                    
+            bt.logging.info("Logging wandb_data")
+            wandb.log(wandb_data)     
+            
                         
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 
