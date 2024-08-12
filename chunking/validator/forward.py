@@ -74,9 +74,13 @@ async def forward(self: Validator):
     
     bt.logging.debug(f"Miner groups: {miner_groups}")
     bt.logging.debug(f"Group ranks: {group_ranks}")
-    bt.logging.debug(f"Group size: {group_size}")    
-      
-    task = Task.get_new_task(validator=self)
+    bt.logging.debug(f"Group size: {group_size}")     
+    
+    try:  
+        task = Task.get_new_task(validator=self)
+    except Exception as e:
+        bt.logging.error(f"Error getting new task: {e}")
+        return
 
     if task.miner_uids is not None:
         found_match = False
