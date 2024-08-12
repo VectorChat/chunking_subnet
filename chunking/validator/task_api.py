@@ -159,4 +159,4 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
         chunk_qty=chunk_qty,
         timeout=timeout
     )
-    return synapse
+    return synapse, page
