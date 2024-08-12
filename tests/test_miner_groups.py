@@ -127,6 +127,7 @@ def test_miner_groups_creation():
     assert all_groups_less_than_group_size(miner_groups, group_size * 2)
     
     rankings = create_rankings_array(193)
+    group_size = 25
     
     miner_groups, group_ranks, group_size = chunking.validator.create_groups(rankings, group_size)
     
