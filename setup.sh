@@ -31,10 +31,7 @@ if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.vers
     exit 1
 fi
 
-if ! python3 -m venv --help &>/dev/null; then
-    echo "Python venv module not found. Attempting to install..."
-    install_python_venv
-fi
+install_python_venv
 
 # install pm2
 if ! command -v pm2 &>/dev/null; then
