@@ -33,17 +33,24 @@ def create_groups(rankings: np.ndarray, group_size: int):
     miner_groups: list[np.array] = []
 
     start = 0
-    stop = len(rankings) - group_size + 1
+    stop = len(rankings) - group_size
     step = group_size // 2       
     
-    for i in range(start, stop, step):    
-        print(i, i+group_size)
-        if i + group_size > stop:
-            group_ranks.append(range(i, len(rankings)))
-        else:        
-            group_ranks.append(range(i, i+group_size))        
-            
-        miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))    
+    while start < stop:
+        group_ranks.append(range(start, start + group_size))
+        miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
+        start += step
+    
+    if start < len(rankings):        
+        if len(group_ranks) > 0:
+            group_ranks[-1] = range(list(group_ranks[-1])[0], len(rankings))
+        else:
+            group_ranks.append(range(0, len(rankings)))
+        if len(miner_groups) > 0:
+            miner_groups[-1] = np.array(rankings[group_ranks[-1]], dtype=int)
+        else:
+            miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
+        
     return (miner_groups, group_ranks, group_size)
 
 def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
