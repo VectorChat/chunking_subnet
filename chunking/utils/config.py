@@ -16,10 +16,13 @@
 # DEALINGS IN THE SOFTWARE.
 
 from ast import parse
+from email.policy import default
 import os
 import argparse
 import bittensor as bt
 from loguru import logger
+
+import chunking
 
 
 def check_config(cls, config: "bt.Config"):
@@ -126,6 +129,13 @@ def add_args(cls, parser):
             type=int,
             help="The number of concurrent forwards running at any time.",
             default=1,
+        )
+        
+        parser.add_argument(
+            "--wandb.project_name",
+            type=str,
+            help="The name of the wandb project.",
+            default=chunking.PROJECT_NAME
         )
 
         parser.add_argument(

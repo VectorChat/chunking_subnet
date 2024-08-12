@@ -69,12 +69,12 @@ class Task():
                             timeout=task["timeout"],
                             chunk_size=task["chunk_size"]
                         )
-                return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids)
+                return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids), -1
             except Exception as e:
                 bt.logging.error(f"Failed to get task from API host: \'{API_host}\'. Exited with exception\n{e}")
         bt.logging.debug("Generating synthetic query")
-        synapse = generate_synthetic_synapse(validator)
-        return Task(synapse=synapse, task_type="synthetic", task_id=-1)
+        synapse, page = generate_synthetic_synapse(validator)
+        return Task(synapse=synapse, task_type="synthetic", task_id=-1), page
 
     @classmethod
     def return_response(cls, validator, response_data):
@@ -142,4 +142,4 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
     document = ' '.join(document.split())
     timeout = validator.config.neuron.timeout
     synapse = chunkSynapse(document=document, time_soft_max=timeout * 0.75, chunk_size=4096, timeout=timeout)
-    return synapse
+    return synapse, page

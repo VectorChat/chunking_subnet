@@ -16,9 +16,11 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import chunk
 import enum
 import os
 import copy
+from turtle import bgcolor
 import numpy as np
 import asyncio
 import threading
@@ -28,14 +30,17 @@ import requests
 import concurrent.futures
 import chunking
 
-from typing import List, Union
+from typing import List, Literal, Union
 from traceback import print_exception
 from math import floor
 
 from chunking.base.neuron import BaseNeuron
 from chunking.base.utils.weight_utils import process_weights_for_netuid, convert_weights_and_uids_for_emit
 import wandb
-#from chunking.utils.config import add_validator_argos
+from wandb.apis.public.runs import Runs, Run
+import json
+import sys
+#from chunking.utils.config import add_validptor_argos
 
 class BaseValidatorNeuron(BaseNeuron):
     """
@@ -51,38 +56,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def __init__(self, config=None):
         super().__init__(config=self.config())
-        if not self.config.neuron.wandb_off:
-            if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
-                bt.logging.error("WANDB_API_KEY environment variable must be set if neuron.wandb_off is not set")
-                self.config.neuron.wandb_off = True
-            else:
-                try:
-                    run_name = f"validator-{self.uid}-{chunking.__version__}"
-                    self.config.uid = self.uid
-                    self.config.hotkey = self.wallet.hotkey.ss58_address
-                    self.config.run_name = run_name
-                    self.config.version = chunking.__version__
-                    self.config.type = "validator"
-
-                    # Initialize the wandb run for the single project
-                    run = wandb.init(
-                        name=run_name,
-                        project=chunking.PROJECT_NAME,
-                        entity=chunking.ENTITY,
-                        config=self.config,
-                        dir=self.config.full_path,
-                        reinit=True,
-                    )
-
-                    # Sign the run to ensure it's from the correct hotkey
-                    signature = self.wallet.hotkey.sign(run.id.encode()).hex()
-                    self.config.signature = signature
-                    wandb.config.update(self.config, allow_val_change=True)
-
-                    bt.logging.success(f"Started wandb run for project '{chunking.PROJECT_NAME}'")
-                except Exception as e:
-                    bt.logging.error(f"Error in init_wandb: {e}")
-                    self.config.neuron.wandb_off = True
+        
+        self._setup_wandb()        
 
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
@@ -120,6 +95,105 @@ class BaseValidatorNeuron(BaseNeuron):
         self.thread: Union[threading.Thread, None] = None
         self.lock = asyncio.Lock()
 
+    def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
+        for run in runs:
+            sig = run.config.get("signature")
+            if not sig:
+                continue
+            
+            verified = self.wallet.hotkey.verify(run.id.encode(), bytes.fromhex(sig))
+            
+            if verified:
+                bt.logging.info(f"Found valid run: {run.id}")
+                return run
+            else:
+                bt.logging.warning(f"Found invalid run: {run.id}, looking for another run")
+        
+        return None
+
+    def _get_latest_wandb_run(self, project_name: str) -> Run | None:
+        api = wandb.Api()
+        latest_runs: Runs = api.runs(f"{chunking.ENTITY}/{project_name}", 
+                                        {"config.hotkey": self.wallet.hotkey.ss58_address, 
+                                         "config.type": "validator"},
+                                        order="-created_at")
+        return self._find_valid_wandb_run(latest_runs)
+
+    def _start_new_wandb_run(self, project_name: str, run_name:str) -> Run:        
+        run = wandb.init(
+            name=run_name,
+            project=project_name,
+            entity=chunking.ENTITY,
+            config=self.config,
+            dir=self.config.full_path,
+            reinit=False,
+        )
+        signature = self.wallet.hotkey.sign(run.id.encode()).hex()
+        self.config.signature = signature
+        bt.logging.success(f"Started wandb run for project '{project_name}', name: '{run_name}', id: '{run.id}'")                                                  
+        return run    
+
+    def _find_existing_wandb_run(self, version: str, uid: int) -> Run | None:
+        api = wandb.Api()
+        latest_runs: Runs = api.runs(f"{chunking.ENTITY}/{self.config.wandb.project_name}", 
+                                        {"config.hotkey": self.wallet.hotkey.ss58_address,
+                                         "config.type": "validator",
+                                         "config.version": version, 
+                                         "config.uid": uid},
+                                        order="-created_at")
+        bt.logging.debug(f"Found {len(latest_runs)} runs with version {version} and uid {uid}")
+        return self._find_valid_wandb_run(latest_runs)     
+
+    def _resume_wandb_run(self, run: Run, project_name: str):
+        wandb.init(entity=chunking.ENTITY, project=project_name, id=run.id, resume="must")                                                                    
+        bt.logging.success(f"Resumed wandb run '{run.name}' for project '{project_name}'")
+
+    def _setup_wandb(self):
+        if not self.config.neuron.wandb_off:
+            if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
+                bt.logging.error("WANDB_API_KEY environment variable must be set if neuron.wandb_off is not set")
+                self.config.neuron.wandb_off = True
+            else:
+                try:                                        
+                    project_name = self.config.wandb.project_name
+                    
+                    latest_run = self._get_latest_wandb_run(project_name)                                        
+                    
+                    run_name = f"validator-{self.uid}-{chunking.__version__}"
+                    
+                    self.config.uid = self.uid
+                    self.config.hotkey = self.wallet.hotkey.ss58_address
+                    self.config.run_name = run_name
+                    self.config.version = chunking.__version__
+                    self.config.type = "validator"                                                
+                    
+                    if not latest_run:
+                        self._start_new_wandb_run(project_name, run_name)                                                                                               
+                    else:
+                        # check if uid or version has changed
+                        if latest_run.config.get("version") != chunking.__version__ or latest_run.config.get("uid") != self.uid :
+                            bt.logging.info(f"Found run with different version or uid ({latest_run.name})")
+                            
+                            
+                            existing_run = self._find_existing_wandb_run(chunking.__version__, self.uid)
+                            
+                            if not existing_run:                         
+                                bt.logging.info(f"Could not find existing run with version {chunking.__version__} and uid {self.uid}, starting new run")   
+                                self._start_new_wandb_run(project_name, run_name) 
+                            else:
+                                bt.logging.info(f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run")
+                                self._resume_wandb_run(existing_run, project_name)
+                        else:
+                            self._resume_wandb_run(latest_run, project_name)                                
+                    
+                    # always update config
+                    wandb.config.update(self.config, allow_val_change=True)                                        
+                    
+                except Exception as e:
+                    bt.logging.error(f"Error in init_wandb: {e}")
+                    self.config.neuron.wandb_off = True
+        else:
+            bt.logging.warning("Wandb is turned off")
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
@@ -208,7 +282,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # In case of unforeseen errors, the validator will log the error and continue operations.
         except Exception as err:
             bt.logging.error("Error during validation", str(err))
-            bt.logging.debug(str(print_exception(type(err), err, err.__traceback__)))
+            
 
     def run_in_background_thread(self):
         """
@@ -251,12 +325,15 @@ class BaseValidatorNeuron(BaseNeuron):
             traceback: A traceback object encoding the stack trace.
                        None if the context was exited without an exception.
         """
+        if not self.config.neuron.wandb_off:
+            wandb.finish()
+        
         if self.is_running:
             bt.logging.debug("Stopping validator in background thread.")
             self.should_exit = True
             self.thread.join(5)
             self.is_running = False
-            bt.logging.debug("Stopped")
+            bt.logging.debug("Stopped")                
 
     def set_weights(self: "BaseValidatorNeuron"):
         """
@@ -388,9 +465,9 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.debug(f"Added new hotkeys, new scores: {self.scores}")              
 
         # Update the hotkeys.
-        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)    
 
-    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int]):
+    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int], task_type: Literal["organic", "synthetic"]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
@@ -425,12 +502,19 @@ class BaseValidatorNeuron(BaseNeuron):
         
         self.rankings = np.argsort(self.scores)
 
-        if not self.config.neuron.wandb_off:
-            for uid in uids_array:
-                wandb_data["scores"][str(uid)] = self.scores[uid]
-                wandb_data["rankings"][str(uid)] = list(self.rankings).index(uid)
-            bt.logging.info(f"Logging wandb_data: {wandb_data}")
-            wandb.log(wandb_data)        
+        if not self.config.neuron.wandb_off and task_type == "synthetic":
+            for uid in uids_array:                
+                # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
+                wandb_data["group"]["scores"][str(uid)] = self.scores[uid]                        
+            
+            for uid in range(len(self.scores)):                
+                wandb_data["all"]["scores"][str(uid)] = self.scores[uid]                
+                wandb_data["all"]["rankings"][str(uid)] = self.rankings[uid]
+            
+            # bt.logging.debug(f"Logging wandb_data: {wandb_data}")                    
+            bt.logging.info("Logging wandb_data")
+            wandb.log(wandb_data)     
+            
                         
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 
