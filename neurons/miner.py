@@ -72,6 +72,7 @@ class Miner(BaseMinerNeuron):
         response_data = {
             'document': synapse.document,
             'chunk_size': synapse.chunk_size,
+            'chunk_qty': synapse.chunk_qty,
             'chunks': synapse.chunks,
         }
                 
