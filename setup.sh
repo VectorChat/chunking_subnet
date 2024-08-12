@@ -2,10 +2,38 @@
 
 set -e
 
-# check Python version
+check_root() {
+    if [ "$(id -u)" != "0" ]; then
+        echo "This script must be run as root" 1>&2
+        exit 1
+    fi
+}
+
+# install Python venv package
+install_python_venv() {
+    if command -v apt-get &>/dev/null; then
+        apt-get update
+        apt-get install -y python3-venv
+    elif command -v yum &>/dev/null; then
+        yum install -y python3-venv
+    else
+        echo "Unable to install python3-venv. Please install it manually."
+        exit 1
+    fi
+}
+
+# check if running as root
+check_root
+
+# check Python version and venv availability
 if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.version_info >= (3,8), 'Python 3.8+ required'"; then
     echo "Error: Python 3.8 or higher is required."
     exit 1
+fi
+
+if ! python3 -m venv --help &>/dev/null; then
+    echo "Python venv module not found. Attempting to install..."
+    install_python_venv
 fi
 
 # install pm2
@@ -33,12 +61,24 @@ echo "
 NETUID=40
 COLDKEY=
 HOTKEY=
-CRON_SCHEDULE="0 */1 * * *" # Every 1 hours
+CRON_SCHEDULE=\"0 */1 * * *\" # Every 1 hours
 OPENAI_API_KEY=             # Required if you are a validator
 WANDB_API_KEY=              # Optional if you are a validator
 " >> .env
 
 chmod 600 .env
 
-echo "Setup completed successfully!"
-echo "Please edit the .env file to fill in your COLDKEY and HOTKEY values, and optionally your OPENAI_API_KEY and WANDB_API_KEY if you are a looking to run a validator."
+GREEN='\033[0;32m'
+GREY='\033[1;30m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}Setup completed successfully!${NC}"
+echo ""
+echo -e "Please edit the .env file to fill in your COLDKEY and HOTKEY values, and optionally your ${WHITE}OPENAI_API_KEY${NC} and ${WHITE}WANDB_API_KEY${NC} if you are a looking to run a validator."
+echo ""
+echo -e "${GREY}You can now run the miner with 'bash run-miner.sh' or the validator with 'bash run-validator.sh'. Make sure to cd into the directory and activate the venv before running the scripts:${NC}"
+echo ""
+echo -e "${CYAN}cd chunking_subnet ${NC}"
+echo -e "${CYAN}source venv/bin/activate ${NC}"
