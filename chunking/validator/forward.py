@@ -89,7 +89,7 @@ async def forward(self: Validator):
             "local_rankings": {},              
             "global_rankings": {},
             "scores": {},
-            "chunks": {},            
+            "chunks": {},               
         },        
     }
 
@@ -175,11 +175,7 @@ async def forward(self: Validator):
     
     hotkeys = [response.axon.hotkey for response in responses]
     
-    for uid in miner_group_uids:
-        if uid in hotkeys:
-            wandb_data["group"]["process_times"][str(uid)] = np.inf
-        else:
-            wandb_data["group"]["process_times"][str(uid)] = 0
+    wandb_data["group"]["hotkeys"] = hotkeys
     
     rewards = get_rewards(
         self,
