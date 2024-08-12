@@ -60,7 +60,7 @@ COLDKEY=
 HOTKEY=
 CRON_SCHEDULE=\"0 */1 * * *\" # Every 1 hours
 OPENAI_API_KEY=             # Required if you are a validator
-WANDB_API_KEY=              # Optional if you are a validator
+WANDB_API_KEY=              # Recommended if you are a validator
 " >> .env
 
 chmod 600 .env
