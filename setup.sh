@@ -9,13 +9,15 @@ check_root() {
     fi
 }
 
-# install Python venv package
-install_python_venv() {
+# install packages
+install_packages() {
     if command -v apt-get &>/dev/null; then
         apt-get update
-        apt-get install -y python3-venv
+        apt-get install -y python3-venv python3-tk
     elif command -v yum &>/dev/null; then
-        yum install -y python3-venv
+        yum install -y python3-venv python3-tkinter
+    elif command -v dnf &>/dev/null; then
+        dnf install -y python3-venv python3-tkinter        
     else
         echo "Unable to install python3-venv. Please install it manually."
         exit 1
@@ -31,7 +33,7 @@ if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.vers
     exit 1
 fi
 
-install_python_venv
+install_packages
 
 # install pm2
 if ! command -v pm2 &>/dev/null; then
@@ -45,7 +47,13 @@ if ! command -v pm2 &>/dev/null; then
 fi
 
 # git + dependencies
-git clone https://github.com/VectorChat/chunking_subnet 
+
+if [ ! -d "chunking_subnet" ]; then
+    git clone https://github.com/VectorChat/chunking_subnet 
+else
+    echo "chunking_subnet directory already exists. Skipping git clone."
+fi
+
 cd chunking_subnet
 
 python3 -m venv venv
