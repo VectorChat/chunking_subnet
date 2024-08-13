@@ -67,13 +67,14 @@ def reward(
     document_words = word_tokenize(document)
     combined_chunk_words = ''
 
+    qty_penalty = 0
+
     # penalize an excessive number of chunks
     num_chunks = len(chunks)
     if num_chunks > chunk_qty:
         qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
         _verbose(f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}")
-    else:
-        qty_penalty = 0
+        
         
     for i in range(len(chunks)):
 

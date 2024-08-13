@@ -124,6 +124,7 @@ class Miner(BaseMinerNeuron):
         ):
             if self.config.blacklist.allow_non_registered:
                 bt.logging.warning(f"Accepting request from un-registered hotkey {synapse.dendrite.hotkey}")
+                return False, "Allowing un-registered hotkey"
             else:
                 # Ignore requests from un-registered entities.
                 bt.logging.warning(f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}")
@@ -136,6 +137,14 @@ class Miner(BaseMinerNeuron):
                 return True, "Non-validator hotkey"
             else:
                 bt.logging.warning(f"Accepting request from non-validator hotkey {synapse.dendrite.hotkey}")
+                return False, "Validator permit not required"
+            
+        stake = self.metagraph.S[uid].item()
+        
+        if stake < self.config.blacklist.minimum_stake:
+            # Ignore request from entity with insufficient stake.
+            bt.logging.warning(f"Blacklisting request from hotkey {synapse.dendrite.hotkey} with insufficient stake: {stake}")
+            return True, "Insufficient stake"
 
         bt.logging.debug(f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}")
         return False, "Hotkey recognized!"

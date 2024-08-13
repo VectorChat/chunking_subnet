@@ -231,7 +231,7 @@ def add_args(cls, parser):
             action="store_true",
             help="If set, miners will accept queries without verifying. (Dangerous!)",
             default=False,
-        )
+        )            
 
 
 def config(cls):
