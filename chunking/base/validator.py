@@ -16,11 +16,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import chunk
-import enum
 import os
 import copy
-from turtle import bgcolor
 import numpy as np
 import asyncio
 import threading
@@ -29,17 +26,14 @@ import time
 import requests
 import concurrent.futures
 import chunking
+import traceback
 
 from typing import List, Literal, Union
-from traceback import print_exception
 from math import floor
 
 from chunking.base.neuron import BaseNeuron
-from chunking.base.utils.weight_utils import process_weights_for_netuid, convert_weights_and_uids_for_emit
 import wandb
 from wandb.apis.public.runs import Runs, Run
-import json
-import sys
 #from chunking.utils.config import add_validptor_argos
 
 class BaseValidatorNeuron(BaseNeuron):
@@ -192,6 +186,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 except Exception as e:
                     bt.logging.error(f"Error in init_wandb: {e}")
                     self.config.neuron.wandb_off = True
+                    traceback.print_exc()
         else:
             bt.logging.warning("Wandb is turned off")
 
@@ -212,10 +207,12 @@ class BaseValidatorNeuron(BaseNeuron):
                 )
             except Exception as e:
                 bt.logging.error(f"Failed to serve Axon with exception: {e}")
+                traceback.print_exc()
                 pass
 
         except Exception as e:
             bt.logging.error(f"Failed to create Axon initialize with exception: {e}")
+            traceback.print_exc()
             pass
 
     async def concurrent_forward(self):
@@ -282,6 +279,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # In case of unforeseen errors, the validator will log the error and continue operations.
         except Exception as err:
             bt.logging.error("Error during validation", str(err))
+            traceback.print_exc()
             
 
     def run_in_background_thread(self):
@@ -578,3 +576,4 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.debug(f"synced articles!")
         except Exception as e:
             bt.logging.error(f"Error syncing articles: {e}")
+            traceback.print_exc()

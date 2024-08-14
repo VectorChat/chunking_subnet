@@ -200,6 +200,9 @@ def get_rewards(
     
     for i, response in enumerate(responses):
         try: 
+            if not response.chunks or len(response.chunks) == 0:
+                raise Exception(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
+            
             reward_value, extra_info = reward(self, document, chunk_size, chunk_qty, response)                                
             rewards[i] = float(reward_value)
             extra_infos.append(extra_info)
