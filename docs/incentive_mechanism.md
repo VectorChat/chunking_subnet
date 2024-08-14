@@ -14,25 +14,32 @@ This subnet uses a form of Group Tournament Ranking to control for the confoundi
 
 ### Synthetic Queries
 
-For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than 25 miners, only one group is made. Otherwise, each group consists of 25 miners. Groups are overlapping, with miners appearing in up to two groups. From [forward.py](../chunking/validator/forward.py):
+For synthetic queries, validators start by creating groups of miners with adjacent ranks. If there are less than `sample_size` (25 by default) miners, only one group is made. Otherwise, each group consists of `sample_size` miners. Groups are overlapping, with miners appearing in up to 3 groups in some cases. From [forward.py](../chunking/validator/forward.py):
 
 ```python
-def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
-    bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
-    group_size = min(len(self.rankings), self.sample_size)
-    bt.logging.debug(f"group_size {group_size}")
+def create_groups(rankings: np.ndarray, group_size: int):
     group_ranks = []
     miner_groups: list[np.array] = []
 
     start = 0
-    stop = len(self.rankings) - group_size + 1
-    step = floor(group_size / 2)
+    stop = len(rankings) - group_size
+    step = group_size // 2
 
-    bt.logging.debug(f"start: {start}, stop: {stop}, step: {step}")
+    while start < stop:
+        group_ranks.append(range(start, start + group_size))
+        miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
+        start += step
 
-    for i in range(start, stop, step):
-        group_ranks.append(range(i, i+group_size))
-        miner_groups.append(np.array(self.rankings[group_ranks[-1]], dtype=int))
+    if start < len(rankings):
+        if len(group_ranks) > 0:
+            group_ranks[-1] = range(list(group_ranks[-1])[0], len(rankings))
+        else:
+            group_ranks.append(range(0, len(rankings)))
+        if len(miner_groups) > 0:
+            miner_groups[-1] = np.array(rankings[group_ranks[-1]], dtype=int)
+        else:
+            miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
+
     return (miner_groups, group_ranks, group_size)
 ```
 
@@ -56,11 +63,11 @@ if task["task_id"] != -1:
     miner_uids = task.get('miner_uids')
 ```
 
-As organic data is of higher quality than synthetic data, validators still aim to query at least 25 miners. If a miner is specified by the origin source (i.e., Chunking.com), the validator queries a group of 25 miners of adjacent rank while ensuring that the miner specified is in that group.
+As organic data is likely of higher quality than synthetic data, validators still aim to query at least 25 (default `sample_size`) miners. If a miner is specified by the origin source (i.e., Chunking.com), the validator queries a group of 25 miners of adjacent rank while ensuring that the miner specified is in that group.
 
 ## 2. Evaluating
 
-The document is then sent to all miners in the selected group, alongside the constraints of maximum `chunk_size` and `soft_time_max`. The responses are then scored as described in [Evaluation](./evaluation.md).
+The document is then sent to all miners in the selected group, alongside the constraints of maximum `chunk_size`, `time_soft_max` and `chunk_qty`. The responses are then scored as described in [Evaluation](./evaluation.md).
 
 ## 3. Ranking
 
@@ -130,12 +137,7 @@ def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int]):
 
         self.rankings = np.argsort(self.scores)
 
-        if not self.config.neuron.wandb_off:
-            for uid in uids_array:
-                wandb_data["scores"][str(uid)] = self.scores[uid]
-                wandb_data["rankings"][str(uid)] = list(self.rankings).index(uid)
-            bt.logging.info(f"Logging wandb_data: {wandb_data}")
-            wandb.log(wandb_data)
+        ...
 ```
 
 ## Example
@@ -159,6 +161,9 @@ for uid in sorted_uids:
     raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)
     i += 1
 ```
+
+> [!NOTE]
+> Currently only the top 5 miners are ranked and weighted. This is a temporary measure as we iron out the final incentive mechanism as it helps stabilize vtrust.
 
 Here is an example of the incentive curve with 5 miners:
 
