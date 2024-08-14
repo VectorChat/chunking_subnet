@@ -91,6 +91,7 @@ Our goal is to establish this subnet as the premier source for the most advanced
 - [ ] Launch subnet dashboards for miners and validators, displaying performance, statistics, and tracking compensation.
 
 **Phase 2: Demand**
+- [ ] Update organic side of the protocol to ensure privacy, so that only the Task network (end-user) sees the document or resultant chunks.
 - [ ] Launch of Chunking.com, our front-end service delivering cutting-edge RAG to developers and enterprises.
 - [ ] Launch of Toffee, our conversational AI platform using RAG to create an unparalleled user experience.
 
