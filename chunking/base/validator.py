@@ -350,25 +350,19 @@ class BaseValidatorNeuron(BaseNeuron):
         # Calculate the average reward for each uid across non-zero values.        
         bt.logging.debug(f"self.scores = {self.scores}")
         
+        num_weights_cap = 5
         
         # Calculate weights
         n = len(self.scores)
         raw_weights = np.zeros(n)    
         i = 0    
         for uid in self.rankings:
+            if i >= num_weights_cap:
+                break
             if np.isinf(self.scores[uid]):
                 continue
             raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
             i += 1
-            
-        # min_index = raw_weights.argmin()
-        # raw_weights[min_index] = -1 * (2 ** (len(self.scores) - 1)) / ((2 ** len(self.scores)) - 1)
-        # bt.logging.debug(f"weight at min_index ({min_index}): {raw_weights[min_index]}")
-        # next_best_weight = raw_weights.min()
-        # bt.logging.debug(f"initial next_best_weight: f{next_best_weight}")
-        # while raw_weights.max() > 0:
-        #     next_best_weight /= 2
-        #     raw_weights[raw_weights.argmin()] = next_best_weight
         
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
