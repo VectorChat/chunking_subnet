@@ -14,7 +14,7 @@ If `--accept_organic_queries` is set to its default value of `false`, or if the 
 
 The current iteration uses [Wikipedia’s Featured Articles](https://en.wikipedia.org/wiki/Wikipedia:Featured_articles) as the source data, consisting of 6,544 articles. If necessary, the source will expand to include the entire English Wikipedia (6,857,032 articles) or larger datasets such as [The Pile](https://pile.eleuther.ai/).
 
-The `generate_synthetic_synapse()` function in [forward.py](../chunking/validator/forward.py):
+The `generate_synthetic_synapse()` function in [task_api.py](../chunking/validator/task_api.py):
 
 ```python
 def generate_synthetic_synapse(validator) -> chunkSynapse:
