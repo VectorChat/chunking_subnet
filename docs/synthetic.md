@@ -29,8 +29,20 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
         }).json()['query']['pages'][str(page)]['extract']
     document = document.replace("\n", " ").replace("\t", " ")
     document = ' '.join(document.split())
-    synapse = chunkSynapse(document=document, time_soft_max=5.0, chunk_size=4096)
-    return synapse
+    timeout = validator.config.neuron.timeout
+    time_soft_max = timeout * 0.75
+    chunk_size = 4096
+    chunk_qty = ceil(
+        ceil(len(document) / chunk_size) * 1.5
+    )
+    synapse = chunkSynapse(
+        document=document,
+        time_soft_max=time_soft_max,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        timeout=timeout
+    )
+    return synapse, page
 ```
 
-By default, synthetic requests have a max `chunk_size` of 4096 characters, a max `chunk_qty` of `ceil(ceil(len(task["document"]) / task["chunk_size"]) * 1.5)`, and a `time_soft_max` of 5 seconds. Exceeding either the size or time restrictions results in exponential penalties to your score. See [Evaluation](./evaluation.md) to learn more.
+By default, synthetic requests have a max `chunk_size` of 4096 characters, a max `chunk_qty` of `ceil(ceil(len(task["document"]) / task["chunk_size"]) * 1.5)`, a `timeout` of 5 seconds, and a `time_soft_max` of `timeout * 0.75`. Exceeding either the size, quantity, or time restrictions results in exponential penalties to your score. See [Evaluation](./evaluation.md) to learn more.

@@ -99,7 +99,7 @@ reward *= (2/3) ** (size_penalty + qty_penalty)
 ```
 
 
-Finally, note that there is a soft-time limit (default: 5 seconds). Validators exponentially penalize responses for each second they are late.
+Finally, note that there is a soft-time limit (default: 3.75 seconds). Validators exponentially penalize responses for each second they are late.
 ```python
 if response.dendrite.process_time > response.time_soft_max:
     over_time = response.dendrite.process_time - response.time_soft_max
