@@ -33,4 +33,4 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
     return synapse
 ```
 
-By default, synthetic requests have a `chunk_size` of 4096 characters and a `time_soft_max` of 5 seconds. Exceeding either the size or time restrictions results in exponential penalties to your score. See [Evaluation](./evaluation.md) to learn more.
+By default, synthetic requests have a `chunk_size` of 4096 characters, a max `chunk_qty` of `ceil(ceil(len(task["document"]) / task["chunk_size"]) * 1.5)`, and a `time_soft_max` of 5 seconds. Exceeding either the size or time restrictions results in exponential penalties to your score. See [Evaluation](./evaluation.md) to learn more.
