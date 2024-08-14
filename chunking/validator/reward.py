@@ -53,11 +53,16 @@ def reward(
     def _verbose(msg: str):                
         if verbose:
             print(msg)
-                
     
-    if not response.chunks: 
-        # bt.logging.debug(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")       
-        return 0
+    extra_info_dict = {}
+    
+    def _early_return(msg: str):
+        _verbose(msg)
+        
+        return 0, extra_info_dict
+    
+    if not response.chunks:         
+        _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
     
     chunks = response.chunks
     intrachunk_similarities = []
@@ -82,7 +87,7 @@ def reward(
         chunk_words = ' '.join(word_tokenize(chunks[i]))
         combined_chunk_words += ' ' + chunk_words
         if chunk_words not in ' '.join(document_words):
-            return 0
+            _early_return(f"Chunk {i} does not contain all words from the document")
 
         # add up size penalty to be applied later
         chunk_length = len(chunks[i])
@@ -102,7 +107,7 @@ def reward(
     for i in range(0, len(document_words), 3):
         if (len(' '.join(document_words[i:i+3])) < chunk_size
             and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
-            return 0
+            _early_return(f"Every set of 3 adjacent words from the document does not appear in the chunks")
 
     _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
         
@@ -146,9 +151,15 @@ def reward(
     _verbose(f"Size penalty: {size_penalty}")     
     _verbose(f"Quantity penalty: {qty_penalty}")     
 
+    
+    extra_info_dict['embeddings'] = embeddings
+    extra_info_dict['intrachunk_similarities'] = intrachunk_similarities
+    extra_info_dict['interchunk_similarities'] = interchunk_similarities
+    extra_info_dict['size_penalty'] = size_penalty
+    extra_info_dict['embedding_reward'] = reward
+    extra_info_dict['qty_penalty'] = qty_penalty
+
     # calculate and return final reward
-
-
     
     reward = e ** reward # ensures that all rewards are positive
     _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
@@ -156,11 +167,15 @@ def reward(
     if response.dendrite.process_time > response.time_soft_max:
         over_time = response.dendrite.process_time - response.time_soft_max
         _verbose(f"Applying time penalty: {over_time} seconds over time")
-        reward *= (2/3) ** over_time
+        time_penalty = (2/3) ** over_time
+        
+        extra_info_dict['time_penalty'] = time_penalty
+        
+        reward *= time_penalty
     
-    reward *= (2/3) ** (size_penalty + qty_penalty)
+    reward *= (2/3) ** (size_penalty + qty_penalty)        
     
-    return reward
+    return reward, extra_info_dict
 
 def get_rewards(
         self,
@@ -179,9 +194,23 @@ def get_rewards(
     Returns:
     - np.ndarray: 
     """
+    
+    rewards = np.zeros(len(responses))
+    extra_infos = []
+    
+    for i, response in enumerate(responses):
+        try: 
+            reward_value, extra_info = reward(self, document, chunk_size, chunk_qty, response)                                
+            rewards[i] = float(reward_value)
+            extra_infos.append(extra_info)
+        except Exception as e:
+            print(f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}")
+            rewards[i] = 0
+            extra_infos.append({})            
+            
     # Get all the reward results by iteratively calling your reward() function.
-    rewards = np.array([float(reward(self, document, chunk_size, chunk_qty, response)) for response in responses])
-    return rewards
+    # rewards = np.array([float(reward(self, document, chunk_size, chunk_qty, response, verbose=True)) for response in responses])
+    return rewards, extra_infos
 
 def rank_responses(
         rewards: np.ndarray,

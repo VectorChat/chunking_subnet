@@ -201,7 +201,7 @@ def add_args(cls, parser):
             action="store_true",
             help="Set this flag to accept organic queries",
             default=False,
-        )
+        )                
 
     #Miner
     else:

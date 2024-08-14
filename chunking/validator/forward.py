@@ -21,12 +21,14 @@ from random import choice
 from math import floor
 import numpy as np
 from chunking.protocol import chunkSynapse
+from chunking.utils import uids
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.validator.task_api import Task
 from neurons.validator import Validator
 import json
 import gzip
 import base64
+from tabulate import tabulate
 
 def create_groups(rankings: np.ndarray, group_size: int):
     group_ranks = []
@@ -177,7 +179,7 @@ async def forward(self: Validator):
     
     wandb_data["group"]["hotkeys"] = hotkeys
     
-    rewards = get_rewards(
+    rewards, extra_infos = get_rewards(
         self,
         document=task.synapse.document,
         chunk_size=task.synapse.chunk_size,
@@ -185,8 +187,26 @@ async def forward(self: Validator):
         responses=responses,
     )
     
+    
     for reward, uid in zip(rewards, miner_group_uids):
         wandb_data["group"]["rewards"][str(uid)] = reward
+    
+    
+    table_data = []
+
+    for i, tuple_info in enumerate(zip(miner_group_uids, rewards, extra_infos)):
+        uid, reward, extra_info = tuple_info
+        embedding_reward = extra_info.get('embedding_reward', 'n/a')
+        size_penalty = extra_info.get('size_penalty', 'n/a')
+        qty_penalty = extra_info.get('qty_penalty', 'n/a')
+        time_penalty = extra_info.get('time_penalty', 'n/a')
+        
+        table_data.append((uid, reward, embedding_reward, size_penalty, qty_penalty, time_penalty))
+        
+    sorted_desc = sorted(table_data, key=lambda x: x[1], reverse=True)
+    
+    print("\nRewards and UIDs:")
+    print(tabulate(sorted_desc, headers=['UID', 'Reward', 'Embedding Reward', 'Size Penalty', 'Quantity Penalty', 'Time Penalty'], tablefmt='grid'))    
 
     bt.logging.debug(f"Scored responses: {rewards}")
     
@@ -200,7 +220,7 @@ async def forward(self: Validator):
     
     bt.logging.debug(f"log_data: {log_data}")
 
-    # Task.upload_logs(self, log_data)
+    # Task.upload_logs(self, log_data)    
     
     ranked_responses = rank_responses(rewards)    
     
