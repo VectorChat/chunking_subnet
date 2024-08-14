@@ -13,11 +13,11 @@ check_root() {
 install_packages() {
     if command -v apt-get &>/dev/null; then
         apt-get update
-        apt-get install -y python3-venv python3-tk
+        apt-get install -y python3-venv
     elif command -v yum &>/dev/null; then
-        yum install -y python3-venv python3-tkinter
+        yum install -y python3-venv
     elif command -v dnf &>/dev/null; then
-        dnf install -y python3-venv python3-tkinter        
+        dnf install -y python3-venv
     else
         echo "Unable to install python3-venv. Please install it manually."
         exit 1
