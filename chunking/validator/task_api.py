@@ -7,6 +7,7 @@ from sr25519 import sign
 import json
 import os
 from random import choice
+from math import ceil
 
 from neurons.validator import Validator
 
@@ -64,17 +65,22 @@ class Task():
                             task["timeout"] = 5.0
                         if task["chunk_size"] == None:
                             task["chunk_size"] = 4096
+                        if task["chunk_qty"] == None:
+                            task["chunk_qty"] = ceil(
+                                ceil(len(task["document"]) / task["chunk_size"]) * 1.5
+                            )
                         synapse = chunkSynapse(
                             document=task["document"],
                             timeout=task["timeout"],
-                            chunk_size=task["chunk_size"]
+                            chunk_size=task["chunk_size"],
+                            chunk_qty=task["chunk_qty"],
                         )
-                return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids)
+                return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids), -1
             except Exception as e:
                 bt.logging.error(f"Failed to get task from API host: \'{API_host}\'. Exited with exception\n{e}")
         bt.logging.debug("Generating synthetic query")
-        synapse = generate_synthetic_synapse(validator)
-        return Task(synapse=synapse, task_type="synthetic", task_id=-1)
+        synapse, page = generate_synthetic_synapse(validator)
+        return Task(synapse=synapse, task_type="synthetic", task_id=-1), page
 
     @classmethod
     def return_response(cls, validator, response_data):
@@ -141,5 +147,16 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
     document = document.replace("\n", " ").replace("\t", " ")
     document = ' '.join(document.split())
     timeout = validator.config.neuron.timeout
-    synapse = chunkSynapse(document=document, time_soft_max=timeout * 0.75, chunk_size=4096, timeout=timeout)
-    return synapse
+    time_soft_max = timeout * 0.75
+    chunk_size = 4096
+    chunk_qty = ceil(
+        ceil(len(document) / chunk_size) * 1.5
+    )
+    synapse = chunkSynapse(
+        document=document,
+        time_soft_max=time_soft_max,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        timeout=timeout
+    )
+    return synapse, page

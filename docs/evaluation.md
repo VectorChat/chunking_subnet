@@ -51,7 +51,7 @@ else:
     testChunks = smallChunks
 ```
 
-Then, to calculate the similarity score, the dot product of every possible pair of embeddings is calculated. For each pair that originated from the same chunk, the result is added to the score (intrachunk similarity). For each pair originating from different chunks, the result is subtracted from the score (interchunk dissimilarity).
+Then, to calculate the similarity score, the dot product of every possible pair of embeddings is calculated. The average of each pair originating from the same chunk is added to the score (intrachunk similarity), while the average of each pair originating from different chunks is subtracted from the score (interchunk dissimilarity).
 
 ```python
 for i in range(len(testChunks) - 1):
@@ -61,7 +61,12 @@ for i in range(len(testChunks) - 1):
             reward += np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
         else:
             reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
-        j += 1  
+        j += 1
+
+reward = (
+    (np.mean(intrachunk_similarities) if len(intrachunk_similarities) > 0 else 0)
+    - (np.mean(interchunk_similarities) if len(interchunk_similarities) > 0 else 0)
+)
 ```
 
 Here is a visualization of how the validator calculates a miner’s score:
@@ -72,7 +77,7 @@ Here is a visualization of how the validator calculates a miner’s score:
 
 Finally, penalities are deducted from the score.
 
-Responses are penalized exponentially for each character over the maximum chunk length.
+Responses are penalized exponentially for each character over the maximum chunk length: `chunk_size`
 ```python
 # add up size penalty to be applied later
 chunk_length = len(chunks[i])
@@ -81,8 +86,16 @@ if chunk_length > chunk_size:
     _verbose(f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}")     
 
 ```
+And for each chunk over the maximum chunk quantity: `chunk_qty`
 ```python
-reward *= (2/3) ** size_penalty  
+# penalize an excessive number of chunks
+    num_chunks = len(chunks)
+    if num_chunks > chunk_qty:
+        qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
+        _verbose(f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}")
+```
+```python
+reward *= (2/3) ** (size_penalty + qty_penalty) 
 ```
 
 

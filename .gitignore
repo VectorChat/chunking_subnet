@@ -15,3 +15,5 @@ c*.sh
 .env
 start.sh
 wandb/
+*.json
+scripts/

@@ -16,7 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from math import ceil
+from math import ceil, e
 from typing import List
 
 from openai import OpenAI
@@ -29,7 +29,16 @@ import bittensor as bt
 from neurons.validator import Validator
     
 
-def reward(self: Validator | None, document: str, chunk_size: int, response: chunkSynapse, override_client: OpenAI | None = None, override_num_embeddings: int | None = None, verbose: bool = False) -> float:
+def reward(
+    self: Validator | None,
+    document: str,
+    chunk_size: int,
+    chunk_qty: int,
+    response: chunkSynapse,
+    override_client: OpenAI | None = None,
+    override_num_embeddings: int | None = None,
+    verbose: bool = False
+) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
     value for the miner, which is used to update the miner's score.
@@ -44,25 +53,41 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
     def _verbose(msg: str):                
         if verbose:
             print(msg)
-                
     
-    if not response.chunks: 
-        # bt.logging.debug(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")       
-        return 0
+    extra_info_dict = {}
+    
+    def _early_return(msg: str):
+        _verbose(msg)
+        
+        return 0, extra_info_dict
+    
+    if not response.chunks:         
+        _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
     
     chunks = response.chunks
-    reward = 0.0
+    intrachunk_similarities = []
+    interchunk_similarities = []
     smallChunks = []
     size_penalty = 0
     document_words = word_tokenize(document)
     combined_chunk_words = ''
+
+    qty_penalty = 0
+
+    # penalize an excessive number of chunks
+    num_chunks = len(chunks)
+    if num_chunks > chunk_qty:
+        qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
+        _verbose(f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}")
+        
+        
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
         chunk_words = ' '.join(word_tokenize(chunks[i]))
         combined_chunk_words += ' ' + chunk_words
         if chunk_words not in ' '.join(document_words):
-            return 0
+            _early_return(f"Chunk {i} does not contain all words from the document")
 
         # add up size penalty to be applied later
         chunk_length = len(chunks[i])
@@ -82,7 +107,7 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
     for i in range(0, len(document_words), 3):
         if (len(' '.join(document_words[i:i+3])) < chunk_size
             and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
-            return 0
+            _early_return(f"Every set of 3 adjacent words from the document does not appear in the chunks")
 
     _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
         
@@ -112,31 +137,51 @@ def reward(self: Validator | None, document: str, chunk_size: int, response: chu
         j = i + 1
         while j < len(testChunks):
             if testChunks[i].sourceChunk == testChunks[j].sourceChunk:
-                reward += np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
+                intrachunk_similarities.append(np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j])))
             else:
-                reward -= np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
+                interchunk_similarities.append(np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j])))
             j += 1            
     
+    reward = (
+        (np.mean(intrachunk_similarities) if len(intrachunk_similarities) > 0 else 0)
+        - (np.mean(interchunk_similarities) if len(interchunk_similarities) > 0 else 0)
+    )
+
     _verbose(f"Embedding reward: {reward}")
     _verbose(f"Size penalty: {size_penalty}")     
+    _verbose(f"Quantity penalty: {qty_penalty}")     
+
+    
+    extra_info_dict['embeddings'] = embeddings
+    extra_info_dict['intrachunk_similarities'] = intrachunk_similarities
+    extra_info_dict['interchunk_similarities'] = interchunk_similarities
+    extra_info_dict['size_penalty'] = size_penalty
+    extra_info_dict['embedding_reward'] = reward
+    extra_info_dict['qty_penalty'] = qty_penalty
 
     # calculate and return final reward
-    reward = 1.01 ** reward # ensures that all rewards are positive    
-    _verbose(f"Ensuring reward is positive (1.01 ** reward):\n{reward}")    
     
+    reward = e ** reward # ensures that all rewards are positive
+    _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
+
     if response.dendrite.process_time > response.time_soft_max:
         over_time = response.dendrite.process_time - response.time_soft_max
         _verbose(f"Applying time penalty: {over_time} seconds over time")
-        reward *= (2/3) ** over_time
-                
-    reward *= (2/3) ** size_penalty    
+        time_penalty = (2/3) ** over_time
+        
+        extra_info_dict['time_penalty'] = time_penalty
+        
+        reward *= time_penalty
     
-    return reward
+    reward *= (2/3) ** (size_penalty + qty_penalty)        
+    
+    return reward, extra_info_dict
 
 def get_rewards(
         self,
         document: str,
         chunk_size: int,
+        chunk_qty: int,
         responses: List[chunkSynapse],
 ) -> np.ndarray:
     """
@@ -149,9 +194,26 @@ def get_rewards(
     Returns:
     - np.ndarray: 
     """
+    
+    rewards = np.zeros(len(responses))
+    extra_infos = []
+    
+    for i, response in enumerate(responses):
+        try: 
+            if not response.chunks or len(response.chunks) == 0:
+                raise Exception(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
+            
+            reward_value, extra_info = reward(self, document, chunk_size, chunk_qty, response)                                
+            rewards[i] = float(reward_value)
+            extra_infos.append(extra_info)
+        except Exception as e:
+            print(f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}")
+            rewards[i] = 0
+            extra_infos.append({})            
+            
     # Get all the reward results by iteratively calling your reward() function.
-    rewards = np.array([float(reward(self, document, chunk_size, response)) for response in responses])
-    return rewards
+    # rewards = np.array([float(reward(self, document, chunk_size, chunk_qty, response, verbose=True)) for response in responses])
+    return rewards, extra_infos
 
 def rank_responses(
         rewards: np.ndarray,
