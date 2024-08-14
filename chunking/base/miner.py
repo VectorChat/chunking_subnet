@@ -105,7 +105,7 @@ class BaseMinerNeuron(BaseNeuron):
                     self.block - self.last_sync_block < self.config.neuron.epoch_length
                 ):
                     # Wait before checking again.
-                    time.sleep(6)
+                    time.sleep(60)
 
                     # Check if we should exit.
                     if self.should_exit:
