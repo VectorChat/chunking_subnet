@@ -170,7 +170,7 @@ def add_args(cls, parser):
             "--neuron.moving_average_alpha",
             type=float,
             help="Moving average alpha parameter, how much to add of the new observation.",
-            default=0.15,
+            default=0.05,
         )
 
         parser.add_argument(
@@ -201,7 +201,7 @@ def add_args(cls, parser):
             action="store_true",
             help="Set this flag to accept organic queries",
             default=False,
-        )                
+        )
 
     #Miner
     else:
