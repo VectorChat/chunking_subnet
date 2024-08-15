@@ -501,7 +501,10 @@ class BaseValidatorNeuron(BaseNeuron):
             
             for uid in range(len(self.scores)):                
                 wandb_data["all"]["scores"][str(uid)] = self.scores[uid]                
-                wandb_data["all"]["rankings"][str(uid)] = self.rankings[uid]
+            
+            for rank in range(len(self.rankings)):
+                uid = self.rankings[rank]                
+                wandb_data["all"]["rankings"][str(uid)] = rank
             
             # bt.logging.debug(f"Logging wandb_data: {wandb_data}")                    
             bt.logging.info("Logging wandb_data")
