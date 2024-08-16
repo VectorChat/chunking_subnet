@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import bittensor as bt
 from chunking.protocol import chunkSynapse
 import requests
@@ -134,8 +134,8 @@ class Task():
             bt.logging.error(f"Failed to upload logs to API host: \'{API_host}\'. Exited with exception\n{e}")
 
 
-def generate_synthetic_synapse(validator) -> chunkSynapse:
-    page = choice(validator.articles)
+def generate_synthetic_synapse(validator, pageid = None, timeout = 20) -> Tuple[chunkSynapse, int]:
+    page = choice(validator.articles) if pageid == None else pageid
     document = requests.get('https://en.wikipedia.org/w/api.php', params={
         'action': 'query',
         'format': 'json',
@@ -146,7 +146,7 @@ def generate_synthetic_synapse(validator) -> chunkSynapse:
         }).json()['query']['pages'][str(page)]['extract']
     document = document.replace("\n", " ").replace("\t", " ")
     document = ' '.join(document.split())
-    timeout = validator.config.neuron.timeout
+    timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
     chunk_qty = ceil(
