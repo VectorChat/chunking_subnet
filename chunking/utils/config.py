@@ -194,7 +194,7 @@ def add_args(cls, parser):
             "--num_embeddings",
             type=int,
             help="Number of embeddings to generate and compare.",
-            default=50,
+            default=150,
         )
         parser.add_argument(
             "--accept_organic_queries",
