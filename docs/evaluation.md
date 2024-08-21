@@ -9,7 +9,9 @@ In the default validator, [reward.py](../chunking/validator/reward.py) scores th
 ## Failure States
 
 ### 1. No new words
+
 First, the validator confirms that each word in the chunked response also exists, in the same order, in the original document.
+
 ```python
 # check that every word in chunk exists and is in the same order as the source document
 chunk_words = ' '.join(word_tokenize(chunks[i]))
@@ -17,8 +19,11 @@ combined_chunk_words += ' ' + chunk_words
 if chunk_words not in ' '.join(document_words):
     return 0
 ```
+
 ### 2. All words present
+
 Then, the validator confirms that every set of 3 adjacent words in the original document is also present within the chunked response.
+
 ```python
 # check that every set of 3 adjacent words from the document appears in the chunks
 for i in range(0, len(document_words), 3):
@@ -41,7 +46,7 @@ for j in range(0, len(sentences), 3):
     smallChunks.append(smallChunk(i, text))
 ```
 
-A random sample, of `num_embeddings` size, is taken and then embedded. The default value is 50.
+A random sample, of `num_embeddings` size, is taken and then embedded. The default value is 150.
 
 ```python
 # pick out segments to use for evaluation
@@ -78,15 +83,18 @@ Here is a visualization of how the validator calculates a miner’s score:
 Finally, penalities are deducted from the score.
 
 Responses are penalized exponentially for each character over the maximum chunk length: `chunk_size`
+
 ```python
 # add up size penalty to be applied later
 chunk_length = len(chunks[i])
-if chunk_length > chunk_size:            
-    size_penalty += ((chunk_length / chunk_size) - 1) * 10            
-    _verbose(f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}")     
+if chunk_length > chunk_size:
+    size_penalty += ((chunk_length / chunk_size) - 1) * 10
+    _verbose(f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}")
 
 ```
+
 And for each chunk over the maximum chunk quantity: `chunk_qty`
+
 ```python
 # penalize an excessive number of chunks
     num_chunks = len(chunks)
@@ -94,12 +102,13 @@ And for each chunk over the maximum chunk quantity: `chunk_qty`
         qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
         _verbose(f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}")
 ```
+
 ```python
-reward *= (2/3) ** (size_penalty + qty_penalty) 
+reward *= (2/3) ** (size_penalty + qty_penalty)
 ```
 
-
 Finally, note that there is a soft-time limit (default: 3.75 seconds). Validators exponentially penalize responses for each second they are late.
+
 ```python
 if response.dendrite.process_time > response.time_soft_max:
     over_time = response.dendrite.process_time - response.time_soft_max

@@ -1,6 +1,17 @@
 #!/bin/bash
 source .env
 
+# check if api keys are set
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo -e "${CYAN}OpenAI API key is not set. Please set it in the .env file as 'OPENAI_API_KEY'${NC}"
+    exit 1
+fi
+
+if [ -z "$WANDB_API_KEY" ]; then
+    echo -e "${CYAN}W&B API key is not set. Please set it in the .env file as 'WANDB_API_KEY'${NC}"
+    exit 1
+fi
+
 python3 -c "import bittensor as bt" > /dev/null 2>&1
 
 if [ $? -eq 1 ]; then
