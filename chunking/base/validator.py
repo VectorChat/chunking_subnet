@@ -143,52 +143,49 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.success(f"Resumed wandb run '{run.name}' for project '{project_name}'")
 
     def _setup_wandb(self):
-        if not self.config.neuron.wandb_off:
-            if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
-                bt.logging.error("WANDB_API_KEY environment variable must be set if neuron.wandb_off is not set")
-                self.config.neuron.wandb_off = True
-            else:
-                try:                                        
-                    project_name = self.config.wandb.project_name
-                    
-                    latest_run = self._get_latest_wandb_run(project_name)                                        
-                    
-                    run_name = f"validator-{self.uid}-{chunking.__version__}"
-                    
-                    self.config.uid = self.uid
-                    self.config.hotkey = self.wallet.hotkey.ss58_address
-                    self.config.run_name = run_name
-                    self.config.version = chunking.__version__
-                    self.config.type = "validator"                                                
-                    
-                    if not latest_run:
-                        self._start_new_wandb_run(project_name, run_name)                                                                                               
-                    else:
-                        # check if uid or version has changed
-                        if latest_run.config.get("version") != chunking.__version__ or latest_run.config.get("uid") != self.uid :
-                            bt.logging.info(f"Found run with different version or uid ({latest_run.name})")
-                            
-                            
-                            existing_run = self._find_existing_wandb_run(chunking.__version__, self.uid)
-                            
-                            if not existing_run:                         
-                                bt.logging.info(f"Could not find existing run with version {chunking.__version__} and uid {self.uid}, starting new run")   
-                                self._start_new_wandb_run(project_name, run_name) 
-                            else:
-                                bt.logging.info(f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run")
-                                self._resume_wandb_run(existing_run, project_name)
-                        else:
-                            self._resume_wandb_run(latest_run, project_name)                                
-                    
-                    # always update config
-                    wandb.config.update(self.config, allow_val_change=True)                                        
-                    
-                except Exception as e:
-                    bt.logging.error(f"Error in init_wandb: {e}")
-                    self.config.neuron.wandb_off = True
-                    traceback.print_exc()
+        if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
+            raise Exception("WANDB_API_KEY environment variable must be set")
+            
         else:
-            bt.logging.warning("Wandb is turned off")
+            try:                                        
+                project_name = self.config.wandb.project_name
+                
+                latest_run = self._get_latest_wandb_run(project_name)                                        
+                
+                run_name = f"validator-{self.uid}-{chunking.__version__}"
+                
+                self.config.uid = self.uid
+                self.config.hotkey = self.wallet.hotkey.ss58_address
+                self.config.run_name = run_name
+                self.config.version = chunking.__version__
+                self.config.type = "validator"                                                
+                
+                if not latest_run:
+                    self._start_new_wandb_run(project_name, run_name)                                                                                               
+                else:
+                    # check if uid or version has changed
+                    if latest_run.config.get("version") != chunking.__version__ or latest_run.config.get("uid") != self.uid :
+                        bt.logging.info(f"Found run with different version or uid ({latest_run.name})")
+                        
+                        
+                        existing_run = self._find_existing_wandb_run(chunking.__version__, self.uid)
+                        
+                        if not existing_run:                         
+                            bt.logging.info(f"Could not find existing run with version {chunking.__version__} and uid {self.uid}, starting new run")   
+                            self._start_new_wandb_run(project_name, run_name) 
+                        else:
+                            bt.logging.info(f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run")
+                            self._resume_wandb_run(existing_run, project_name)
+                    else:
+                        self._resume_wandb_run(latest_run, project_name)                                
+                
+                # always update config
+                wandb.config.update(self.config, allow_val_change=True)                                        
+                
+            except Exception as e:
+                bt.logging.error(f"Error in init_wandb: {e}")
+                self.config.neuron.wandb_off = True
+                traceback.print_exc()
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
