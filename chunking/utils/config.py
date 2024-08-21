@@ -136,7 +136,7 @@ def add_args(cls, parser):
             "--neuron.sample_size",
             type=int,
             help="The number of miners to query in a single step.",
-            default=2,
+            default=4,
         )
 
         parser.add_argument(
@@ -164,7 +164,7 @@ def add_args(cls, parser):
             "--neuron.min_moving_average_alpha",
             type=float,
             help="Moving average alpha parameter used for top miners, scores of lower ranked miners are adjusted with a higher alpha.",
-            default=0.025,
+            default=0.05,
         )
 
         parser.add_argument(
