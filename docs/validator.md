@@ -51,7 +51,7 @@ network_spec:
 
 - Ensure that you have registered a hotkey for our subnet
 
-- Running a validator requires an OpenAI API key
+- Running a validator requires an OpenAI API key and a W&B API key
 
 ## Installation/Setup
 
@@ -61,16 +61,10 @@ This repository requires python 3.8 or higher. The following command will instal
 curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
 ```
 
-By default, logs are sent to a wandb project. Ensure that the WANDB_API_KEY environment variable is set or disable wandb with the following flag:
-
-```bash
---neuron.wandb_off
-```
-
 To run the validator issue the following command after setting your OpenAI API key in the environment variable (brackets indicate optional arguments):
 
 ```bash
-bash run-validator.sh [--neuron.wandb_off] [...]
+bash run-validator.sh [...]
 ```
 
 ## Flags
