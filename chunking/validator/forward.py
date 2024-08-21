@@ -276,5 +276,7 @@ async def forward(self: Validator):
         }
 
         Task.return_response(self, response_data)
-    self.update_scores(wandb_data, ranked_responses_global, miner_groups[miner_group], task.task_type)
+    alpha_adjustment = (1 - self.config.neuron.min_moving_average_alpha) / (len(miner_groups) - 1)
+    alpha = self.config.neuron.min_moving_average_alpha + alpha_adjustment * miner_group
+    self.update_scores(wandb_data, ranked_responses_global, miner_group_uids, task.task_type, alpha)
     # time.sleep(5)
