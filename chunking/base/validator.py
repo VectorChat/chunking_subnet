@@ -183,9 +183,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 wandb.config.update(self.config, allow_val_change=True)                                        
                 
             except Exception as e:
-                bt.logging.error(f"Error in init_wandb: {e}")
-                self.config.neuron.wandb_off = True
-                traceback.print_exc()
+                raise Exception(f"Error in init_wandb: {e}")
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
@@ -320,8 +318,7 @@ class BaseValidatorNeuron(BaseNeuron):
             traceback: A traceback object encoding the stack trace.
                        None if the context was exited without an exception.
         """
-        if not self.config.neuron.wandb_off:
-            wandb.finish()
+        wandb.finish()
         
         if self.is_running:
             bt.logging.debug("Stopping validator in background thread.")
@@ -387,11 +384,10 @@ class BaseValidatorNeuron(BaseNeuron):
 
         timeout_seconds = self.config.set_weights_timeout_seconds
 
-        if not self.config.neuron.wandb_off:
-            wandb_data = {"weights": {}}
-            for uid, weight in zip(uint_uids, uint_weights):
-                wandb_data["weights"][str(uid)] = weight
-            wandb.log(wandb_data)
+        wandb_data = {"weights": {}}
+        for uid, weight in zip(uint_uids, uint_weights):
+            wandb_data["weights"][str(uid)] = weight
+        wandb.log(wandb_data)
 
         # Set the weights on chain via our subtensor connection.
         def set_weights_on_chain():
@@ -456,7 +452,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)    
 
-    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int], task_type: Literal["organic", "synthetic"]):
+    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int], task_type: Literal["organic", "synthetic"], alpha: float):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
@@ -471,8 +467,6 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        alpha: float = self.config.neuron.moving_average_alpha
-
         bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
         
         for rank, uid in zip(ranks, uids_array):
@@ -491,7 +485,7 @@ class BaseValidatorNeuron(BaseNeuron):
         
         self.rankings = np.argsort(self.scores)
 
-        if not self.config.neuron.wandb_off and task_type == "synthetic":
+        if task_type == "synthetic":
             for uid in uids_array:                
                 # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
                 wandb_data["group"]["scores"][str(uid)] = self.scores[uid]                        
