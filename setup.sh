@@ -10,19 +10,19 @@ check_root() {
 }
 
 # install packages
-install_packages() {
-    if command -v apt-get &>/dev/null; then
-        apt-get update
-        apt-get install -y python3-venv
-    elif command -v yum &>/dev/null; then
-        yum install -y python3-venv
-    elif command -v dnf &>/dev/null; then
-        dnf install -y python3-venv
-    else
-        echo "Unable to install python3-venv. Please install it manually."
-        exit 1
-    fi
-}
+# install_packages() {
+#     if command -v apt-get &>/dev/null; then
+#         apt-get update
+#         apt-get install -y python3-venv
+#     elif command -v yum &>/dev/null; then
+#         yum install -y python3-venv
+#     elif command -v dnf &>/dev/null; then
+#         dnf install -y python3-venv
+#     else
+#         echo "Unable to install python3-venv. Please install it manually."
+#         exit 1
+#     fi
+# }
 
 # check if running as root
 check_root
@@ -33,7 +33,7 @@ if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.vers
     exit 1
 fi
 
-install_packages
+# install_packages
 
 # install pm2
 if ! command -v pm2 &>/dev/null; then
