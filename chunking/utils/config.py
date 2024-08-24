@@ -150,7 +150,7 @@ def add_args(cls, parser):
             "--neuron.synthetic_query_interval_seconds",
             type=int,
             help="The interval between synthetic queries in seconds.",
-            default=60
+            default=20
         )
 
         parser.add_argument(
