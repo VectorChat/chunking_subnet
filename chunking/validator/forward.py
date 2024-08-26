@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import time
 import bittensor as bt
 from random import choice
 from math import floor
@@ -259,11 +260,18 @@ async def forward(self: Validator):
                     response = responses[i]
                     break
 
+        if isinstance(response.chunks, np.ndarray):
+            chunks = response.chunks.tolist()
+        elif response.chunks is None:            
+            chunks = []
+        else:
+            chunks = response.chunks
+                
         task_data = {
             'document': response.document,
             'chunk_size': response.chunk_size,
             'chunk_qty': response.chunk_qty,
-            'chunks': response.chunks,
+            'chunks': chunks,
         }
 
         response_data = {
@@ -272,7 +280,7 @@ async def forward(self: Validator):
             'miner_hotkey': response.axon.hotkey,
             'validator_hotkey': hotkey.ss58_address,
             'task_id': task.task_id,            
-            'nonce': self.step,
+            'nonce': time.time_ns(),
         }
 
         Task.return_response(self, response_data)

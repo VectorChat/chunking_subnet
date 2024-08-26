@@ -1,6 +1,6 @@
 import logging
 from math import ceil
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 import time
 import json
@@ -19,6 +19,8 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+router = APIRouter(prefix="/task_api")
 
 # Input and Output models (unchanged)
 class TaskRequest(BaseModel):
@@ -62,7 +64,7 @@ class ChunkLanguageRequest(BaseModel):
 class ChunkLanguageResponse(BaseModel):
     chunks: List[str]
 
-@app.post("/task_api/get_new_task/", response_model=TaskResponse)
+@router.post("/get_new_task", response_model=TaskResponse)
 async def send_task(request: TaskRequest):
     logger.info(f"Received new task request: {request}")
     signature = request.signature
@@ -113,7 +115,7 @@ async def send_task(request: TaskRequest):
         document=task['document'],
     )
 
-@app.post("/task_api/organic_response/", response_model=OrganicResponseResult)
+@router.post("/organic_response", response_model=OrganicResponseResult)
 async def receive_response(response: OrganicResponse):
     logger.info("Received organic response")
     logger.debug(f"Response data: {response}")
@@ -190,7 +192,7 @@ async def receive_response(response: OrganicResponse):
 
     return OrganicResponseResult(status="success")
 
-@app.post("/task_api/chunk/language", response_model=ChunkLanguageResponse)
+@router.post("/add_task", response_model=ChunkLanguageResponse)
 async def receive_task(request: ChunkLanguageRequest):
     logger.info("Received chunk language request")
     logger.debug(f"Request data: {request}")
@@ -230,6 +232,8 @@ async def receive_task(request: ChunkLanguageRequest):
 
     logger.info(f"Task {task_id} completed successfully")
     return ChunkLanguageResponse(chunks=helper.tasks[task_id]['chunks'])
+
+app.include_router(router)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
