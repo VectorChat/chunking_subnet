@@ -251,39 +251,42 @@ async def forward(self: Validator):
     bt.logging.info(f"Global ranked responses: {ranked_responses_global}")
 
     if task.task_type == "organic":
-        if task.miner_uids is None or not found_match:
-            response = responses[ranked_responses.argmin()]
-            
-        else:
-            for i in range(len(task.miner_uids)):
-                if task.miner_uids[i] in miner_group_uids:
-                    response = responses[i]
-                    break
-
-        if isinstance(response.chunks, np.ndarray):
-            chunks = response.chunks.tolist()
-        elif response.chunks is None:            
-            chunks = []
-        else:
-            chunks = response.chunks
+        try: 
+            if task.miner_uids is None or not found_match:
+                response = responses[ranked_responses.argmin()]
                 
-        task_data = {
-            'document': response.document,
-            'chunk_size': response.chunk_size,
-            'chunk_qty': response.chunk_qty,
-            'chunks': chunks,
-        }
+            else:
+                for i in range(len(task.miner_uids)):
+                    if task.miner_uids[i] in miner_group_uids:
+                        response = responses[i]
+                        break
 
-        response_data = {
-            'task_data': task_data,
-            'miner_signature': response.miner_signature,
-            'miner_hotkey': response.axon.hotkey,
-            'validator_hotkey': hotkey.ss58_address,
-            'task_id': task.task_id,            
-            'nonce': time.time_ns(),
-        }
+            if isinstance(response.chunks, np.ndarray):
+                chunks = response.chunks.tolist()
+            elif response.chunks is None:            
+                chunks = []
+            else:
+                chunks = response.chunks
+                    
+            task_data = {
+                'document': response.document,
+                'chunk_size': response.chunk_size,
+                'chunk_qty': response.chunk_qty,
+                'chunks': chunks,
+            }
 
-        Task.return_response(self, response_data)
+            response_data = {
+                'task_data': task_data,
+                'miner_signature': response.miner_signature,
+                'miner_hotkey': response.axon.hotkey,
+                'validator_hotkey': hotkey.ss58_address,
+                'task_id': task.task_id,            
+                'nonce': time.time_ns(),
+            }
+
+            Task.return_response(self, response_data)
+        except Exception as e:
+            bt.logging.error(f"Error returning organic query response: {e}")
     alpha_adjustment = (1 - self.config.neuron.min_moving_average_alpha) / (len(miner_groups) - 1)
     alpha = self.config.neuron.min_moving_average_alpha + alpha_adjustment * miner_group
     self.update_scores(wandb_data, ranked_responses_global, miner_group_uids, task.task_type, alpha)
