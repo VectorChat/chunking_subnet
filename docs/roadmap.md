@@ -8,7 +8,7 @@ The initial phase of the subnet, containing the basic functionality of the subne
 - [x] The first contest: the chunking of unstructured text
 - [x] Autoupdate for Miners and Validators
 - [x] Miner blacklist by Stake and Address
-- [ ] Open-source Task API Framework to query the subnet
+- [x] Open-source Task API Framework to query the subnet
 - [ ] Subnet Dashboard for Miners and Validators
   - [ ] Display Subnet KPIs
   - [ ] Periodic global benchmark
@@ -33,11 +33,11 @@ The initial phase of the subnet, containing the basic functionality of the subne
 
 
 ##  Production
-The next phase of the subnet aims to make the intelligence incentivized by this subnet viable for commercial, enterprise, and personal use. Ensuring end-user data privacy remains secure becomes paramount. 
+The next phase of the subnet aims to make the intelligence incentivized by this subnet viable for commercial, enterprise, and personal use. Ensuring end-user data privacy becomes paramount. 
 
 The incentive mechanism must change such that Validators and Miners never have access to the documents sent to be chunked, and such that no other parties ever gain the models created by Miners. 
 
-*But how might that work?* See: 
+*But how might that work?* [See our (very tentative) approach.](https://docs.google.com/document/d/1tmk9LuvWmKozC7DBvON4o9Dywe5D3S78TgLeuSah1MI/edit?usp=sharing)
 
 ###  Objectives:
 - [ ] Private Organic Query System
@@ -56,9 +56,9 @@ The third phase has the subnet expand to subsume the full Retrieval-Augmented Ge
 - [ ] Preprocessing Contests
     - [ ] Text and Structure Extraction
 - [ ] Embedding Contests
-    - [ ] Text Embedding
-    - [ ] Audio Embedding
-    - [ ] Image Embedding
-    - [ ] Video Embedding
+    - [ ] Text
+    - [ ] Audio
+    - [ ] Image
+    - [ ] Video
 - [ ] Vector DB Contests
     - [ ] Vector Search
