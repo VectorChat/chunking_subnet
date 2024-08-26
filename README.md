@@ -53,6 +53,9 @@ We believe the best solutions are yet to come, and we are excited to see how min
 * 🧪 [Synthetic Queries](./docs/synthetic.md)
 * 🌱 [Organic Queries & the Task API(s)](./docs/organic.md)
 
+---
+* 🛣️ [Roadmap](./docs/roadmap.md)
+
 # Ethos
 ### *Models always stay on your machine and remain under your full ownership!*
 
@@ -80,22 +83,3 @@ We also recommend these resources by [Pinecone.io](https://www.pinecone.io/):
 To learn how to set up a miner, see [Default Miner](./docs/default_miner.md). This is a very simple miner to get you started. We highly recommend you read our [Guide to Mining](./docs/miner_guide.md) to create your own logic.
 
 For validator setup and considerations, please view [Validation](./docs/validator.md).
-
-# Roadmap
-
-Our goal is to establish this subnet as the premier source for the most advanced chunking solution, thereby achieving profitability in the near future.
-
-**Phase 1: Foundation** 
-- [ ] Release our opt-in Task API, enabling validators to receive and monetize organic queries.
-- [ ] Release framework for validators to create their own Task API network.
-- [ ] Launch subnet dashboards for miners and validators, displaying performance, statistics, and tracking compensation.
-
-**Phase 2: Demand**
-- [ ] Update organic side of the protocol to ensure privacy, so that only the Task network (end-user) sees the document or resultant chunks.
-- [ ] Launch of Chunking.com, our front-end service delivering cutting-edge RAG to developers and enterprises.
-- [ ] Launch of Toffee, our conversational AI platform using RAG to create an unparalleled user experience.
-
-**Phase 3: Expansion**
-- [ ] Expand to include custom queries and evaluations for structure-dependent data (e.g., CSV).
-- [ ] Expand to include new data modalities requiring novel chunking solutions (e.g., image, audio, and video).
-- [ ] Advance other areas of Retrieval-Augmented Generation, such as hybrid search.
