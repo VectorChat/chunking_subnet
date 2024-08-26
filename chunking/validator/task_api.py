@@ -1,3 +1,4 @@
+import time
 from typing import Optional, List, Tuple
 import bittensor as bt
 from chunking.protocol import chunkSynapse
@@ -28,11 +29,14 @@ class Task():
 
         if os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES') == 'True':
             hotkey = validator.wallet.get_hotkey()
-            nonce = validator.step
+            nonce = time.time_ns()
             data = {
                 'hotkey_address': hotkey.ss58_address,
                 'nonce': nonce
             }
+            
+            bt.logging.debug(f"Requesting task from API host: \'{os.environ['CHUNKING_API_HOST']}\'")
+            bt.logging.debug(f"Request body: {data}")
 
             # sign request with validator hotkey
             request_signature = sign(
@@ -47,6 +51,8 @@ class Task():
                 'data': data, 
                 'signature': request_signature
                 }
+            bt.logging.debug(f"Request data: {request_data}")
+            
             try:
                 response = requests.post(url=task_url, headers=headers, json=request_data)
                 if response.status_code == 502:
@@ -75,6 +81,9 @@ class Task():
                             chunk_size=task["chunk_size"],
                             chunk_qty=task["chunk_qty"],
                         )
+                    else:
+                        bt.logging.info(f"No organic task available. Generating synthetic query")
+                        raise Exception("No organic task available")                
                 return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids), -1
             except Exception as e:
                 bt.logging.error(f"Failed to get task from API host: \'{API_host}\'. Exited with exception\n{e}")
