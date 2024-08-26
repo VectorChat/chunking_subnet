@@ -1,9 +1,10 @@
 # Roadmap
 The following phases are not necessarily sequential and may occur concurrently.
 
-# Setup
+## Setup
 The initial phase of the subnet, containing the basic functionality of the subnet, verifying the incentive mechanism works as intended, and creating resources for miners, validators, and potential consumers to monitor the subnet.
 
+###  Objectives:
 - [x] The first contest: the chunking of unstructured text
 - [x] Autoupdate for Miners and Validators
 - [x] Miner blacklist by Stake and Address
@@ -21,35 +22,43 @@ The initial phase of the subnet, containing the basic functionality of the subne
   - [ ] Unstructured images
     - [ ] image -> image
     - [ ] image -> text
-  - [ ] Unstructured audio (audio -> audio & audio -> text)
+  - [ ] Unstructured audio
     - [ ] audio -> audio
     - [ ] audio -> text
-  - [ ] Unstructured video (video -> video & video -> text)
+  - [ ] Unstructured video
     - [ ] video -> video
     - [ ] video -> text
   - [ ] Special file types (PDFs, CSV, JSON -> text)
   - [ ] Omnimodal (text, image, audio, video -> text, image, audio, video)
 
 
-# Production
-The subnet, having proven its ability to incentivize the best models, now shifts to enabling real, enterprise use. 
+##  Production
+The next phase of the subnet aims to make the intelligence incentivized by this subnet viable for commercial, enterprise, and personal use. Ensuring end-user data privacy remains secure becomes paramount. 
 
-Protecting end-user data privacy becomes paramount; Validators and Miners cannot see the actual requested document, yet Miners must retain full ownership over their models as this is an inference based subnet.
+The incentive mechanism must change such that Validators and Miners never have access to the documents sent to be chunked, and such that no other parties ever gain the models created by Miners. 
 
-- [ ] Introduce Facilitator System
+*But how might that work?* See: 
+
+###  Objectives:
+- [ ] Private Organic Query System
+    - [ ] Finalize, collaborate, and share with other subnets in Bittensor
     - [ ] Launch on testnet
-    - [ ] Release 
-    - [ ]
+    - [ ] Release on mainnet
 - [ ] Launch of Chunking.com Task API, helping deliver organic demand
-    - [ ] Compensates Validators for Bandwidth
+    - [ ] Dashboard for Validators to monitor compensation and bandwidth use
+- [ ] Achieve significant real world demand flowing into the subnet
 
-# Expansion
-Subnet expands to embody the full RAG pipeline, forming a complete connection between Bittensor and consistent, real world demand.
+## ETL for RAG
+The third phase has the subnet expand to subsume the full Retrieval-Augmented Generation (RAG) pipeline, forming a complete connection between Bittensor and viable, real world demand.
 
-As all components of the subnet are meant to be used in RAG, the Evaluation will change to a standardized RAG benchmark, where the independent variable is the subject of an individual contest.
+*As all components of the subnet are meant to be used in RAG, the Evaluation will change to a standardized RAG benchmark, where the independent variable for any given contest is the subject of that very contest.*
 
-- [ ] Begin Embedding Contests
-    - [ ]
-    - [ ]
-- [ ] Begin Vector Database Contests
-    - [ ] Vector Search Contest
+- [ ] Preprocessing Contests
+    - [ ] Text and Structure Extraction
+- [ ] Embedding Contests
+    - [ ] Text Embedding
+    - [ ] Audio Embedding
+    - [ ] Image Embedding
+    - [ ] Video Embedding
+- [ ] Vector DB Contests
+    - [ ] Vector Search
