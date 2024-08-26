@@ -184,11 +184,7 @@ async def receive_response(response: OrganicResponse):
 
     helper.tasks[task_id]['chunks'] = task_data['chunks']
     helper.task_status[task_id] *= -1
-    logger.info(f"Updated task {task_id} status and chunks")
-
-    logger.info("Sending TAO")
-    await helper.send_tao()
-    logger.info("TAO sent successfully")
+    logger.info(f"Updated task {task_id} status and chunks")    
 
     return OrganicResponseResult(status="success")
 
