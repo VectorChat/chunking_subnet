@@ -53,6 +53,7 @@ The third phase has the subnet expand to subsume the full Retrieval-Augmented Ge
 
 *As all components of the subnet are meant to be used in RAG, the Evaluation will change to a standardized RAG benchmark, where the independent variable for any given contest is the subject of that very contest.*
 
+###  Objectives:
 - [ ] Preprocessing Contests
     - [ ] Text and Structure Extraction
 - [ ] Embedding Contests
