@@ -342,7 +342,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # Calculate the average reward for each uid across non-zero values.        
         bt.logging.debug(f"self.scores = {self.scores}")
         
-        num_weights_cap = 5
+        num_weights_cap = 17
         
         # Calculate weights
         n = len(self.scores)
