@@ -135,7 +135,8 @@ class Task():
 
 
 def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple[chunkSynapse, int]:
-    pages = choices(validator.articles, k=3) if pageids == None and len(pageids) > 2 else pageids
+    pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
+    source_articles = []
     for page in pages:
         source_articles.append(requests.get('https://en.wikipedia.org/w/api.php', params={
             'action': 'query',
@@ -147,7 +148,7 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
         }).json()['query']['pages'][str(page)]['extract'])
     system_prompt = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
     
-    first_half = client.chat.completions.create(
+    first_half = validator.client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.7,    
         messages=[
@@ -169,7 +170,7 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
         ]
     ).choices[0].message.content
 
-    second_half = client.chat.completions.create(
+    second_half = validator.client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.7,
         messages=[
