@@ -1,5 +1,8 @@
+import time
 from typing import Optional, List, Tuple
+from venv import logger
 import bittensor as bt
+import tiktoken
 from chunking.protocol import chunkSynapse
 import requests
 import numpy as np
@@ -133,6 +136,10 @@ class Task():
         except Exception as e:
             bt.logging.error(f"Failed to upload logs to API host: \'{API_host}\'. Exited with exception\n{e}")
 
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple[chunkSynapse, int]:
     pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
@@ -147,6 +154,11 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
             'exsectionformat': 'plain',
         }).json()['query']['pages'][str(page)]['extract'])
     system_prompt = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+    
+    bt.logging.debug(f"source pageids: {pages}")
+    
+    bt.logging.info("Generating first half of synthetic query")
+    start = time.time()
     
     first_half = validator.client.chat.completions.create(
         model="gpt-4o-mini",
@@ -170,6 +182,11 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
         ]
     ).choices[0].message.content
 
+    bt.logging.info(f"Generated first half of synthetic query in {time.time() - start} seconds")
+    bt.logging.info("Generating second half of synthetic query")
+
+    start_2 = time.time()
+    
     second_half = validator.client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.7,
@@ -184,8 +201,22 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
                 """
             }
         ]).choices[0].message.content
+    
+    bt.logging.info(f"Generated second half of synthetic query in {time.time() - start_2} seconds") 
+    
+    num_chars = len(first_half) + len(second_half)
+    
+    bt.logging.info(f"Generated synthetic query with {num_chars} characters")  
+    
+    num_tokens = num_tokens_from_string(first_half + second_half, "o200k_base")
+    
+    bt.logging.info(f"Generated synthetic query with {num_tokens} tokens")  
+       
     document = " ".join([first_half, second_half])
     document = " ".join(document.split())    
+    
+    bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
+    
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
