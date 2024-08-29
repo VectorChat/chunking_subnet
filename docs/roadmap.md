@@ -9,7 +9,7 @@ The initial phase of the subnet, containing the basic functionality of the subne
 - [x] Autoupdate for Miners and Validators
 - [x] Miner blacklist by Stake and Address
 - [x] Open-source Task API Framework to query the subnet
-- [x] Subnet Dashboard for Miners and Validators
+- [x] Subnet Dashboard for Miners and Validators (see: [subnet.chunking.com](https://subnet.chunking.com/))
   - [x] Display Subnet KPIs
   - [ ] Periodic global benchmark
   - [ ] Display subnet performance over time
