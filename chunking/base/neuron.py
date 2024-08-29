@@ -18,6 +18,7 @@
 import copy
 import os
 from sys import version
+from packaging import version as packaging_version
 import typing
 
 import bittensor as bt
@@ -67,10 +68,9 @@ class BaseNeuron(ABC):
         self.check_config(self.config)
 
         
-        # Set up logging with the provided configuration and directory.                                
         bittensor_version = bt.__version__
-        
-        if bittensor_version < "7.1.0":        
+
+        if packaging_version.parse(bittensor_version) < packaging_version.parse("7.1.2"):
             
             logging_config = self.config.logging
             # manually set logging config
@@ -81,6 +81,7 @@ class BaseNeuron(ABC):
             elif logging_config.debug:
                 self.enable_debug()
         else:
+            
             bt.logging.set_config(config=self.config.logging)
 
         # If a gpu is required, set the device to cuda:N (e.g. cuda:0)
