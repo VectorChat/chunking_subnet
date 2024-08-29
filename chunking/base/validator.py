@@ -142,13 +142,18 @@ class BaseValidatorNeuron(BaseNeuron):
         wandb.init(entity=chunking.ENTITY, project=project_name, id=run.id, resume="must")                                                                    
         bt.logging.success(f"Resumed wandb run '{run.name}' for project '{project_name}'")
 
+    def _get_wandb_project_name(self):
+        if self.config.subtensor.chain_endpoint == "test":
+            return "chunking-testnet"                
+        return self.config.wandb.project_name
+
     def _setup_wandb(self):
         if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
             raise Exception("WANDB_API_KEY environment variable must be set")
             
         else:
             try:                                        
-                project_name = self.config.wandb.project_name
+                project_name = self._get_wandb_project_name()
                 
                 latest_run = self._get_latest_wandb_run(project_name)                                        
                 
