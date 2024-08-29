@@ -200,13 +200,14 @@ async def forward(self: Validator):
         size_penalty = extra_info.get('size_penalty', 'n/a')
         qty_penalty = extra_info.get('qty_penalty', 'n/a')
         time_penalty = extra_info.get('time_penalty', 'n/a')
+        num_embed_tokens = extra_info.get('num_embed_tokens', 'n/a')
         
-        table_data.append((uid, reward, embedding_reward, size_penalty, qty_penalty, time_penalty))
+        table_data.append((uid, reward, embedding_reward, size_penalty, qty_penalty, time_penalty, num_embed_tokens))
         
     sorted_desc = sorted(table_data, key=lambda x: x[1], reverse=True)
     
     print("\nRewards and UIDs:")
-    print(tabulate(sorted_desc, headers=['UID', 'Reward', 'Embedding Reward', 'Size Penalty', 'Quantity Penalty', 'Time Penalty'], tablefmt='grid'))    
+    print(tabulate(sorted_desc, headers=['UID', 'Reward', 'Embedding Reward', 'Size Penalty', 'Quantity Penalty', 'Time Penalty', 'Num Embed Tokens'], tablefmt='grid'))    
 
     bt.logging.debug(f"Scored responses: {rewards}")
     
