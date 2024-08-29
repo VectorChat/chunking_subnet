@@ -196,6 +196,13 @@ def add_args(cls, parser):
             help="Set this flag to accept organic queries",
             default=False,
         )
+        
+        parser.add_argument(
+            "--neuron.skip_set_weights_extrinsic",
+            action="store_true",
+            help="Skip the set_weights extrinsic call (only logs to W&B).",
+            default=False,
+        )
 
     #Miner
     else:

@@ -388,6 +388,10 @@ class BaseValidatorNeuron(BaseNeuron):
         for uid, weight in zip(uint_uids, uint_weights):
             wandb_data["weights"][str(uid)] = weight
         wandb.log(wandb_data)
+        
+        if self.config.neuron.skip_set_weights_extrinsic:
+            bt.logging.warning("Skipping set_weights extrinsic call.")
+            return
 
         # Set the weights on chain via our subtensor connection.
         def set_weights_on_chain():
