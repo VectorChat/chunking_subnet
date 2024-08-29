@@ -6,7 +6,7 @@ import numpy as np
 from sr25519 import sign
 import json
 import os
-from random import choice
+from random import choices
 from math import ceil
 
 from neurons.validator import Validator
@@ -134,18 +134,58 @@ class Task():
             bt.logging.error(f"Failed to upload logs to API host: \'{API_host}\'. Exited with exception\n{e}")
 
 
-def generate_synthetic_synapse(validator, pageid = None, timeout = 20) -> Tuple[chunkSynapse, int]:
-    page = choice(validator.articles) if pageid == None else pageid
-    document = requests.get('https://en.wikipedia.org/w/api.php', params={
-        'action': 'query',
-        'format': 'json',
-        'pageids': page,
-        'prop': 'extracts',
-        'explaintext': True,
-        'exsectionformat': 'plain',
-        }).json()['query']['pages'][str(page)]['extract']
-    document = document.replace("\n", " ").replace("\t", " ")
-    document = ' '.join(document.split())
+def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple[chunkSynapse, int]:
+    pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
+    source_articles = []
+    for page in pages:
+        source_articles.append(requests.get('https://en.wikipedia.org/w/api.php', params={
+            'action': 'query',
+            'format': 'json',
+            'pageids': page,
+            'prop': 'extracts',
+            'explaintext': True,
+            'exsectionformat': 'plain',
+        }).json()['query']['pages'][str(page)]['extract'])
+    system_prompt = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+    
+    first_half = validator.client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.7,    
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"""
+                Use the following three articles to write the first half of an article that will be between 2,000 and 5,000 words long. Do not include section titles. Write to your token limit.
+                Article 1:
+                {source_articles[0]}
+            
+                Article 2:
+                {source_articles[1]}
+
+                Article 3:
+                {source_articles[2]}
+                """
+            }
+        ]
+    ).choices[0].message.content
+
+    second_half = validator.client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.7,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"""
+                This is the first half of an article that will be betwen 2,000 and 5,000 words long when completed:
+                {first_half}
+                Continue the article. Do not include section titles. Write to your token limit.
+                """
+            }
+        ]).choices[0].message.content
+    document = " ".join([first_half, second_half])
+    document = " ".join(document.split())    
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
