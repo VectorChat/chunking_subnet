@@ -8,7 +8,7 @@ if [ $? -eq 1 ]; then
     exit 1
 fi
 
-NAME=chunking_miner
+NAME=${MINER_PM2_NAME:-"chunking_miner"}
 
 if pm2 describe $NAME > /dev/null 2>&1; then
     echo "Process '$NAME' is running. Stopping it..."
