@@ -61,7 +61,7 @@ def reward(
         return 0, extra_info_dict
     
     if not response.chunks:         
-        return _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
+        return _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}")
     
     chunks = response.chunks
     intrachunk_similarities = []
@@ -163,7 +163,7 @@ def reward(
     reward = e ** reward # ensures that all rewards are positive
     _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
 
-    if response.dendrite.process_time > response.time_soft_max:
+    if response.dendrite and response.dendrite.process_time and response.dendrite.process_time > response.time_soft_max:
         over_time = response.dendrite.process_time - response.time_soft_max
         _verbose(f"Applying time penalty: {over_time} seconds over time")
         time_penalty = (2/3) ** over_time
