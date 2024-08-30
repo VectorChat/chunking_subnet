@@ -24,7 +24,6 @@ from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
-import bittensor as bt
 
 from neurons.validator import Validator
     
@@ -62,7 +61,7 @@ def reward(
         return 0, extra_info_dict
     
     if not response.chunks:         
-        _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
+        return _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}")
     
     chunks = response.chunks
     intrachunk_similarities = []
@@ -87,7 +86,7 @@ def reward(
         chunk_words = ' '.join(word_tokenize(chunks[i]))
         combined_chunk_words += ' ' + chunk_words
         if chunk_words not in ' '.join(document_words):
-            _early_return(f"Chunk {i} does not contain all words from the document")
+            return _early_return(f"Chunk {i} does not contain all words from the document")
 
         # add up size penalty to be applied later
         chunk_length = len(chunks[i])
@@ -107,7 +106,7 @@ def reward(
     for i in range(0, len(document_words), 3):
         if (len(' '.join(document_words[i:i+3])) < chunk_size
             and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
-            _early_return(f"Every set of 3 adjacent words from the document does not appear in the chunks")
+            return _early_return(f"Every set of 3 adjacent words from the document does not appear in the chunks")
 
     _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
         
@@ -164,7 +163,7 @@ def reward(
     reward = e ** reward # ensures that all rewards are positive
     _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
 
-    if response.dendrite.process_time > response.time_soft_max:
+    if response.dendrite and response.dendrite.process_time and response.dendrite.process_time > response.time_soft_max:
         over_time = response.dendrite.process_time - response.time_soft_max
         _verbose(f"Applying time penalty: {over_time} seconds over time")
         time_penalty = (2/3) ** over_time
