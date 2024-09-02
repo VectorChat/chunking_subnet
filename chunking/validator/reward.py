@@ -27,6 +27,7 @@ import numpy as np
 
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
+import bittensor as bt
     
 
 def reward(
