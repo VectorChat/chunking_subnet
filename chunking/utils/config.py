@@ -233,6 +233,13 @@ def add_args(cls, parser):
             help="If set, miners will accept queries without verifying. (Dangerous!)",
             default=False,
         )            
+        
+        parser.add_argument(
+            "--neuron.synapse_verify_allowed_delta",
+            type=int,
+            help="The allowed delta for synapse verification in nanoseconds.",
+            default=10_000_000_000, # 10 seconds
+        )
 
 
 def config(cls):

@@ -35,6 +35,7 @@ from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
 #from chunking.utils.config import add_validptor_argos
+import sympy as sp
 
 class BaseValidatorNeuron(BaseNeuron):
     """
@@ -347,7 +348,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # Calculate the average reward for each uid across non-zero values.        
         bt.logging.debug(f"self.scores = {self.scores}")
         
-        num_weights_cap = 17
+        num_weights_cap = 3
         
         # Calculate weights
         n = len(self.scores)
@@ -361,6 +362,49 @@ class BaseValidatorNeuron(BaseNeuron):
             raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
             i += 1
         
+        # rest should be linear from `num_weights_cap` - 200
+        i = num_weights_cap
+        rest = 1 - sum(raw_weights)
+        
+        left = num_weights_cap
+        right = 201
+        
+        # first constraint, integration from left to right should be equal to `rest`
+        m_1 = ((right ** 2 / 2) - (left ** 2 / 2))
+        b_1 = right - left        
+        r_1 = rest
+        
+        # second constraint, y = 0 at right point
+        m_2 = right
+        b_2 = 1
+        r_2 = 0
+        
+        matrix = np.array([
+            [m_1, b_1, r_1],
+            [m_2, b_2, r_2]
+        ])
+        
+        # solve for m and b
+        matrix_rref = sp.Matrix(matrix).rref()
+        bt.logging.debug(f"matrix_rref: {matrix_rref}")
+        
+        true_m = matrix_rref[0][2]
+        true_b = matrix_rref[0][5]
+        
+        def f(x: int):
+            return true_m * x + true_b
+        
+        bt.logging.debug(f"f({left}) = {f(left)}, f({right}) = {f(right)}")
+        
+        total = 0
+        
+        for i in range(left, right):
+            # bt.logging.debug(f"f({i}) = {f(i)}")
+            total += f(i)
+            raw_weights[i] = f(i)
+        
+        print(f"rest = {rest}, linear fn sum = {total}")
+        
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
         # Process the raw weights to final_weights via subtensor limitations.
@@ -373,6 +417,7 @@ class BaseValidatorNeuron(BaseNeuron):
             netuid=self.config.netuid,
             subtensor=self.subtensor,
             metagraph=self.metagraph,
+            skip_exclude=True
         )
         bt.logging.debug("processed_weights", processed_weights)
         bt.logging.debug("processed_weight_uids", processed_weight_uids)

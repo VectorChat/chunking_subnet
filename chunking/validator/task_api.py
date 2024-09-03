@@ -9,7 +9,7 @@ import numpy as np
 from sr25519 import sign
 import json
 import os
-from random import choices
+from random import choice, choices
 from math import ceil
 
 from neurons.validator import Validator
@@ -141,19 +141,24 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
-def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple[chunkSynapse, int]:
+SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+
+def get_wiki_content_for_page(pageid: int) -> str:
+    return requests.get('https://en.wikipedia.org/w/api.php', params={
+        'action': 'query',
+        'format': 'json',
+        'pageids': pageid,
+        'prop': 'extracts',
+        'explaintext': True,
+        'exsectionformat': 'plain',
+    }).json()['query']['pages'][str(pageid)]['extract']
+
+def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
     pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
     source_articles = []
     for page in pages:
-        source_articles.append(requests.get('https://en.wikipedia.org/w/api.php', params={
-            'action': 'query',
-            'format': 'json',
-            'pageids': page,
-            'prop': 'extracts',
-            'explaintext': True,
-            'exsectionformat': 'plain',
-        }).json()['query']['pages'][str(page)]['extract'])
-    system_prompt = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+        source_articles.append(get_wiki_content_for_page(page))
+    
     
     bt.logging.debug(f"source pageids: {pages}")
     
@@ -164,7 +169,7 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
         model="gpt-4o-mini",
         temperature=0.7,    
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": f"""
@@ -191,7 +196,7 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
         model="gpt-4o-mini",
         temperature=0.7,
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": f"""
@@ -216,6 +221,19 @@ def generate_synthetic_synapse(validator, pageids = None, timeout = 20) -> Tuple
     document = " ".join(document.split())    
     
     bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
+    return document
+
+def generate_doc_normal(validator: Validator, pageid = None) -> Tuple[str, int]:
+    page = choice(validator.articles) if pageid == None else pageid
+    
+    content = get_wiki_content_for_page(page)
+    
+    return content, page
+    
+
+def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, int]:
+    
+    document, page = generate_doc_normal(validator)
     
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
