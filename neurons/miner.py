@@ -205,12 +205,7 @@ class Miner(BaseMinerNeuron):
             # Requests must have nonces to be safe from replays
             if synapse.dendrite.nonce is None:
                 raise Exception("Missing Nonce")
-
-            # If we don't have a nonce stored, ensure that the nonce falls within
-            # a reasonable delta.
-
-            if synapse.dendrite.version is not None and synapse.dendrite.version < V_7_2_0:
-                bt.logging.warning(f"Old synapse version detected from {synapse.dendrite.hotkey}, expected version 7.2.0 or higher")
+                        
                         
 
             if synapse.dendrite.version is not None and synapse.dendrite.version >= V_7_2_0:
@@ -231,7 +226,7 @@ class Miner(BaseMinerNeuron):
                 
                 if (
                     self.nonces.get(endpoint_key) is None
-                    and synapse.dendrite.nonce <= latest_allowed_nonce
+                    and synapse.dendrite.nonce > latest_allowed_nonce
                 ):
                     raise Exception(f"Nonce is too old. Allowed delta in seconds: {self._to_seconds(allowed_delta)}, got delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}")
                 if (
