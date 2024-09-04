@@ -83,10 +83,10 @@ class Miner(BaseMinerNeuron):
             'chunks': synapse.chunks,
         }
                 
-        synapse.miner_signature = sign(
+        synapse.miner_signature = str(sign(
             (self.wallet.get_hotkey().public_key, self.wallet.get_hotkey().private_key),
             str.encode(json.dumps(response_data))
-        ).hex()
+        ).hex())
         
         bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
         
