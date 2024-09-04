@@ -1,10 +1,24 @@
 import requests
-from chunking.validator.task_api import generate_synthetic_synapse
+from chunking.protocol import chunkSynapse
+from chunking.validator.task_api import generate_doc_normal, generate_synthetic_synapse
+from math import ceil
 
 page = 33653136 
 
 # Generate the 'synthetic' query: a featured article from wikipedia.
-synapse, pageid = generate_synthetic_synapse(None, pageid=page, timeout=20)
+document, pageid = generate_doc_normal(None, page)
+
+timeout = 20
+
+chunk_size = 4096
+
+synapse = chunkSynapse(
+    document=document,
+    time_soft_max=timeout * 0.75,
+    chunk_size=chunk_size,
+    chunk_qty=ceil(ceil(len(document) / chunk_size) * 1.5),
+    timeout=timeout
+)
 
 print(f"Created synapse with document: {synapse.document[:100]} ...")
 
