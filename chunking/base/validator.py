@@ -28,6 +28,8 @@ import concurrent.futures
 import chunking
 import traceback
 
+from dotenv import load_dotenv
+
 from typing import List, Literal, Union
 from math import floor
 
@@ -35,7 +37,11 @@ from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
 #from chunking.utils.config import add_validptor_argos
+
 import sympy as sp
+
+load_dotenv()
+
 
 class BaseValidatorNeuron(BaseNeuron):
     """

@@ -7,6 +7,7 @@ Example: `\.12$` or `weights.12$`.
 
 A similar regex can be used for multiple miners: `\.\(<UID_1>|<UID_2>|<...>\)$`, an example being: `\.\(10|11)$` 
 
+
 Each line on the chart is the logs from a specific validator for that miner.
 
 ![An example of filtering by UID](../assets/wandb_filter_graphs_example.png)

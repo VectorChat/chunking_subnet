@@ -96,3 +96,6 @@ yarl==1.9.4
 wandb
 packaging
 tiktoken
+python-dotenv==1.0.1
+wandb
+

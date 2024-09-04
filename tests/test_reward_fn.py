@@ -1,6 +1,3 @@
-
-
-
 from random import sample
 from openai import OpenAI
 from chunking.validator.reward import reward
@@ -9,7 +6,6 @@ from nltk.tokenize import sent_tokenize
 
 def base_chunker(text: str, chunk_size: int):
     document = sent_tokenize(text)
-    
     chunks = []       
     while len(document) > 0:
         chunks.append(document[0])
@@ -17,8 +13,7 @@ def base_chunker(text: str, chunk_size: int):
         while len(document) > 0:
             if len(chunks[-1] + " " + document[0]) > chunk_size:
                 break
-            chunks[-1] += (" " + document.pop(0))
-            
+            chunks[-1] += (" " + document.pop(0))                        
     return chunks
 
 def test_reward_fn():
@@ -102,6 +97,7 @@ def test_reward_fn():
     
     synapse.chunks = test_chunks
     
-    reward_value, _ = reward(None, synapse.document, synapse.chunk_size, synapse.chunk_qty, synapse, client, NUM_EMBEDDINGS)
-    
+    reward_value, _ = reward(None, synapse.document, synapse.chunk_size, synapse.chunk_qty, synapse, client, NUM_EMBEDDINGS)    
+
     assert reward_value > 0
+  
