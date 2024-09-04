@@ -339,71 +339,78 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         bt.logging.debug("setting weights")
-    
-        # Check if self.scores contains any NaN values and log a warning if it does.
+            
         if np.isnan(self.scores).any():
             bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
-
-
-        # Calculate the average reward for each uid across non-zero values.        
+        
         bt.logging.debug(f"self.scores = {self.scores}")
         
-        num_weights_cap = 3
+        num_weights_cap = 7
         
-        # Calculate weights
         n = len(self.scores)
         raw_weights = np.zeros(n)    
         i = 0    
-        for uid in self.rankings:
+        for uid in self.rankings:            
             if i >= num_weights_cap:
                 break
             if np.isinf(self.scores[uid]):
                 continue
             raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
-            i += 1
+            i += 1                        
+                 
+        # num active miners is number of uids with finite scores
+        num_active_miners = np.sum(np.isfinite(self.scores))                
         
-        # rest should be linear from `num_weights_cap` - 200
-        i = num_weights_cap
-        rest = 1 - sum(raw_weights)
+        # only use linear distro if there are more than num_weights_cap active miners,
+        # and we are not at the last active miner        
+        if i >= num_weights_cap and i < num_active_miners and self.scores[self.rankings[i]] != np.inf:
+            # calculate the weight that would be given to place `num_weights_cap` (or the last place if fewer than `num_weights_cap`)
+            last_top_weight = (1/2) ** (min(num_weights_cap, i))
         
-        left = num_weights_cap
-        right = 201
-        
-        # first constraint, integration from left to right should be equal to `rest`
-        m_1 = ((right ** 2 / 2) - (left ** 2 / 2))
-        b_1 = right - left        
-        r_1 = rest
-        
-        # second constraint, y = 0 at right point
-        m_2 = right
-        b_2 = 1
-        r_2 = 0
-        
-        matrix = np.array([
-            [m_1, b_1, r_1],
-            [m_2, b_2, r_2]
-        ])
-        
-        # solve for m and b
-        matrix_rref = sp.Matrix(matrix).rref()
-        bt.logging.debug(f"matrix_rref: {matrix_rref}")
-        
-        true_m = matrix_rref[0][2]
-        true_b = matrix_rref[0][5]
-        
-        def f(x: int):
-            return true_m * x + true_b
-        
-        bt.logging.debug(f"f({left}) = {f(left)}, f({right}) = {f(right)}")
-        
-        total = 0
-        
-        for i in range(left, right):
-            # bt.logging.debug(f"f({i}) = {f(i)}")
-            total += f(i)
-            raw_weights[i] = f(i)
-        
-        print(f"rest = {rest}, linear fn sum = {total}")
+            
+            left = i
+            right = num_active_miners
+
+            # first constraint, integration from left to right should be equal to `last_top_weight`
+            m_1 = ((right ** 2 / 2) - (left ** 2 / 2))
+            b_1 = right - left        
+            r_1 = last_top_weight
+            
+            # second constraint, y = 0 at right point
+            m_2 = right
+            b_2 = 1
+            r_2 = 0
+            
+            matrix = np.array([
+                [m_1, b_1, r_1],
+                [m_2, b_2, r_2]
+            ])
+            
+            bt.logging.debug(f"matrix: {matrix}")
+            
+            # Solve for m and b
+            matrix_rref = sp.Matrix(matrix).rref()
+            bt.logging.debug(f"matrix_rref: {matrix_rref}")
+            
+            true_m = matrix_rref[0][2]
+            true_b = matrix_rref[0][5]
+            
+            def f(x: int):
+                return max(0, true_m * x + true_b)
+            
+            bt.logging.debug(f"f({left}) = {f(left)}, f({right}) = {f(right)}")
+            
+            total = 0
+            
+            for rank in range(left, min(right, n)):
+                uid = self.rankings[rank]
+                
+                total += f(rank)
+                if np.isinf(self.scores[uid]):
+                    break
+                raw_weights[uid] = f(rank)
+            
+            print(f"last_top_weight = {last_top_weight}, linear fn sum = {total}")
         
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
@@ -411,7 +418,7 @@ class BaseValidatorNeuron(BaseNeuron):
         (
             processed_weight_uids,
             processed_weights,
-        ) = bt.utils.weight_utils.process_weights_for_netuid(
+        ) = chunking.base.utils.process_weights_for_netuid(
             uids=self.metagraph.uids,
             weights=raw_weights,
             netuid=self.config.netuid,
