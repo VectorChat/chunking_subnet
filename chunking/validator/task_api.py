@@ -1,14 +1,15 @@
-from re import T
 import time
 from typing import Optional, List, Tuple
+from venv import logger
 import bittensor as bt
+import tiktoken
 from chunking.protocol import chunkSynapse
 import requests
 import numpy as np
 from sr25519 import sign
 import json
 import os
-from random import choice
+from random import choice, choices
 from math import ceil
 
 from neurons.validator import Validator
@@ -145,19 +146,105 @@ class Task():
         except Exception as e:
             bt.logging.error(f"Failed to upload logs to API host: \'{API_host}\'. Exited with exception\n{e}")
 
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
-def generate_synthetic_synapse(validator, pageid = None, timeout = 20) -> Tuple[chunkSynapse, int]:
-    page = choice(validator.articles) if pageid == None else pageid
-    document = requests.get('https://en.wikipedia.org/w/api.php', params={
+SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+
+def get_wiki_content_for_page(pageid: int) -> str:
+    return requests.get('https://en.wikipedia.org/w/api.php', params={
         'action': 'query',
         'format': 'json',
-        'pageids': page,
+        'pageids': pageid,
         'prop': 'extracts',
         'explaintext': True,
         'exsectionformat': 'plain',
-        }).json()['query']['pages'][str(page)]['extract']
-    document = document.replace("\n", " ").replace("\t", " ")
-    document = ' '.join(document.split())
+    }).json()['query']['pages'][str(pageid)]['extract']
+
+def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
+    pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
+    source_articles = []
+    for page in pages:
+        source_articles.append(get_wiki_content_for_page(page))
+    
+    
+    bt.logging.debug(f"source pageids: {pages}")
+    
+    bt.logging.info("Generating first half of synthetic query")
+    start = time.time()
+    
+    first_half = validator.client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.7,    
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"""
+                Use the following three articles to write the first half of an article that will be between 2,000 and 5,000 words long. Do not include section titles. Write to your token limit.
+                Article 1:
+                {source_articles[0]}
+            
+                Article 2:
+                {source_articles[1]}
+
+                Article 3:
+                {source_articles[2]}
+                """
+            }
+        ]
+    ).choices[0].message.content
+
+    bt.logging.info(f"Generated first half of synthetic query in {time.time() - start} seconds")
+    bt.logging.info("Generating second half of synthetic query")
+
+    start_2 = time.time()
+    
+    second_half = validator.client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.7,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"""
+                This is the first half of an article that will be betwen 2,000 and 5,000 words long when completed:
+                {first_half}
+                Continue the article. Do not include section titles. Write to your token limit.
+                """
+            }
+        ]).choices[0].message.content
+    
+    bt.logging.info(f"Generated second half of synthetic query in {time.time() - start_2} seconds") 
+    
+    num_chars = len(first_half) + len(second_half)
+    
+    bt.logging.info(f"Generated synthetic query with {num_chars} characters")  
+    
+    num_tokens = num_tokens_from_string(first_half + second_half, "o200k_base")
+    
+    bt.logging.info(f"Generated synthetic query with {num_tokens} tokens")  
+       
+    document = " ".join([first_half, second_half])
+    document = " ".join(document.split())    
+    
+    bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
+    return document
+
+def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str, int]:
+    page = choice(validator.articles) if pageid == None else pageid
+    
+    content = get_wiki_content_for_page(page)
+    
+    return content, page
+    
+
+def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, int]:
+    
+    document, page = generate_doc_normal(validator)
+    
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096

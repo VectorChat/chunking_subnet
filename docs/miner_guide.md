@@ -37,8 +37,17 @@ There exist many freely available chunking utilities that can help you get a hea
 - [Pinecone's Repo](https://github.com/pinecone-io/examples/tree/master/learn/generation/better-rag)
 - [LangChain Text Splitting Documentation](https://js.langchain.com/v0.1/docs/modules/data_connection/document_transformers/)
 
+## Additional Resources
+
+- https://www.youtube.com/watch?v=8OJC21T2SL4
+- https://www.youtube.com/watch?v=uhVMFZjUOJI
+- https://www.youtube.com/watch?v=TcRRfcbsApw
+- https://github.com/FullStackRetrieval-com/RetrievalTutorials/blob/main/tutorials/LevelsOfTextSplitting/5_Levels_Of_Text_Splitting.ipynb
+
 ## Prioritzation & Blacklist
 
 Finally, as the load increases, miners may need to deprioritize or ignore requests from lower-stake validators. Not responding to a request, or taking too long to respond, will result in a score of zero.
 
 By default, miners prioritize requests by stake. Edit the logic in `blacklist()` and `priority()` in [miner.py](../neurons/miner.py) to protect your miner.
+
+

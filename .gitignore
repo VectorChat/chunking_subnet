@@ -1,13 +1,13 @@
 __pycache__/
 *.pyc
-venv
+*venv
 *egg-info
 .DS_Store
 *.pem
 *.key
 *.cert
 .env*
-*localnet.sh
+*localnet*.sh
 script.py
 *.js
 c*.sh
@@ -17,3 +17,6 @@ start.sh
 wandb/
 *.json
 scripts/
+logs/
+*.txt
+!requirements.txt
