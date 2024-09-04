@@ -216,13 +216,12 @@ class Miner(BaseMinerNeuron):
                 
                 allowed_delta = min(self.config.neuron.synapse_verify_allowed_delta, self._to_nanoseconds(synapse.timeout or 0))
                 
-                latest_allowed_nonce = synapse.dendrite.nonce + allowed_delta
-                
-                
+                latest_allowed_nonce = synapse.dendrite.nonce + allowed_delta                                
                 
                 bt.logging.debug(f"synapse.dendrite.nonce: {synapse.dendrite.nonce}")
                 bt.logging.debug(f"latest_allowed_nonce: {latest_allowed_nonce}")
                 bt.logging.debug(f"cur time: {cur_time}")
+                bt.logging.debug(f"delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}")
                 
                 if (
                     self.nonces.get(endpoint_key) is None
