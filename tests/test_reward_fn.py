@@ -1,7 +1,9 @@
+from math import ceil
 from random import sample
 from openai import OpenAI
+from chunking.protocol import chunkSynapse
 from chunking.validator.reward import reward
-from chunking.validator.task_api import generate_synthetic_synapse
+from chunking.validator.task_api import generate_doc_normal, generate_synthetic_synapse
 from nltk.tokenize import sent_tokenize
 
 def base_chunker(text: str, chunk_size: int):
@@ -17,10 +19,25 @@ def base_chunker(text: str, chunk_size: int):
     return chunks
 
 def test_reward_fn():
+    PAGE_ID = 33653136
     
-    tuple = generate_synthetic_synapse(None, 33653136, 20)
+    tuple = generate_doc_normal(None, PAGE_ID)
     
-    synapse = tuple[0]    
+    document = tuple[0]
+    
+    timeout = 20
+    time_soft_max = timeout * 0.75
+    chunk_size = 4096
+    chunk_qty = ceil(
+        ceil(len(document) / chunk_size) * 1.5
+    )
+    synapse = chunkSynapse(
+        document=document,
+        time_soft_max=time_soft_max,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        timeout=timeout
+    )        
     
     assert synapse.time_soft_max == 15
     

@@ -223,7 +223,7 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
     bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
     return document
 
-def generate_doc_normal(validator: Validator, pageid = None) -> Tuple[str, int]:
+def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str, int]:
     page = choice(validator.articles) if pageid == None else pageid
     
     content = get_wiki_content_for_page(page)
