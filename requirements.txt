@@ -93,5 +93,9 @@ websocket-client==1.8.0
 wheel==0.43.0
 xxhash==3.4.1
 yarl==1.9.4
+wandb
+packaging
+tiktoken
 python-dotenv==1.0.1
 wandb
+

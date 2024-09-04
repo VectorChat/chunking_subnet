@@ -16,6 +16,9 @@
 # DEALINGS IN THE SOFTWARE.
 
 import copy
+import os
+from sys import version
+from packaging import version as packaging_version
 import typing
 
 import bittensor as bt
@@ -64,8 +67,22 @@ class BaseNeuron(ABC):
         self.config.merge(base_config)
         self.check_config(self.config)
 
-        # Set up logging with the provided configuration and directory.
-        bt.logging.set_config(config=self.config.logging)
+        
+        bittensor_version = bt.__version__
+
+        if packaging_version.parse(bittensor_version) < packaging_version.parse("7.1.2"):
+            
+            logging_config = self.config.logging
+            # manually set logging config
+            if logging_config.logging_dir and logging_config.record_log:
+                bt.logging.warning("Ignoring logging_dir and record_log in config. Logging to stdout.")
+            if logging_config.trace:
+                self.enable_trace()
+            elif logging_config.debug:
+                self.enable_debug()
+        else:
+            
+            bt.logging.set_config(config=self.config.logging)
 
         # If a gpu is required, set the device to cuda:N (e.g. cuda:0)
         self.device = "cpu"#self.config.neuron.device

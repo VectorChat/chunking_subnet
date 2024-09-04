@@ -7,7 +7,7 @@
 
 
 
-[VectorChat](https://vectorchat.ai) • [Chunking.com](https://chunking.com) • [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae)
+[Dashboard](https://subnet.chunking.com) • [VectorChat](https://vectorchat.ai) • [Chunking.com](https://chunking.com) • [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
@@ -24,6 +24,8 @@ Explore our subnet [pitch deck](https://x.vectorchat.ai/chunking_pitch_deck.pdf)
 Our article on why this is a valuable problem to solve: [The Case for Intelligent Chunking](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c)
 
 Learn more about our project at [vectorchat.ai](https://vectorchat.ai)
+
+*See visualizations of subnet data at [subnet.chunking.com](https://subnet.chunking.com/)*
 
 ## Leading The Way
 

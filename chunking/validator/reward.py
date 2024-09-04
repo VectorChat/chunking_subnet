@@ -24,9 +24,10 @@ from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
-import bittensor as bt
 
+from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
+import bittensor as bt
     
 
 def reward(
@@ -125,6 +126,12 @@ def reward(
 
     client = override_client if override_client else self.client
 
+    all_text = ' '.join([testChunk.text for testChunk in testChunks])
+    
+    num_tokens = num_tokens_from_string(all_text, "o200k_base")
+
+    bt.logging.info(f"Using {num_tokens} tokens for test embeddings")
+
     # calculate rewards using embeddings of test chunks
     embeddings = client.embeddings.create(
         input=[testChunk.text for testChunk in testChunks],
@@ -158,6 +165,7 @@ def reward(
     extra_info_dict['size_penalty'] = size_penalty
     extra_info_dict['embedding_reward'] = reward
     extra_info_dict['qty_penalty'] = qty_penalty
+    extra_info_dict['num_embed_tokens'] = num_tokens
 
     # calculate and return final reward
     

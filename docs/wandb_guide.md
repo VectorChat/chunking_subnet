@@ -1,11 +1,12 @@
 # How to read the W&B guide
 
-Each chart in the W&B is for a _specific_ miner.
+Each chart in the W&B is for a _specific_ miner. 
 
-If you want to look for charts that apply to only your miner, a regex of the form `\.<YOUR_UID>$` can be used to filter the charts.
-Example: `\.12$` or `weights.12$`.
+If you want to look for charts that apply to only your miner, a regex of the form `\.<YOUR_UID>$` can be used to filter the charts. 
+Example: `\.12$` or `weights.12$`. 
 
-A similar regex can be used for multiple miners: `\.\(<UID_1>|<UID_2>|<...>\)$`, an example being: `\.\(10|11)$`
+A similar regex can be used for multiple miners: `\.\(<UID_1>|<UID_2>|<...>\)$`, an example being: `\.\(10|11)$` 
+
 
 Each line on the chart is the logs from a specific validator for that miner.
 

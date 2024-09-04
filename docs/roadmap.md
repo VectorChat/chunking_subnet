@@ -9,11 +9,11 @@ The initial phase of the subnet, containing the basic functionality of the subne
 - [x] Autoupdate for Miners and Validators
 - [x] Miner blacklist by Stake and Address
 - [x] Open-source Task API Framework to query the subnet
-- [ ] Subnet Dashboard for Miners and Validators
-  - [ ] Display Subnet KPIs
+- [x] Subnet Dashboard for Miners and Validators (see: [subnet.chunking.com](https://subnet.chunking.com/))
+  - [x] Display Subnet KPIs
   - [ ] Periodic global benchmark
   - [ ] Display subnet performance over time
-  - [ ] Chunking visualizer of all synthetic chunks produced
+  - [x] Chunking visualizer of all synthetic chunks produced
   - [x] Display all Miner and Validator data
   - [x] Show all tournament rounds: global, by validator, and by miner
 - [ ] Unique synthetic queries via Wikipedia + LLM, mitigating potential for lookup attacks and providing miners a way to detect and prevent relay mining
@@ -53,6 +53,7 @@ The third phase has the subnet expand to subsume the full Retrieval-Augmented Ge
 
 *As all components of the subnet are meant to be used in RAG, the Evaluation will change to a standardized RAG benchmark, where the independent variable for any given contest is the subject of that very contest.*
 
+###  Objectives:
 - [ ] Preprocessing Contests
     - [ ] Text and Structure Extraction
 - [ ] Embedding Contests

@@ -37,7 +37,11 @@ from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
 #from chunking.utils.config import add_validptor_argos
+
+import sympy as sp
+
 load_dotenv()
+
 
 class BaseValidatorNeuron(BaseNeuron):
     """
@@ -145,13 +149,18 @@ class BaseValidatorNeuron(BaseNeuron):
         wandb.init(entity=chunking.ENTITY, project=project_name, id=run.id, resume="must")                                                                    
         bt.logging.success(f"Resumed wandb run '{run.name}' for project '{project_name}'")
 
+    def _get_wandb_project_name(self):
+        if self.config.subtensor.chain_endpoint == "test":
+            return "chunking-testnet"                
+        return self.config.wandb.project_name
+
     def _setup_wandb(self):
         if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
             raise Exception("WANDB_API_KEY environment variable must be set")
             
         else:
             try:                                        
-                project_name = self.config.wandb.project_name
+                project_name = self._get_wandb_project_name()
                 
                 latest_run = self._get_latest_wandb_run(project_name)                                        
                 
@@ -330,34 +339,111 @@ class BaseValidatorNeuron(BaseNeuron):
             self.is_running = False
             bt.logging.debug("Stopped")                
 
+
+    @staticmethod
+    def _get_raw_weights(scores: np.ndarray, rankings: np.ndarray):
+        """
+        Gets the raw weights based on scores/rankings.
+        """
+        
+        assert len(scores) == len(rankings), "scores and rankings must be the same length"
+        
+        if not isinstance(scores, np.ndarray):
+            bt.logging.warning(f"scores is not a numpy array, found {type(scores)}, converting to numpy array")
+            scores = np.array(scores)
+
+        if not isinstance(rankings, np.ndarray):
+            bt.logging.warning(f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array")
+            rankings = np.array(rankings)
+            
+        bt.logging.debug(f"scores len: {len(scores)}, rankings len: {len(rankings)}")
+        
+        num_weights_cap = 7
+        
+        n = len(scores)
+        raw_weights = np.zeros(n)    
+        i = 0    
+        for uid in rankings:            
+            if i >= num_weights_cap:
+                break
+            if np.isinf(scores[uid]):
+                continue
+            raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
+            i += 1                        
+                 
+        # num active miners is number of uids with finite scores
+        num_active_miners = np.sum(np.isfinite(scores))                
+        
+        bt.logging.debug(f"num_active_miners: {num_active_miners}")
+        
+        # only use linear distro if there are more than num_weights_cap active miners,
+        # and we are not at the last active miner        
+        if i >= num_weights_cap and i < num_active_miners and scores[rankings[i]] != np.inf:
+            # calculate the weight that would be given to place `num_weights_cap` (or the last place if fewer than `num_weights_cap`)
+            last_top_weight = (1/2) ** (min(num_weights_cap, i))
+        
+            
+            left = i
+            right = num_active_miners
+
+            # first constraint, integration from left to right should be equal to `last_top_weight`
+            m_1 = ((right ** 2 / 2) - (left ** 2 / 2))
+            b_1 = right - left        
+            r_1 = last_top_weight
+            
+            # second constraint, y = 0 at right point
+            m_2 = right
+            b_2 = 1
+            r_2 = 0
+            
+            matrix = np.array([
+                [m_1, b_1, r_1],
+                [m_2, b_2, r_2]
+            ])
+            
+            bt.logging.debug(f"matrix: {matrix}")
+            
+            # Solve for m and b
+            matrix_rref = sp.Matrix(matrix).rref()
+            bt.logging.debug(f"matrix_rref: {matrix_rref}")
+            
+            true_m = matrix_rref[0][2]
+            true_b = matrix_rref[0][5]
+            
+            def f(x: int):
+                return max(0, true_m * x + true_b)
+            
+            bt.logging.debug(f"f({left}) = {f(left)}, f({right}) = {f(right)}")
+            
+            total = 0
+            
+            for rank in range(left, min(right, n)):
+                uid = rankings[rank]
+                
+                total += f(rank)
+                if np.isinf(scores[uid]):
+                    break
+                raw_weights[uid] = f(rank)
+
+            bt.logging.debug(f"last_top_weight = {last_top_weight}, linear fn sum = {total}")
+            
+        return raw_weights
+        
+
     def set_weights(self: "BaseValidatorNeuron"):
         """
         Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
         """
 
         bt.logging.debug("setting weights")
-    
-        # Check if self.scores contains any NaN values and log a warning if it does.
+            
         if np.isnan(self.scores).any():
             bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
-
-
-        # Calculate the average reward for each uid across non-zero values.        
+        
         bt.logging.debug(f"self.scores = {self.scores}")
         
-        num_weights_cap = 5
+        raw_weights = self._get_raw_weights(self.scores, self.rankings)
         
-        # Calculate weights
-        n = len(self.scores)
-        raw_weights = np.zeros(n)    
-        i = 0    
-        for uid in self.rankings:
-            if i >= num_weights_cap:
-                break
-            if np.isinf(self.scores[uid]):
-                continue
-            raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
-            i += 1
         
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
@@ -365,12 +451,13 @@ class BaseValidatorNeuron(BaseNeuron):
         (
             processed_weight_uids,
             processed_weights,
-        ) = bt.utils.weight_utils.process_weights_for_netuid(
+        ) = chunking.base.utils.process_weights_for_netuid(
             uids=self.metagraph.uids,
             weights=raw_weights,
             netuid=self.config.netuid,
             subtensor=self.subtensor,
             metagraph=self.metagraph,
+            skip_exclude=True
         )
         bt.logging.debug("processed_weights", processed_weights)
         bt.logging.debug("processed_weight_uids", processed_weight_uids)
@@ -391,6 +478,10 @@ class BaseValidatorNeuron(BaseNeuron):
         for uid, weight in zip(uint_uids, uint_weights):
             wandb_data["weights"][str(uid)] = weight
         wandb.log(wandb_data)
+        
+        if self.config.neuron.skip_set_weights_extrinsic:
+            bt.logging.warning("Skipping set_weights extrinsic call.")
+            return
 
         # Set the weights on chain via our subtensor connection.
         def set_weights_on_chain():
