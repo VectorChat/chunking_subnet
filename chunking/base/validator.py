@@ -333,37 +333,46 @@ class BaseValidatorNeuron(BaseNeuron):
             self.is_running = False
             bt.logging.debug("Stopped")                
 
-    def set_weights(self: "BaseValidatorNeuron"):
-        """
-        Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
-        """
 
-        bt.logging.debug("setting weights")
-            
-        if np.isnan(self.scores).any():
-            bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
+    @staticmethod
+    def _get_raw_weights(scores: np.ndarray, rankings: np.ndarray):
+        """
+        Gets the raw weights based on scores/rankings.
+        """
         
-        bt.logging.debug(f"self.scores = {self.scores}")
+        assert len(scores) == len(rankings), "scores and rankings must be the same length"
+        
+        if not isinstance(scores, np.ndarray):
+            bt.logging.warning(f"scores is not a numpy array, found {type(scores)}, converting to numpy array")
+            scores = np.array(scores)
+
+        if not isinstance(rankings, np.ndarray):
+            bt.logging.warning(f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array")
+            rankings = np.array(rankings)
+            
+        bt.logging.debug(f"scores len: {len(scores)}, rankings len: {len(rankings)}")
         
         num_weights_cap = 7
         
-        n = len(self.scores)
+        n = len(scores)
         raw_weights = np.zeros(n)    
         i = 0    
-        for uid in self.rankings:            
+        for uid in rankings:            
             if i >= num_weights_cap:
                 break
-            if np.isinf(self.scores[uid]):
+            if np.isinf(scores[uid]):
                 continue
             raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
             i += 1                        
                  
         # num active miners is number of uids with finite scores
-        num_active_miners = np.sum(np.isfinite(self.scores))                
+        num_active_miners = np.sum(np.isfinite(scores))                
+        
+        bt.logging.debug(f"num_active_miners: {num_active_miners}")
         
         # only use linear distro if there are more than num_weights_cap active miners,
         # and we are not at the last active miner        
-        if i >= num_weights_cap and i < num_active_miners and self.scores[self.rankings[i]] != np.inf:
+        if i >= num_weights_cap and i < num_active_miners and scores[rankings[i]] != np.inf:
             # calculate the weight that would be given to place `num_weights_cap` (or the last place if fewer than `num_weights_cap`)
             last_top_weight = (1/2) ** (min(num_weights_cap, i))
         
@@ -403,14 +412,32 @@ class BaseValidatorNeuron(BaseNeuron):
             total = 0
             
             for rank in range(left, min(right, n)):
-                uid = self.rankings[rank]
+                uid = rankings[rank]
                 
                 total += f(rank)
-                if np.isinf(self.scores[uid]):
+                if np.isinf(scores[uid]):
                     break
                 raw_weights[uid] = f(rank)
+
+            bt.logging.debug(f"last_top_weight = {last_top_weight}, linear fn sum = {total}")
             
-            print(f"last_top_weight = {last_top_weight}, linear fn sum = {total}")
+        return raw_weights
+        
+
+    def set_weights(self: "BaseValidatorNeuron"):
+        """
+        Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
+        """
+
+        bt.logging.debug("setting weights")
+            
+        if np.isnan(self.scores).any():
+            bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
+        
+        bt.logging.debug(f"self.scores = {self.scores}")
+        
+        raw_weights = self._get_raw_weights(self.scores, self.rankings)
+        
         
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
