@@ -192,6 +192,11 @@ class Miner(BaseMinerNeuron):
     async def verify(
         self, synapse: chunking.protocol.chunkSynapse
     ) -> None:
+        
+        if self.config.neuron.disable_verification:
+            bt.logging.warning("Verification disabled")
+            return
+        
          # Build the keypair from the dendrite_hotkey
         if synapse.dendrite is not None:
             keypair = Keypair(ss58_address=synapse.dendrite.hotkey)
