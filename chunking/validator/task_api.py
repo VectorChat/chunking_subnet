@@ -234,10 +234,16 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
     return document
 
 def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str, int]:
-    page = choice(validator.articles) if pageid == None else pageid
-    
-    content = get_wiki_content_for_page(page)
-    
+    content = ""
+    while len(content) < 10000 or len(content) > 100000:
+        page = requests.get('https://en.wikipedia.org/w/api.php', params={
+            'action': 'query',
+            'list': 'random',
+            'rnnamespace': 0,
+            'format': 'json'
+        }).json()['query']['random']['id']
+        
+        content = get_wiki_content_for_page(page)
     return content, page
     
 
