@@ -146,11 +146,14 @@ async def forward(self: Validator):
     except Exception as e:
         bt.logging.error(f"Error querying the network: {e}")
 
+    process_times = []
     for response, uid in zip(responses, miner_group_uids):
         if response.dendrite.process_time is None:
             wandb_data["group"]["process_times"][str(uid)] = np.inf
+            process_times.append(np.inf)
         else:
             wandb_data["group"]["process_times"][str(uid)] = response.dendrite.process_time
+            process_times.append(response.dendrite.process_time)
         
         # wandb_data["group"]["num_chunks"][str(uid)] = len(response.chunks) if response.chunks is not None else 0
         
@@ -224,7 +227,7 @@ async def forward(self: Validator):
 
     # Task.upload_logs(self, log_data)    
     
-    ranked_responses = rank_responses(rewards)    
+    ranked_responses = rank_responses(rewards, np.array(process_times))    
     
     for rank, uid in zip(ranked_responses, miner_group_uids):
         wandb_data["group"]["local_rankings"][str(uid)] = rank

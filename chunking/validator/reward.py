@@ -28,6 +28,8 @@ import numpy as np
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
+
+from tabulate import tabulate
     
 
 def reward(
@@ -225,32 +227,53 @@ def get_rewards(
 
 def rank_responses(
         rewards: np.ndarray,
+        process_times: np.ndarray,
+        num_decimals: int = 7
 ) -> np.ndarray:
     """
-    Returns an array containing the ranks of the responses using their rewards. Higher reward is better.
+    Returns an array containing the ranks of the responses using their rewards. 
+    Higher reward is better. Ties are broken by shorter process time.
 
     Args:
-    - rewards (List[float]): The list of rewards that were calculated.
+    - rewards (np.ndarray): The array of rewards that were calculated.
+    - process_times (np.ndarray): The array of process times for each response.
+    - num_decimals (int): Number of decimal places to round rewards to.
 
     Returns:
-    - np.ndarray: 
+    - np.ndarray: Array of ranks for each response.
     """
 
-    response_ranks = np.zeros_like(rewards)
+    assert len(rewards) == len(process_times)
 
-    rank = 0
-    for _ in range(len(rewards)):
-        next_best_index = rewards.argmax()
+    # round rewards to num_decimals
+    rewards = np.round(rewards, num_decimals)
         
-        if rewards[next_best_index] == 0:
-            # should not be ranked
-            response_ranks[next_best_index] = -1
-        else:
-            response_ranks[next_best_index] = rank
+    data = np.array(list(zip(rewards, -process_times)), 
+                    dtype=[('reward', float), ('neg_time', float)])
+    
+    # sort the data array by reward (descending) then by negative time (descending)
+    # this effectively sorts by reward (descending) and then by time (ascending)
+    sorted_indices = np.argsort(data, order=('reward', 'neg_time'))[::-1]
+    
+    ranks = np.zeros(len(rewards), dtype=int)
+    
+    rank = 0
+    for idx in sorted_indices:
+        if data['reward'][idx] > 0:
+            ranks[idx] = rank
             rank += 1
-            
-        rewards[next_best_index] = -np.inf
-    return response_ranks
+        else:
+            ranks[idx] = -1
+    
+    # show table    
+    table_headers = ['UID', 'Rank', 'Reward', 'Process Time']
+    table_data = [(i, int(rank), reward, -neg_time) for i, (reward, neg_time), rank in zip(range(len(rewards)), data, ranks)]
+    
+    sorted_by_rank_then_uid = sorted(table_data, key=lambda x: (x[1], x[0]))
+    
+    print(tabulate(sorted_by_rank_then_uid, headers=table_headers, tablefmt="rounded_grid", floatfmt=f".{num_decimals + 1}f"))
+    
+    return ranks
     
 class smallChunk():
     def __init__(self, sourceChunk: str, text: str):
