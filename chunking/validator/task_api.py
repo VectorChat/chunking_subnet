@@ -241,7 +241,7 @@ def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str
             'list': 'random',
             'rnnamespace': 0,
             'format': 'json'
-        }).json()['query']['random']['id']
+        }).json()['query']['random'][0]['id']
         
         content = get_wiki_content_for_page(page)
     return content, page
