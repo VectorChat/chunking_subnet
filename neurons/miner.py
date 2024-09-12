@@ -25,7 +25,7 @@ import bittensor as bt
 import chunking
 from chunking.base.miner import BaseMinerNeuron
 
-from nltk.tokenize import sent_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize
 import json
 from sr25519 import sign
 from substrateinterface import Keypair
@@ -41,6 +41,7 @@ class Miner(BaseMinerNeuron):
         super(Miner, self).__init__()
         
         self.nonces = {}
+        self.recent_queries = []
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
@@ -60,8 +61,36 @@ class Miner(BaseMinerNeuron):
         bt.logging.debug(f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}")
 
         document = sent_tokenize(synapse.document)
+        document_words = word_tokenize(synapse.document)
         bt.logging.debug(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
+
+        removal_stack = []
+        for i, query in enumerate(self.recent_queries):
+            if time.time() > query['timeout']:
+                removal_stack.append(i)
+                
+        while len(removal_stack) > 0:
+            del self.recent_queries[removal_stack.pop(-1)]
+
         
+        for query in self.recent_queries:
+            if abs(len(synapse.document) - query['length']) < 1000:
+                match_count = 0
+                checks_count = 0
+                # check how closely the incoming document matches previous queries
+                for i in range(len(document_words) - 3):
+                    if ' '.join(document_words[i:i+3]) in query['combined_words']:
+                        match_count += 1
+                    checks_count += 1
+                if match_count / checks_count > 0.35:
+                    bt.logging.debug(f"Ignoring duplicate query from hotkey {synapse.dendrite.hotkey}")
+                    return None
+
+        self.recent_queries.append({
+                'timeout': synapse.timeout + time.time(),
+                'length': len(synapse.document),
+                'combined_words': ' '.join(document_words)
+        })
         
         chunks = []       
         while len(document) > 0:
