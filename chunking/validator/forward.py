@@ -229,7 +229,7 @@ async def forward(self: Validator):
 
     # Task.upload_logs(self, log_data)    
     
-    ranked_responses = rank_responses(rewards, np.array(process_times))    
+    ranked_responses = rank_responses(rewards)    
     
     for rank, uid in zip(ranked_responses, miner_group_uids):
         wandb_data["group"]["local_rankings"][str(uid)] = rank
