@@ -227,13 +227,13 @@ def rank_responses(
         rewards: np.ndarray,
 ) -> np.ndarray:
     """
-    Returns an array containing the ranks of the responses using their rewards. Higher reward is better.
+    Returns an array containing the ranks of the responses using their rewards. Higher reward is better.    Higher reward is better. Ties are broken by shorter process time.
 
     Args:
-    - rewards (List[float]): The list of rewards that were calculated.
+    - rewards (np.ndarray): The array of rewards that were calculated.
 
     Returns:
-    - np.ndarray: 
+    - np.ndarray: Array of ranks for each response.
     """
 
     response_ranks = np.zeros_like(rewards)
@@ -248,10 +248,10 @@ def rank_responses(
         else:
             response_ranks[next_best_index] = rank
             rank += 1
-            
+
         rewards[next_best_index] = -np.inf
     return response_ranks
-    
+
 class smallChunk():
     def __init__(self, sourceChunk: str, text: str):
         self.sourceChunk = sourceChunk

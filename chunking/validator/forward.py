@@ -62,8 +62,10 @@ def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
     bt.logging.debug(f"group_size {group_size}")    
 
     return create_groups(self.rankings, group_size)
+
+async def query_miner_group(self: Validator, miner_group: np.ndarray):
     
-    
+
 async def forward(self: Validator):
     """
     The forward function is called by the validator every time step.
@@ -109,22 +111,22 @@ async def forward(self: Validator):
         bt.logging.error(f"Error getting new task: {e}")
         return
 
+    wandb_data["pageid"] = pageid    
+
     if task.miner_uids is not None:
-        found_match = False
+        # choose least number of groups that contain all the uids
+        
+        groups = set()
+        
         for uid in task.miner_uids:
-            if found_match:
-                break
-            for i in range(1, len(miner_groups)):
-                if uid in miner_groups[i]:
-                    miner_group = i
-                    found_match = True
-                    break
-                
-    if task.miner_uids is None or not found_match:
+            for group_index in range(len(miner_groups)):
+                if uid in miner_groups[group_index]:            
+                    groups.add(group_index)                    
+                    
+        miner_group = choice(list(groups))
+    else:
         miner_group = choice(range(len(miner_groups)))
-    
-    wandb_data["pageid"] = pageid
-    
+
     miner_group_uids = list(map(lambda x: int(x), miner_groups[miner_group]))  
     
     wandb_data["group"]["uids"] = miner_group_uids  
@@ -146,11 +148,14 @@ async def forward(self: Validator):
     except Exception as e:
         bt.logging.error(f"Error querying the network: {e}")
 
+    process_times = []
     for response, uid in zip(responses, miner_group_uids):
         if response.dendrite.process_time is None:
             wandb_data["group"]["process_times"][str(uid)] = np.inf
+            process_times.append(np.inf)
         else:
             wandb_data["group"]["process_times"][str(uid)] = response.dendrite.process_time
+            process_times.append(response.dendrite.process_time)
         
         # wandb_data["group"]["num_chunks"][str(uid)] = len(response.chunks) if response.chunks is not None else 0
         
@@ -253,14 +258,12 @@ async def forward(self: Validator):
 
     if task.task_type == "organic":
         try: 
-            if task.miner_uids is None or not found_match:
-                response = responses[ranked_responses.argmin()]
-                
-            else:
-                for i in range(len(task.miner_uids)):
-                    if task.miner_uids[i] in miner_group_uids:
-                        response = responses[i]
-                        break
+            # get the response with highest reward
+            index = np.argmax(rewards)
+            
+            bt.logging.info(f"Choosing response with index: {index}, reward: {rewards[index]}, rank: {ranked_responses[index]}")
+            
+            response = responses[index]
 
             if isinstance(response.chunks, np.ndarray):
                 chunks = response.chunks.tolist()
