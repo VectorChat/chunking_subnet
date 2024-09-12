@@ -63,7 +63,6 @@ def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
 
     return create_groups(self.rankings, group_size)
 
-async def query_miner_group(self: Validator, miner_group: np.ndarray):
     
 
 async def forward(self: Validator):
