@@ -2,6 +2,7 @@ import time
 from typing import Optional, List, Tuple
 from venv import logger
 import bittensor as bt
+from openai import OpenAI
 import tiktoken
 from chunking.protocol import chunkSynapse
 import requests
@@ -88,12 +89,12 @@ class Task():
                     else:
                         bt.logging.info(f"No organic task available. Generating synthetic query")
                         raise Exception("No organic task available")                
-                return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids), -1
+                return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids), {}
             except Exception as e:
                 bt.logging.error(f"Failed to get task from API host: \'{API_host}\'. Exited with exception\n{e}")
         bt.logging.debug("Generating synthetic query")
-        synapse, page = generate_synthetic_synapse(validator)
-        return Task(synapse=synapse, task_type="synthetic", task_id=-1), page
+        synapse, extra_info = generate_synthetic_synapse(validator)
+        return Task(synapse=synapse, task_type="synthetic", task_id=-1), extra_info
 
     @classmethod
     def return_response(cls, validator, response_data):
@@ -163,7 +164,7 @@ def get_wiki_content_for_page(pageid: int) -> str:
         'exsectionformat': 'plain',
     }).json()['query']['pages'][str(pageid)]['extract']
 
-def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
+def generate_doc_with_llm(validator, pageids = None, timeout = 20, override_client: OpenAI | None = None, chunk_size_chars = 4096) -> str:
     pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
     source_articles = []
     for page in pages:
@@ -175,7 +176,9 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
     bt.logging.info("Generating first half of synthetic query")
     start = time.time()
     
-    first_half = validator.client.chat.completions.create(
+    client = override_client if override_client is not None else validator.client
+    
+    first_half = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.7,    
         messages=[
@@ -202,7 +205,7 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
 
     start_2 = time.time()
     
-    second_half = validator.client.chat.completions.create(
+    second_half = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.7,
         messages=[
@@ -247,7 +250,7 @@ def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str
     return content, page
     
 
-def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, int]:
+def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, dict]:
     
     document, page = generate_doc_normal(validator)
     
@@ -264,4 +267,13 @@ def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, i
         chunk_qty=chunk_qty,
         timeout=timeout
     )
-    return synapse, page
+    
+    extra_info = {        
+        "num_chars": len(document),
+        "num_tokens": num_tokens_from_string(document, "o200k_base"),
+        # "total_time": time.time() - start,
+        "pageids": page,
+        # "source_articles": source_articles        
+    }
+    
+    return synapse, extra_info

@@ -17,6 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 import time
+from typing import Optional
 import bittensor as bt
 from random import choice
 from math import floor
@@ -63,7 +64,54 @@ def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
 
     return create_groups(self.rankings, group_size)
 
+def get_miner_groups_to_query(self: Validator, miner_uids: Optional[list[int]] = None) -> list[np.ndarray]:
+    miner_groups, group_ranks, group_size = get_miner_groups(self)
+
+    if miner_uids is not None:
+        groups = set()
+        for uid in miner_uids:
+            for group_index in range(len(miner_groups)):
+                if uid in miner_groups[group_index]:
+                    groups.add(group_index)
+        
+        return [miner_groups[group] for group in groups]
+
+    # else return random group
+    miner_group = choice(range(len(miner_groups)))
+    return [miner_groups[miner_group]]
+
+async def query_miner_group(self: Validator, input_synapse: chunkSynapse, miner_group: np.ndarray, do_grading: bool = False, only_return_best: bool = True):
+    axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group]
+    responses: list[chunkSynapse] = self.dendrite.query(
+        axons=axons,
+        timeout=input_synapse.timeout,
+        synapse=input_synapse,
+        deserialize=False,
+    )
+     
+    rewards, extra_infos = get_rewards(
+        self,
+        document=input_synapse.document,
+        chunk_size=input_synapse.chunk_size,
+        chunk_qty=input_synapse.chunk_qty,
+        responses=responses,
+    )
     
+    ranked_responses = rank_responses(rewards) 
+    
+    
+
+async def run_tournament_round(self: Validator, input_synapse: chunkSynapse, miner_uids: Optional[list[int]] = None, do_grading: bool = False, only_return_best: bool = True):
+    """
+    Run a tournament round for the validator's tournament.
+    """
+
+
+    miner_groups_to_query = get_miner_groups_to_query(self, miner_uids)
+
+
+
+    pass
 
 async def forward(self: Validator):
     """

@@ -18,6 +18,7 @@
 
 import os
 import copy
+from fastapi import FastAPI
 import numpy as np
 import asyncio
 import threading
@@ -95,6 +96,11 @@ class BaseValidatorNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
         self.lock = asyncio.Lock()
+
+        self.app = FastAPI()
+        self.task_queue = asyncio.Queue()
+        self.setup_routes()
+
 
     def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
         for run in runs:
@@ -561,23 +567,24 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
-        
-        for rank, uid in zip(ranks, uids_array):
-            if np.isinf(rank):
-                continue
+        with self.lock:
+            bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
+            
+            for rank, uid in zip(ranks, uids_array):
+                if np.isinf(rank):
+                    continue
 
-            # initialize score if it is np.inf
-            if np.isinf(self.scores[uid]):
-                self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
-            elif self.scores[uid] < 0:
-                self.scores[uid] = np.inf
-            else:            
-                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]                
+                # initialize score if it is np.inf
+                if np.isinf(self.scores[uid]):
+                    self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
+                elif self.scores[uid] < 0:
+                    self.scores[uid] = np.inf
+                else:            
+                    self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]                
 
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
-        
-        self.rankings = np.argsort(self.scores)
+            bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
+            
+            self.rankings = np.argsort(self.scores)
 
         if task_type == "synthetic":
             for uid in uids_array:                
