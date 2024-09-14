@@ -31,11 +31,14 @@ class Task():
 
         if os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES') == 'True':
             hotkey = validator.wallet.get_hotkey()
-            nonce = validator.step
+            nonce = time.time_ns()
             data = {
                 'hotkey_address': hotkey.ss58_address,
                 'nonce': nonce
             }
+            
+            bt.logging.debug(f"Requesting task from API host: \'{os.environ['CHUNKING_API_HOST']}\'")
+            bt.logging.debug(f"Request body: {data}")
 
             # sign request with validator hotkey
             request_signature = sign(
@@ -50,6 +53,8 @@ class Task():
                 'data': data, 
                 'signature': request_signature
                 }
+            bt.logging.debug(f"Request data: {request_data}")
+            
             try:
                 response = requests.post(url=task_url, headers=headers, json=request_data)
                 if response.status_code == 502:
@@ -64,20 +69,25 @@ class Task():
                         task_id = task["task_id"]
                         miner_uids = task.get('miner_uids')
                         bt.logging.debug(f"Received organic query with task id: {task_id}")
-                        if task["timeout"] == None:
-                            task["timeout"] = 5.0
-                        if task["chunk_size"] == None:
+                        if task.get("time_soft_max") == None:
+                            task["time_soft_max"] = 5.0
+                        if task.get("chunk_size") == None:
                             task["chunk_size"] = 4096
-                        if task["chunk_qty"] == None:
+                        if task.get("chunk_qty") == None:
                             task["chunk_qty"] = ceil(
                                 ceil(len(task["document"]) / task["chunk_size"]) * 1.5
                             )
+                        bt.logging.debug(f"task: {task}") 
+                        
                         synapse = chunkSynapse(
-                            document=task["document"],
-                            timeout=task["timeout"],
-                            chunk_size=task["chunk_size"],
-                            chunk_qty=task["chunk_qty"],
+                            document=task["document"],  
+                            time_soft_max=float(task["time_soft_max"]),                          
+                            chunk_size=int(task["chunk_size"]),
+                            chunk_qty=int(task["chunk_qty"]),
                         )
+                    else:
+                        bt.logging.info(f"No organic task available. Generating synthetic query")
+                        raise Exception("No organic task available")                
                 return Task(synapse=synapse, task_type="organic", task_id=task_id, miner_uids=miner_uids), -1
             except Exception as e:
                 bt.logging.error(f"Failed to get task from API host: \'{API_host}\'. Exited with exception\n{e}")
@@ -97,7 +107,7 @@ class Task():
         headers = {"Content-Type": "application/json"}
         data = {
             'response_data': response_data,
-            'validator_sig': validator_sig,
+            'validator_signature': validator_sig,
         }
         try:
             response = requests.post(task_url, headers=headers, json=data)
@@ -224,10 +234,16 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
     return document
 
 def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str, int]:
-    page = choice(validator.articles) if pageid == None else pageid
-    
-    content = get_wiki_content_for_page(page)
-    
+    content = ""
+    while len(content) < 10000 or len(content) > 100000:
+        page = requests.get('https://en.wikipedia.org/w/api.php', params={
+            'action': 'query',
+            'list': 'random',
+            'rnnamespace': 0,
+            'format': 'json'
+        }).json()['query']['random'][0]['id']
+        
+        content = get_wiki_content_for_page(page)
     return content, page
     
 

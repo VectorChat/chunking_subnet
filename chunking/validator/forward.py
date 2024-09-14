@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import time
 import bittensor as bt
 from random import choice
 from math import floor
@@ -61,8 +62,9 @@ def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
     bt.logging.debug(f"group_size {group_size}")    
 
     return create_groups(self.rankings, group_size)
+
     
-    
+
 async def forward(self: Validator):
     """
     The forward function is called by the validator every time step.
@@ -108,22 +110,22 @@ async def forward(self: Validator):
         bt.logging.error(f"Error getting new task: {e}")
         return
 
+    wandb_data["pageid"] = pageid    
+
     if task.miner_uids is not None:
-        found_match = False
+        # choose least number of groups that contain all the uids
+        
+        groups = set()
+        
         for uid in task.miner_uids:
-            if found_match:
-                break
-            for i in range(1, len(miner_groups)):
-                if uid in miner_groups[i]:
-                    miner_group = i
-                    found_match = True
-                    break
-                
-    if task.miner_uids is None or not found_match:
+            for group_index in range(len(miner_groups)):
+                if uid in miner_groups[group_index]:            
+                    groups.add(group_index)                    
+                    
+        miner_group = choice(list(groups))
+    else:
         miner_group = choice(range(len(miner_groups)))
-    
-    wandb_data["pageid"] = pageid
-    
+
     miner_group_uids = list(map(lambda x: int(x), miner_groups[miner_group]))  
     
     wandb_data["group"]["uids"] = miner_group_uids  
@@ -145,11 +147,14 @@ async def forward(self: Validator):
     except Exception as e:
         bt.logging.error(f"Error querying the network: {e}")
 
+    process_times = []
     for response, uid in zip(responses, miner_group_uids):
         if response.dendrite.process_time is None:
             wandb_data["group"]["process_times"][str(uid)] = np.inf
+            process_times.append(np.inf)
         else:
             wandb_data["group"]["process_times"][str(uid)] = response.dendrite.process_time
+            process_times.append(response.dendrite.process_time)
         
         # wandb_data["group"]["num_chunks"][str(uid)] = len(response.chunks) if response.chunks is not None else 0
         
@@ -251,32 +256,40 @@ async def forward(self: Validator):
     bt.logging.info(f"Global ranked responses: {ranked_responses_global}")
 
     if task.task_type == "organic":
-        if task.miner_uids is None or not found_match:
-            response = responses[ranked_responses.argmin()]
+        try: 
+            # get the response with highest reward
+            index = np.argmax(rewards)
             
-        else:
-            for i in range(len(task.miner_uids)):
-                if task.miner_uids[i] in miner_group_uids:
-                    response = responses[i]
-                    break
+            bt.logging.info(f"Choosing response with index: {index}, reward: {rewards[index]}, rank: {ranked_responses[index]}")
+            
+            response = responses[index]
 
-        task_data = {
-            'document': response.document,
-            'chunk_size': response.chunk_size,
-            'chunk_qty': response.chunk_qty,
-            'chunks': response.chunks,
-        }
+            if isinstance(response.chunks, np.ndarray):
+                chunks = response.chunks.tolist()
+            elif response.chunks is None:            
+                chunks = []
+            else:
+                chunks = response.chunks
+                    
+            task_data = {
+                'document': response.document,
+                'chunk_size': response.chunk_size,
+                'chunk_qty': response.chunk_qty,
+                'chunks': chunks,
+            }
 
-        response_data = {
-            'task_data': task_data,
-            'miner_signature': response.miner_signature,
-            'miner_hotkey': response.axon.hotkey,
-            'validator_hotkey': hotkey.ss58_address,
-            'task_id': task.task_id,            
-            'nonce': self.step,
-        }
+            response_data = {
+                'task_data': task_data,
+                'miner_signature': response.miner_signature,
+                'miner_hotkey': response.axon.hotkey,
+                'validator_hotkey': hotkey.ss58_address,
+                'task_id': task.task_id,            
+                'nonce': time.time_ns(),
+            }
 
-        Task.return_response(self, response_data)
+            Task.return_response(self, response_data)
+        except Exception as e:
+            bt.logging.error(f"Error returning organic query response: {e}")
     alpha_adjustment = (1 - self.config.neuron.min_moving_average_alpha) / (len(miner_groups) - 1)
     alpha = self.config.neuron.min_moving_average_alpha + alpha_adjustment * miner_group
     self.update_scores(wandb_data, ranked_responses_global, miner_group_uids, task.task_type, alpha)
