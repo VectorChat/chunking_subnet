@@ -441,6 +441,10 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
         
         bt.logging.debug(f"self.scores = {self.scores}")
+
+        if len(self.scores) != len(self.rankings):
+            bt.logging.warning(f"scores and rankings are different lengths, adjusting rankings to match scores")
+            self.rankings = np.argsort(self.scores)
         
         raw_weights = self._get_raw_weights(self.scores, self.rankings)
         
