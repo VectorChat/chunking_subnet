@@ -140,13 +140,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--neuron.set_weights_timeout_seconds",
-            type=int,
-            help="The timeout for set_weights extrinsic call in seconds.",
-            default=180, # 3 minutes
-        )
-        
-        parser.add_argument(
             "--neuron.synthetic_query_interval_seconds",
             type=int,
             help="The interval between synthetic queries in seconds.",

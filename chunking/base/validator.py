@@ -36,9 +36,9 @@ from math import floor
 from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
-#from chunking.utils.config import add_validptor_argos
 
 import sympy as sp
+
 
 load_dotenv()
 
@@ -57,8 +57,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def __init__(self, config=None):
         super().__init__(config=self.config())
-        
-        self._setup_wandb()        
+
+        self._setup_wandb()
 
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
@@ -70,13 +70,15 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = np.full(shape=self.metagraph.n, fill_value=np.inf, dtype=np.float64)
-        
+        self.scores = np.full(
+            shape=self.metagraph.n, fill_value=np.inf, dtype=np.float64
+        )
+
         bt.logging.debug(f"Initial scores: {self.scores}")
-        
+
         self.rankings = np.array(range(self.metagraph.n))
-                        
-        self.load_state()        
+
+        self.load_state()
         # Init sync with the network. Updates the metagraph.
         self.sync_articles()
         self.sync()
@@ -101,26 +103,32 @@ class BaseValidatorNeuron(BaseNeuron):
             sig = run.config.get("signature")
             if not sig:
                 continue
-            
+
             verified = self.wallet.hotkey.verify(run.id.encode(), bytes.fromhex(sig))
-            
+
             if verified:
                 bt.logging.info(f"Found valid run: {run.id}")
                 return run
             else:
-                bt.logging.warning(f"Found invalid run: {run.id}, looking for another run")
-        
+                bt.logging.warning(
+                    f"Found invalid run: {run.id}, looking for another run"
+                )
+
         return None
 
     def _get_latest_wandb_run(self, project_name: str) -> Run | None:
         api = wandb.Api()
-        latest_runs: Runs = api.runs(f"{chunking.ENTITY}/{project_name}", 
-                                        {"config.hotkey": self.wallet.hotkey.ss58_address, 
-                                         "config.type": "validator"},
-                                        order="-created_at")
+        latest_runs: Runs = api.runs(
+            f"{chunking.ENTITY}/{project_name}",
+            {
+                "config.hotkey": self.wallet.hotkey.ss58_address,
+                "config.type": "validator",
+            },
+            order="-created_at",
+        )
         return self._find_valid_wandb_run(latest_runs)
 
-    def _start_new_wandb_run(self, project_name: str, run_name:str) -> Run:        
+    def _start_new_wandb_run(self, project_name: str, run_name: str) -> Run:
         run = wandb.init(
             name=run_name,
             project=project_name,
@@ -131,69 +139,94 @@ class BaseValidatorNeuron(BaseNeuron):
         )
         signature = self.wallet.hotkey.sign(run.id.encode()).hex()
         self.config.signature = signature
-        bt.logging.success(f"Started wandb run for project '{project_name}', name: '{run_name}', id: '{run.id}'")                                                  
-        return run    
+        bt.logging.success(
+            f"Started wandb run for project '{project_name}', name: '{run_name}', id: '{run.id}'"
+        )
+        return run
 
     def _find_existing_wandb_run(self, version: str, uid: int) -> Run | None:
         api = wandb.Api()
-        latest_runs: Runs = api.runs(f"{chunking.ENTITY}/{self.config.wandb.project_name}", 
-                                        {"config.hotkey": self.wallet.hotkey.ss58_address,
-                                         "config.type": "validator",
-                                         "config.version": version, 
-                                         "config.uid": uid},
-                                        order="-created_at")
-        bt.logging.debug(f"Found {len(latest_runs)} runs with version {version} and uid {uid}")
-        return self._find_valid_wandb_run(latest_runs)     
+        latest_runs: Runs = api.runs(
+            f"{chunking.ENTITY}/{self.config.wandb.project_name}",
+            {
+                "config.hotkey": self.wallet.hotkey.ss58_address,
+                "config.type": "validator",
+                "config.version": version,
+                "config.uid": uid,
+            },
+            order="-created_at",
+        )
+        bt.logging.debug(
+            f"Found {len(latest_runs)} runs with version {version} and uid {uid}"
+        )
+        return self._find_valid_wandb_run(latest_runs)
 
     def _resume_wandb_run(self, run: Run, project_name: str):
-        wandb.init(entity=chunking.ENTITY, project=project_name, id=run.id, resume="must")                                                                    
-        bt.logging.success(f"Resumed wandb run '{run.name}' for project '{project_name}'")
+        wandb.init(
+            entity=chunking.ENTITY, project=project_name, id=run.id, resume="must"
+        )
+        bt.logging.success(
+            f"Resumed wandb run '{run.name}' for project '{project_name}'"
+        )
 
     def _get_wandb_project_name(self):
         if self.config.subtensor.chain_endpoint == "test":
-            return "chunking-testnet"                
+            return "chunking-testnet"
         return self.config.wandb.project_name
 
     def _setup_wandb(self):
-        if os.environ.get("WANDB_API_KEY") is None or os.environ.get("WANDB_API_KEY") == "":
+        if (
+            os.environ.get("WANDB_API_KEY") is None
+            or os.environ.get("WANDB_API_KEY") == ""
+        ):
             raise Exception("WANDB_API_KEY environment variable must be set")
-            
+
         else:
-            try:                                        
+            try:
                 project_name = self._get_wandb_project_name()
-                
-                latest_run = self._get_latest_wandb_run(project_name)                                        
-                
+
+                latest_run = self._get_latest_wandb_run(project_name)
+
                 run_name = f"validator-{self.uid}-{chunking.__version__}"
-                
+
                 self.config.uid = self.uid
                 self.config.hotkey = self.wallet.hotkey.ss58_address
                 self.config.run_name = run_name
                 self.config.version = chunking.__version__
-                self.config.type = "validator"                                                
-                
+                self.config.type = "validator"
+
                 if not latest_run:
-                    self._start_new_wandb_run(project_name, run_name)                                                                                               
+                    self._start_new_wandb_run(project_name, run_name)
                 else:
                     # check if uid or version has changed
-                    if latest_run.config.get("version") != chunking.__version__ or latest_run.config.get("uid") != self.uid :
-                        bt.logging.info(f"Found run with different version or uid ({latest_run.name})")
-                        
-                        
-                        existing_run = self._find_existing_wandb_run(chunking.__version__, self.uid)
-                        
-                        if not existing_run:                         
-                            bt.logging.info(f"Could not find existing run with version {chunking.__version__} and uid {self.uid}, starting new run")   
-                            self._start_new_wandb_run(project_name, run_name) 
+                    if (
+                        latest_run.config.get("version") != chunking.__version__
+                        or latest_run.config.get("uid") != self.uid
+                    ):
+                        bt.logging.info(
+                            f"Found run with different version or uid ({latest_run.name})"
+                        )
+
+                        existing_run = self._find_existing_wandb_run(
+                            chunking.__version__, self.uid
+                        )
+
+                        if not existing_run:
+                            bt.logging.info(
+                                f"Could not find existing run with version {chunking.__version__} and uid {self.uid}, starting new run"
+                            )
+                            self._start_new_wandb_run(project_name, run_name)
                         else:
-                            bt.logging.info(f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run")
+                            bt.logging.info(
+                                f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run"
+                            )
                             self._resume_wandb_run(existing_run, project_name)
                     else:
-                        self._resume_wandb_run(latest_run, project_name)                                
-                
+                        self._resume_wandb_run(latest_run, project_name)
+
                 # always update config
-                wandb.config.update(self.config, allow_val_change=True)                                        
-                
+                wandb.config.update(self.config, allow_val_change=True)
+
             except Exception as e:
                 raise Exception(f"Error in init_wandb: {e}")
 
@@ -224,8 +257,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
     async def concurrent_forward(self):
         coroutines = [
-            self.forward()
-            for _ in range(self.config.neuron.num_concurrent_forwards)
+            self.forward() for _ in range(self.config.neuron.num_concurrent_forwards)
         ]
         await asyncio.gather(*coroutines)
 
@@ -255,7 +287,7 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.info(f"Validator starting at block: {self.block}")
 
         interval_seconds = self.config.neuron.synthetic_query_interval_seconds
-        
+
         # This loop maintains the validator's operations until intentionally stopped.
         try:
             while True:
@@ -268,13 +300,15 @@ class BaseValidatorNeuron(BaseNeuron):
                     break
 
                 # Sync metagraph and potentially set weights.
-                self.sync()                                   
-                self.sync_articles()                      
-                self.save_state()                      
-                
-                bt.logging.debug(f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds")
+                self.sync()
+                self.sync_articles()
+                self.save_state()
+
+                bt.logging.debug(
+                    f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
+                )
                 self.step += 1
-                
+
                 time.sleep(interval_seconds)
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
@@ -287,7 +321,6 @@ class BaseValidatorNeuron(BaseNeuron):
         except Exception as err:
             bt.logging.error("Error during validation", str(err))
             traceback.print_exc()
-            
 
     def run_in_background_thread(self):
         """
@@ -331,104 +364,123 @@ class BaseValidatorNeuron(BaseNeuron):
                        None if the context was exited without an exception.
         """
         wandb.finish()
-        
+
         if self.is_running:
             bt.logging.debug("Stopping validator in background thread.")
             self.should_exit = True
             self.thread.join(5)
             self.is_running = False
-            bt.logging.debug("Stopped")                
-
+            bt.logging.debug("Stopped")
 
     @staticmethod
     def _get_raw_weights(scores: np.ndarray, rankings: np.ndarray):
         """
         Gets the raw weights based on scores/rankings.
         """
-        
-        assert len(scores) == len(rankings), "scores and rankings must be the same length"
-        
+
+        assert len(scores) == len(
+            rankings
+        ), "scores and rankings must be the same length"
+
         if not isinstance(scores, np.ndarray):
-            bt.logging.warning(f"scores is not a numpy array, found {type(scores)}, converting to numpy array")
+            bt.logging.warning(
+                f"scores is not a numpy array, found {type(scores)}, converting to numpy array"
+            )
             scores = np.array(scores)
 
         if not isinstance(rankings, np.ndarray):
-            bt.logging.warning(f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array")
+            bt.logging.warning(
+                f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array"
+            )
             rankings = np.array(rankings)
-            
+
         bt.logging.debug(f"scores len: {len(scores)}, rankings len: {len(rankings)}")
-        
+
         num_weights_cap = 7
-        
+
         n = len(scores)
-        raw_weights = np.zeros(n)    
-        i = 0    
-        for uid in rankings:            
+        raw_weights = np.zeros(n)
+        i = 0
+        for uid in rankings:
             if i >= num_weights_cap:
                 break
             if np.isinf(scores[uid]):
                 continue
-            raw_weights[uid] = (1/2) ** i  # (1/2)^i where i is the rank (0-indexed)            
-            i += 1                        
-                 
+            raw_weights[uid] = (1 / 2) ** i  # (1/2)^i where i is the rank (0-indexed)
+            i += 1
+
         # num active miners is number of uids with finite scores
-        num_active_miners = np.sum(np.isfinite(scores))                
-        
+        num_active_miners = np.sum(np.isfinite(scores))
+
         bt.logging.debug(f"num_active_miners: {num_active_miners}")
-        
+
         # only use linear distro if there are more than num_weights_cap active miners,
-        # and we are not at the last active miner        
-        if i >= num_weights_cap and i < num_active_miners and scores[rankings[i]] != np.inf:
+        # and we are not at the last active miner
+        if (
+            i >= num_weights_cap
+            and i < num_active_miners
+            and scores[rankings[i]] != np.inf
+        ):
             # calculate the weight that would be given to place `num_weights_cap` (or the last place if fewer than `num_weights_cap`)
-            last_top_weight = (1/2) ** (min(num_weights_cap, i))
-        
-            
+            last_top_weight = (1 / 2) ** (min(num_weights_cap, i))
+
             left = i
             right = num_active_miners
 
             # first constraint, integration from left to right should be equal to `last_top_weight`
-            m_1 = ((right ** 2 / 2) - (left ** 2 / 2))
-            b_1 = right - left        
+            m_1 = (right**2 / 2) - (left**2 / 2)
+            b_1 = right - left
             r_1 = last_top_weight
-            
+
             # second constraint, y = 0 at right point
             m_2 = right
             b_2 = 1
             r_2 = 0
-            
-            matrix = np.array([
-                [m_1, b_1, r_1],
-                [m_2, b_2, r_2]
-            ])
-            
+
+            matrix = np.array([[m_1, b_1, r_1], [m_2, b_2, r_2]])
+
             bt.logging.debug(f"matrix: {matrix}")
-            
+
             # Solve for m and b
             matrix_rref = sp.Matrix(matrix).rref()
             bt.logging.debug(f"matrix_rref: {matrix_rref}")
-            
+
             true_m = matrix_rref[0][2]
             true_b = matrix_rref[0][5]
-            
+
             def f(x: int):
                 return max(0, true_m * x + true_b)
-            
+
             bt.logging.debug(f"f({left}) = {f(left)}, f({right}) = {f(right)}")
-            
+
             total = 0
-            
+
             for rank in range(left, min(right, n)):
                 uid = rankings[rank]
-                
+
                 total += f(rank)
                 if np.isinf(scores[uid]):
                     break
                 raw_weights[uid] = f(rank)
 
-            bt.logging.debug(f"last_top_weight = {last_top_weight}, linear fn sum = {total}")
-            
+            bt.logging.debug(
+                f"last_top_weight = {last_top_weight}, linear fn sum = {total}"
+            )
+
         return raw_weights
-        
+
+
+    def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
+        result, msg = self.subtensor.set_weights(
+            wallet=self.wallet,
+            netuid=self.config.netuid,
+            uids=uint_uids,
+            weights=uint_weights,
+            wait_for_finalization=False,
+            wait_for_inclusion=False,
+            version_key=self.spec_version,
+        )
+        return result, msg
 
     def set_weights(self: "BaseValidatorNeuron"):
         """
@@ -436,19 +488,22 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         bt.logging.debug("setting weights")
-            
+
         if np.isnan(self.scores).any():
-            bt.logging.warning(f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions.")
-        
+            bt.logging.warning(
+                f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions."
+            )
+
         bt.logging.debug(f"self.scores = {self.scores}")
 
         if len(self.scores) != len(self.rankings):
-            bt.logging.warning(f"scores and rankings are different lengths, adjusting rankings to match scores")
+            bt.logging.warning(
+                f"scores and rankings are different lengths, adjusting rankings to match scores"
+            )
             self.rankings = np.argsort(self.scores)
-        
+
         raw_weights = self._get_raw_weights(self.scores, self.rankings)
-        
-        
+
         bt.logging.debug("raw_weights", raw_weights)
         bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
         # Process the raw weights to final_weights via subtensor limitations.
@@ -461,7 +516,7 @@ class BaseValidatorNeuron(BaseNeuron):
             netuid=self.config.netuid,
             subtensor=self.subtensor,
             metagraph=self.metagraph,
-            skip_exclude=True
+            skip_exclude=True,
         )
         bt.logging.debug("processed_weights", processed_weights)
         bt.logging.debug("processed_weight_uids", processed_weight_uids)
@@ -476,40 +531,25 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug("uint_weights", uint_weights)
         bt.logging.debug("uint_uids", uint_uids)
 
-        timeout_seconds = self.config.set_weights_timeout_seconds
 
         wandb_data = {"weights": {}}
         for uid, weight in zip(uint_uids, uint_weights):
             wandb_data["weights"][str(uid)] = weight
         wandb.log(wandb_data)
-        
+
         if self.config.neuron.skip_set_weights_extrinsic:
             bt.logging.warning("Skipping set_weights extrinsic call.")
             return
 
-        # Set the weights on chain via our subtensor connection.
-        def set_weights_on_chain():
-            result, msg = self.subtensor.set_weights(
-                wallet=self.wallet,
-                netuid=self.config.netuid,
-                uids=uint_uids,
-                weights=uint_weights,
-                wait_for_finalization=True,
-                wait_for_inclusion=True,
-                version_key=self.spec_version,
-            )
-            return result, msg
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(set_weights_on_chain)
-            try:
-                result, msg = future.result(timeout=timeout_seconds)
-                if result is True:
-                    bt.logging.success("set_weights on chain successfully!")
-                else:
-                    bt.logging.error("set_weights failed", msg)
-            except concurrent.futures.TimeoutError:
-                bt.logging.error(f"set_weights operation timed out after {timeout_seconds} seconds")
+        try:
+            result, msg = self.set_weights_on_chain(uint_uids, uint_weights)
+            if result is True:
+                bt.logging.success(f"submitted set_weights extrinsic to chain, msg: {msg}")
+            else:
+                bt.logging.error(f"set_weights failed: {msg}")
+        except Exception as e:
+            bt.logging.error(f"Error setting weights on chain: {e}")
+            traceback.print_exc()
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
@@ -519,38 +559,45 @@ class BaseValidatorNeuron(BaseNeuron):
         previous_metagraph = copy.deepcopy(self.metagraph)
 
         success = super().resync_metagraph()
-        
+
         if not success:
             bt.logging.error("Metagraph sync failed, skipping this step.")
             return
-    
+
         # Check if the metagraph axon info has changed.
         # if previous_metagraph.axons == self.metagraph.axons:
         #     bt.logging.debug("metagraph axons are the same, nothing to update")
         #     return
 
         bt.logging.info("Metagraph updated, re-syncing hotkeys")
-        
+
         # Reset scores for all hotkeys that have been replaced
         for uid, hotkey in enumerate(self.hotkeys):
-            if hotkey != self.metagraph.hotkeys[uid]:                
+            if hotkey != self.metagraph.hotkeys[uid]:
                 self.scores[uid] = np.inf
 
         # Check to see if the metagraph has changed size.
         # If so, we need to add new hotkeys and scores
-        if len(self.hotkeys) < len(self.metagraph.hotkeys):            
-            cur_scores = self.scores                               
-            placeholder_scores = np.full((self.metagraph.n), np.inf).astype(np.float64)            
-            
-            placeholder_scores[:len(cur_scores)] = cur_scores
-            
-            self.scores = placeholder_scores          
-            bt.logging.debug(f"Added new hotkeys, new scores: {self.scores}")              
+        if len(self.hotkeys) < len(self.metagraph.hotkeys):
+            cur_scores = self.scores
+            placeholder_scores = np.full((self.metagraph.n), np.inf).astype(np.float64)
+
+            placeholder_scores[: len(cur_scores)] = cur_scores
+
+            self.scores = placeholder_scores
+            bt.logging.debug(f"Added new hotkeys, new scores: {self.scores}")
 
         # Update the hotkeys.
-        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)    
+        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-    def update_scores(self, wandb_data: dict, ranks: np.ndarray, uids: List[int], task_type: Literal["organic", "synthetic"], alpha: float):
+    def update_scores(
+        self,
+        wandb_data: dict,
+        ranks: np.ndarray,
+        uids: List[int],
+        task_type: Literal["organic", "synthetic"],
+        alpha: float,
+    ):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
@@ -565,41 +612,44 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
-        
+        bt.logging.debug(
+            f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
+        )
+
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
 
             # initialize score if it is np.inf
             if np.isinf(self.scores[uid]):
-                self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
+                self.scores[uid] = alpha * rank + (1 - alpha) * floor(
+                    np.sum(np.isfinite(self.scores)) / 2
+                )
             elif self.scores[uid] < 0:
                 self.scores[uid] = np.inf
-            else:            
-                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]                
+            else:
+                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]
 
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
-        
+        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+
         self.rankings = np.argsort(self.scores)
 
         if task_type == "synthetic":
-            for uid in uids_array:                
+            for uid in uids_array:
                 # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
-                wandb_data["group"]["scores"][str(uid)] = self.scores[uid]                        
-            
-            for uid in range(len(self.scores)):                
-                wandb_data["all"]["scores"][str(uid)] = self.scores[uid]                
-            
+                wandb_data["group"]["scores"][str(uid)] = self.scores[uid]
+
+            for uid in range(len(self.scores)):
+                wandb_data["all"]["scores"][str(uid)] = self.scores[uid]
+
             for rank in range(len(self.rankings)):
-                uid = self.rankings[rank]                
+                uid = self.rankings[rank]
                 wandb_data["all"]["rankings"][str(uid)] = rank
-            
-            # bt.logging.debug(f"Logging wandb_data: {wandb_data}")                    
+
+            # bt.logging.debug(f"Logging wandb_data: {wandb_data}")
             bt.logging.info("Logging wandb_data")
-            wandb.log(wandb_data)     
-            
-                        
+            wandb.log(wandb_data)
+
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 
     def save_state(self):
@@ -615,11 +665,12 @@ class BaseValidatorNeuron(BaseNeuron):
             articles=self.articles,
             hotkeys=self.hotkeys,
         )
-        
-        bt.logging.info(f"Saved validator state.")
-        bt.logging.debug(f"Saved state for {len(self.hotkeys)} hotkeys, saved {len(self.articles)} articles")
 
-    
+        bt.logging.info(f"Saved validator state.")
+        bt.logging.debug(
+            f"Saved state for {len(self.hotkeys)} hotkeys, saved {len(self.articles)} articles"
+        )
+
     def load_state(self):
         """Loads the state of the validator from a file."""
         bt.logging.info("Loading validator state.")
@@ -633,37 +684,49 @@ class BaseValidatorNeuron(BaseNeuron):
         self.hotkeys = state["hotkeys"]
         self.rankings = state["rankings"]
         self.articles = state["articles"]
-        
+
         bt.logging.info(f"Loaded validator state.")
-        bt.logging.debug(f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles")
+        bt.logging.debug(
+            f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles"
+        )
 
     def sync_articles(self):
-        try: 
+        try:
             bt.logging.debug(f"syncing articles")
             articles = []
-            response = requests.get('https://en.wikipedia.org/w/api.php', params={
-                'action': 'query', 
-                'format': 'json', 
-                'list': 'categorymembers',
-                'cmpageid': '8966941', 
-                'cmprop': 'ids', 
-                'cmlimit': 'max'
-                }).json()
-            
-            articles.extend([page['pageid'] for page in response['query']['categorymembers']])
-            continuation = response.get('continue')
+            response = requests.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "format": "json",
+                    "list": "categorymembers",
+                    "cmpageid": "8966941",
+                    "cmprop": "ids",
+                    "cmlimit": "max",
+                },
+            ).json()
+
+            articles.extend(
+                [page["pageid"] for page in response["query"]["categorymembers"]]
+            )
+            continuation = response.get("continue")
             while continuation is not None:
-                response = requests.get('https://en.wikipedia.org/w/api.php', params={
-                    'action': 'query', 
-                    'format': 'json', 
-                    'list': 'categorymembers',
-                    'cmpageid': '8966941', 
-                    'cmprop': 'ids', 
-                    'cmlimit': 'max',
-                    'cmcontinue': continuation.get('cmcontinue')
-                    }).json()                
-                continuation = response.get('continue')
-                articles.extend([page['pageid'] for page in response['query']['categorymembers']])        
+                response = requests.get(
+                    "https://en.wikipedia.org/w/api.php",
+                    params={
+                        "action": "query",
+                        "format": "json",
+                        "list": "categorymembers",
+                        "cmpageid": "8966941",
+                        "cmprop": "ids",
+                        "cmlimit": "max",
+                        "cmcontinue": continuation.get("cmcontinue"),
+                    },
+                ).json()
+                continuation = response.get("continue")
+                articles.extend(
+                    [page["pageid"] for page in response["query"]["categorymembers"]]
+                )
             self.articles = articles
             bt.logging.debug(f"synced articles!")
         except Exception as e:
