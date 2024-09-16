@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import difflib
 from math import ceil, e
 from typing import List
 
@@ -28,7 +29,63 @@ import numpy as np
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
-    
+
+from nltk.tokenize import TreebankWordTokenizer
+
+
+def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
+    word_tokenizer = TreebankWordTokenizer()
+    chunk_words = word_tokenizer.tokenize(chunk)
+    document_words = word_tokenizer.tokenize(document)
+
+    chunk_words_str = " ".join(chunk_words)
+    document_words_str = " ".join(document_words)
+
+    if chunk_words_str in document_words_str:
+        return True
+    else:
+
+        if verbose:
+            closest_match_index = 0
+            highest_matches_so_far = 0
+            for i in range(len(document_words) - len(chunk_words) + 1):
+                num_matches = 0
+                for j in range(len(chunk_words)):
+                    if document_words[i + j] == chunk_words[j]:
+                        num_matches += 1
+                    else:
+                        break
+                if num_matches > highest_matches_so_far:
+                    highest_matches_so_far = num_matches
+                    closest_match_index = i
+
+            BLUE = "\033[94m"
+            YELLOW = "\033[93m"
+            ENDC = "\033[0m"
+
+            closest_match_end_index = closest_match_index + len(chunk_words)
+
+            closest_match_words = document_words[
+                closest_match_index:closest_match_end_index
+            ]
+
+            chunk_str = ""
+            closest_match_str_document = ""
+            for i in range(len(chunk_words)):
+                if chunk_words[i] == closest_match_words[i]:
+                    chunk_str += " " + YELLOW + chunk_words[i] + ENDC
+                    closest_match_str_document += (
+                        " " + BLUE + closest_match_words[i] + ENDC
+                    )
+                else:
+                    chunk_str += " " + chunk_words[i]
+                    closest_match_str_document += " " + closest_match_words[i]
+
+            print(
+                f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
+            )
+        return False
+
 
 def reward(
     self: Validator | None,
@@ -38,7 +95,7 @@ def reward(
     response: chunkSynapse,
     override_client: OpenAI | None = None,
     override_num_embeddings: int | None = None,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> float:
     """
     Reward the miner response to the dummy request. This method returns a reward
@@ -46,32 +103,37 @@ def reward(
 
     Returns:
     - float: The reward value for the miner.
-    """    
-    
+    """
+
     if not self and not override_client and not override_num_embeddings:
-        raise Exception("Either self or override_client and override_num_embeddings must be provided")
-    
-    def _verbose(msg: str):                
+        raise Exception(
+            "Either self or override_client and override_num_embeddings must be provided"
+        )
+
+    def _verbose(msg: str):
         if verbose:
             print(msg)
-    
+
     extra_info_dict = {}
-    
+
     def _early_return(msg: str):
         _verbose(msg)
-        
+
         return 0, extra_info_dict
-    
-    if not response.chunks:         
-        return _early_return(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}")
-    
+
+    if not response.chunks:
+        return _early_return(
+            f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}"
+        )
+
+    word_tokenizer = TreebankWordTokenizer()
     chunks = response.chunks
     intrachunk_similarities = []
     interchunk_similarities = []
     smallChunks = []
     size_penalty = 0
-    document_words = word_tokenize(document)
-    combined_chunk_words = ''
+    document_words = word_tokenizer.tokenize(document)
+    combined_chunk_words = ""
 
     qty_penalty = 0
 
@@ -79,40 +141,54 @@ def reward(
     num_chunks = len(chunks)
     if num_chunks > chunk_qty:
         qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
-        _verbose(f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}")
-        
-        
+        _verbose(
+            f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}"
+        )
+
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
-        chunk_words = ' '.join(word_tokenize(chunks[i]))
-        combined_chunk_words += ' ' + chunk_words
-        if chunk_words not in ' '.join(document_words):
-            return _early_return(f"Chunk {i} does not contain all words from the document")
+        chunk_words_str = " ".join(word_tokenizer.tokenize(chunks[i]))
+        combined_chunk_words += " " + chunk_words_str
+
+        if not check_chunk_words_in_document(chunks[i], document):
+            return _early_return(
+                f"Chunk {i} does not contain all words from the document"
+            )
 
         # add up size penalty to be applied later
         chunk_length = len(chunks[i])
-        if chunk_length > chunk_size:            
-            size_penalty += ((chunk_length / chunk_size) - 1) * 10            
-            _verbose(f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}")                
+        if chunk_length > chunk_size:
+            size_penalty += ((chunk_length / chunk_size) - 1) * 10
+            _verbose(
+                f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}"
+            )
 
         # create test segments
         sentences = sent_tokenize(chunks[i])
         for j in range(0, len(sentences), 3):
-            text = " ".join(sentences[j:j+3])
+            text = " ".join(sentences[j : j + 3])
             smallChunks.append(smallChunk(i, text))
-                
-        _verbose(f"Chunk {i} has {len(sentences)} sentences. Added {ceil(len(sentences) / 3)} test segments")
+
+        _verbose(
+            f"Chunk {i} has {len(sentences)} sentences. Added {ceil(len(sentences) / 3)} test segments"
+        )
 
     # check that every set of 3 adjacent words from the document appears in the chunks
     for i in range(0, len(document_words), 3):
-        if (len(' '.join(document_words[i:i+3])) < chunk_size
-            and ' '.join(document_words[i:i+3]) not in combined_chunk_words):
-            return _early_return(f"Every set of 3 adjacent words from the document does not appear in the chunks")
+        if (
+            len(" ".join(document_words[i : i + 3])) < chunk_size
+            and " ".join(document_words[i : i + 3]) not in combined_chunk_words
+        ):
+            return _early_return(
+                f"Every set of 3 adjacent words from the document does not appear in the chunks"
+            )
 
     _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
-        
-    num_embeddings = override_num_embeddings if override_num_embeddings else self.num_embeddings
+
+    num_embeddings = (
+        override_num_embeddings if override_num_embeddings else self.num_embeddings
+    )
 
     testChunks: list[smallChunk]
 
@@ -126,8 +202,8 @@ def reward(
 
     client = override_client if override_client else self.client
 
-    all_text = ' '.join([testChunk.text for testChunk in testChunks])
-    
+    all_text = " ".join([testChunk.text for testChunk in testChunks])
+
     num_tokens = num_tokens_from_string(all_text, "o200k_base")
 
     bt.logging.info(f"Using {num_tokens} tokens for test embeddings")
@@ -135,62 +211,69 @@ def reward(
     # calculate rewards using embeddings of test chunks
     embeddings = client.embeddings.create(
         input=[testChunk.text for testChunk in testChunks],
-        model="text-embedding-ada-002"
+        model="text-embedding-ada-002",
     ).data
     embeddings = [item.embedding for item in embeddings]
-    
+
     _verbose(f"Calculated embeddings for {len(embeddings)} test segments")
     for i in range(len(testChunks) - 1):
         j = i + 1
         while j < len(testChunks):
             if testChunks[i].sourceChunk == testChunks[j].sourceChunk:
-                intrachunk_similarities.append(np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j])))
+                intrachunk_similarities.append(
+                    np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
+                )
             else:
-                interchunk_similarities.append(np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j])))
-            j += 1            
-    
+                interchunk_similarities.append(
+                    np.dot(np.asarray(embeddings[i]), np.asarray(embeddings[j]))
+                )
+            j += 1
+
     reward = (
-        (np.mean(intrachunk_similarities) if len(intrachunk_similarities) > 0 else 0)
-        - (np.mean(interchunk_similarities) if len(interchunk_similarities) > 0 else 0)
-    )
+        np.mean(intrachunk_similarities) if len(intrachunk_similarities) > 0 else 0
+    ) - (np.mean(interchunk_similarities) if len(interchunk_similarities) > 0 else 0)
 
     _verbose(f"Embedding reward: {reward}")
-    _verbose(f"Size penalty: {size_penalty}")     
-    _verbose(f"Quantity penalty: {qty_penalty}")     
+    _verbose(f"Size penalty: {size_penalty}")
+    _verbose(f"Quantity penalty: {qty_penalty}")
 
-    
-    extra_info_dict['embeddings'] = embeddings
-    extra_info_dict['intrachunk_similarities'] = intrachunk_similarities
-    extra_info_dict['interchunk_similarities'] = interchunk_similarities
-    extra_info_dict['size_penalty'] = size_penalty
-    extra_info_dict['embedding_reward'] = reward
-    extra_info_dict['qty_penalty'] = qty_penalty
-    extra_info_dict['num_embed_tokens'] = num_tokens
+    extra_info_dict["embeddings"] = embeddings
+    extra_info_dict["intrachunk_similarities"] = intrachunk_similarities
+    extra_info_dict["interchunk_similarities"] = interchunk_similarities
+    extra_info_dict["size_penalty"] = size_penalty
+    extra_info_dict["embedding_reward"] = reward
+    extra_info_dict["qty_penalty"] = qty_penalty
+    extra_info_dict["num_embed_tokens"] = num_tokens
 
     # calculate and return final reward
-    
-    reward = e ** reward # ensures that all rewards are positive
+
+    reward = e**reward  # ensures that all rewards are positive
     _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
 
-    if response.dendrite and response.dendrite.process_time and response.dendrite.process_time > response.time_soft_max:
+    if (
+        response.dendrite
+        and response.dendrite.process_time
+        and response.dendrite.process_time > response.time_soft_max
+    ):
         over_time = response.dendrite.process_time - response.time_soft_max
         _verbose(f"Applying time penalty: {over_time} seconds over time")
-        time_penalty = (2/3) ** over_time
-        
-        extra_info_dict['time_penalty'] = time_penalty
-        
+        time_penalty = (2 / 3) ** over_time
+
+        extra_info_dict["time_penalty"] = time_penalty
+
         reward *= time_penalty
-    
-    reward *= (2/3) ** (size_penalty + qty_penalty)        
-    
+
+    reward *= (2 / 3) ** (size_penalty + qty_penalty)
+
     return reward, extra_info_dict
 
+
 def get_rewards(
-        self,
-        document: str,
-        chunk_size: int,
-        chunk_qty: int,
-        responses: List[chunkSynapse],
+    self,
+    document: str,
+    chunk_size: int,
+    chunk_qty: int,
+    responses: List[chunkSynapse],
 ) -> np.ndarray:
     """
     Returns an array of rewards for the given query and responses.
@@ -200,31 +283,38 @@ def get_rewards(
     - responses (List[float]): A list of responses from the miner.
 
     Returns:
-    - np.ndarray: 
+    - np.ndarray:
     """
-    
+
     rewards = np.zeros(len(responses))
     extra_infos = []
-    
+
     for i, response in enumerate(responses):
-        try: 
+        try:
             if not response.chunks or len(response.chunks) == 0:
-                raise Exception(f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}")
-            
-            reward_value, extra_info = reward(self, document, chunk_size, chunk_qty, response)                                
+                raise Exception(
+                    f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}"
+                )
+
+            reward_value, extra_info = reward(
+                self, document, chunk_size, chunk_qty, response
+            )
             rewards[i] = float(reward_value)
             extra_infos.append(extra_info)
         except Exception as e:
-            print(f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}")
+            print(
+                f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
+            )
             rewards[i] = 0
-            extra_infos.append({})            
-            
+            extra_infos.append({})
+
     # Get all the reward results by iteratively calling your reward() function.
     # rewards = np.array([float(reward(self, document, chunk_size, chunk_qty, response, verbose=True)) for response in responses])
     return rewards, extra_infos
 
+
 def rank_responses(
-        rewards: np.ndarray,
+    rewards: np.ndarray,
 ) -> np.ndarray:
     """
     Returns an array containing the ranks of the responses using their rewards. Higher reward is better.    Higher reward is better. Ties are broken by shorter process time.
@@ -241,7 +331,7 @@ def rank_responses(
     rank = 0
     for _ in range(len(rewards)):
         next_best_index = rewards.argmax()
-        
+
         if rewards[next_best_index] == 0:
             # should not be ranked
             response_ranks[next_best_index] = -1
@@ -252,7 +342,8 @@ def rank_responses(
         rewards[next_best_index] = -np.inf
     return response_ranks
 
-class smallChunk():
+
+class smallChunk:
     def __init__(self, sourceChunk: str, text: str):
         self.sourceChunk = sourceChunk
         self.text = text
