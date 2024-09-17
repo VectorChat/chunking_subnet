@@ -26,10 +26,11 @@ class chunkSynapse(bt.Synapse):
 
     Attributes:
     - document: str containing plaintext to be split by the miner.
-    - chunk_size: int containing the soft max characters per chunk.
+    - chunk_size: int containing the soft max characters per chunk before a penalty is applied.
+    - chunk_qty: int containing the soft max number of chunks before a penalty is applied.
     - time_soft_max: float containing the maximum time the miner can take before being penalized.
     - chunks: List[str] containing chunks of text from document.
-    - miner_signature: str containing the miner's signature of a json object containing document, chunk_size, and chunks.
+    - miner_signature: str containing the miner's signature of a json object containing document, chunk_size, chunk_qty, and chunks.
     """
 
     name: str = 'chunkSynapse'
