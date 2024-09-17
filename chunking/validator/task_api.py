@@ -153,29 +153,32 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
 
 SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
-def get_wiki_content_for_page(pageid: int) -> str:
-    return requests.get('https://en.wikipedia.org/w/api.php', params={
+def get_wiki_content_for_page(pageid: int) -> (str, str):
+    response = requests.get('https://en.wikipedia.org/w/api.php', params={
         'action': 'query',
         'format': 'json',
         'pageids': pageid,
         'prop': 'extracts',
         'explaintext': True,
         'exsectionformat': 'plain',
-    }).json()['query']['pages'][str(pageid)]['extract']
+    }).json()['query']['pages'][str(pageid)]
+    return response['extract'], response['title']
 
 def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
     pages = choices(validator.articles, k=3) if pageids == None or len(pageids) < 3 else pageids
     source_articles = []
+    article_names = []
     for page in pages:
-        source_articles.append(get_wiki_content_for_page(page))
-    
+        contents, name = get_wiki_content_for_page(page)
+        source_articles.append(contents)
+        article_names.append(name)
     
     bt.logging.debug(f"source pageids: {pages}")
     
-    bt.logging.info("Generating first half of synthetic query")
+    bt.logging.info("Generating first section of synthetic query")
     start = time.time()
     
-    first_half = validator.client.chat.completions.create(
+    synthetic_document = validator.client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.7,    
         messages=[
@@ -183,7 +186,7 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
             {
                 "role": "user",
                 "content": f"""
-                Use the following three articles to write the first half of an article that will be between 2,000 and 5,000 words long. Do not include section titles. Write to your token limit.
+                Use the following three articles to write the first third of an article. The article will be between 5,000 and 10,000 words long. Do not include section titles. Write to your token limit.
                 Article 1:
                 {source_articles[0]}
             
@@ -197,41 +200,33 @@ def generate_doc_with_llm(validator, pageids = None, timeout = 20) -> str:
         ]
     ).choices[0].message.content
 
-    bt.logging.info(f"Generated first half of synthetic query in {time.time() - start} seconds")
-    bt.logging.info("Generating second half of synthetic query")
+    synthetic_document = ' '.join(synthetic_document.split())
+    previous_synthesis = synthetic_document
 
-    start_2 = time.time()
-    
-    second_half = validator.client.chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0.7,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"""
-                This is the first half of an article that will be betwen 2,000 and 5,000 words long when completed:
-                {first_half}
-                Continue the article. Do not include section titles. Write to your token limit.
-                """
-            }
-        ]).choices[0].message.content
-    
-    bt.logging.info(f"Generated second half of synthetic query in {time.time() - start_2} seconds") 
-    
-    num_chars = len(first_half) + len(second_half)
+    bt.logging.info("Generating rest of synthetic query")
+
+    for j in range(5):
+        next_synthesis = validator.client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.7,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",}
+            ]).choices[0].message.content
+        next_synthesis = ' '.join(next_synthesis.split())
+        synthetic_document += ' ' + next_synthesis
+        previous_synthesis = next_synthesis
+
+    num_chars = len(synthetic_document)
     
     bt.logging.info(f"Generated synthetic query with {num_chars} characters")  
     
-    num_tokens = num_tokens_from_string(first_half + second_half, "o200k_base")
+    num_tokens = num_tokens_from_string(synthetic_document, "o200k_base")
     
     bt.logging.info(f"Generated synthetic query with {num_tokens} tokens")  
        
-    document = " ".join([first_half, second_half])
-    document = " ".join(document.split())    
-    
     bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
-    return document
+    return synthetic_document
 
 def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str, int]:
     content = ""
@@ -249,7 +244,7 @@ def generate_doc_normal(validator: Validator | None, pageid = None) -> Tuple[str
 
 def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, int]:
     
-    document, page = generate_doc_normal(validator)
+    document = generate_doc_with_llm(validator)
     
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
@@ -264,4 +259,4 @@ def generate_synthetic_synapse(validator, timeout = 20) -> Tuple[chunkSynapse, i
         chunk_qty=chunk_qty,
         timeout=timeout
     )
-    return synapse, page
+    return synapse, -1
