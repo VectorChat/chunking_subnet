@@ -336,7 +336,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # Sync metagraph and potentially set weights.
                 self.sync()
-                self.sync_articles()
+                # self.sync_articles()
                 self.save_state()
 
                 bt.logging.debug(
