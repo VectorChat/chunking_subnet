@@ -132,10 +132,12 @@ async def forward(self: Validator):
     # get new task to query miners with
     # this gets either an organic query from the API or a synthetic query (currently wikipedia)
     try:
-        task, pageid = Task.get_new_task(validator=self)
+       tuple = Task.get_new_task(validator=self)
     except Exception as e:
         bt.logging.error(f"Error getting new task: {e}")
         return
+
+    task, pageid = tuple
 
     # log pageid of wikipedia article used for synthetic query
     wandb_data["pageid"] = pageid
