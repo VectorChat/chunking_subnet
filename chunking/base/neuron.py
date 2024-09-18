@@ -16,16 +16,12 @@
 # DEALINGS IN THE SOFTWARE.
 
 import copy
-import os
-from sys import version
 from packaging import version as packaging_version
-import typing
 
 import bittensor as bt
 
 from abc import ABC, abstractmethod
 
-from sympy import Q
 
 # Sync calls set weights and also resyncs the metagraph.
 from chunking.utils.config import check_config, add_args, config
