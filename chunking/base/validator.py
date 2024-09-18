@@ -519,7 +519,7 @@ class BaseValidatorNeuron(BaseNeuron):
             uids=uint_uids,
             weights=uint_weights,
             wait_for_finalization=False,
-            wait_for_inclusion=False,
+            wait_for_inclusion=True,
             version_key=self.spec_version,
         )
         return result, msg

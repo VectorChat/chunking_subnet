@@ -17,6 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 import time
+import traceback
 import bittensor as bt
 from random import choice
 from math import floor
@@ -135,6 +136,7 @@ async def forward(self: Validator):
        tuple = Task.get_new_task(validator=self)
     except Exception as e:
         bt.logging.error(f"Error getting new task: {e}")
+        bt.logging.error(traceback.format_exc())
         return
 
     task, pageid = tuple
