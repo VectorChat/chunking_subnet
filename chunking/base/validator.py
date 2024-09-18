@@ -196,7 +196,7 @@ class BaseValidatorNeuron(BaseNeuron):
     def _setup_wandb(self):
         """
         Setup wandb for this validator.
-        
+
         This function will start a new wandb run if no valid wandb run exists for this validator and version.
         If a valid wandb run exists, it will resume the wandb run.
         """
@@ -282,7 +282,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
     async def concurrent_forward(self):
         """
-        Run multiple forwards in parallel 
+        Run multiple forwards in parallel
         """
         coroutines = [
             self.forward() for _ in range(self.config.neuron.num_concurrent_forwards)
@@ -292,19 +292,19 @@ class BaseValidatorNeuron(BaseNeuron):
     def run(self):
         """
         Main loop for the validator.
-        
+
         This function performs the following primary tasks:
         1. Make sure the validator is registered on the network and sync the metagraph.
         2. Start main validator loop.
-            2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed, 
-            it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently 
-            Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global 
-            moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the 
-            weight each miner receives.
+            2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
+            it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
+            Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
+            moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
+            weight each miner receives. The round info and updated scores/rankings are logged to wandb.
             2.2 Sync the metagraph and set weights if necessary.
-            2.3 Save the current tournament 
+            2.3 Save the current tournament state to disk.
+            2.4 Sleep for a specified interval, repeat.
 
-             
 
 
         Note:
@@ -411,6 +411,9 @@ class BaseValidatorNeuron(BaseNeuron):
     def _get_raw_weights(scores: np.ndarray, rankings: np.ndarray):
         """
         Gets the raw weights based on scores/rankings.
+
+        The top `num_weights_cap` miners receive a weight of `(1/2)^i` where `i` is the rank of the miner.
+        If there are more than `num_weights_cap` active miners, the weight distribution is linear from the `num_weights_cap`th miner to the last active miner.
         """
 
         assert len(scores) == len(
@@ -433,8 +436,11 @@ class BaseValidatorNeuron(BaseNeuron):
 
         num_weights_cap = 7
 
+        # initialize raw weights to 0
         n = len(scores)
         raw_weights = np.zeros(n)
+
+        # assign weights to top `num_weights_cap` miners
         i = 0
         for uid in rankings:
             if i >= num_weights_cap:
@@ -483,6 +489,7 @@ class BaseValidatorNeuron(BaseNeuron):
             true_m = matrix_rref[0][2]
             true_b = matrix_rref[0][5]
 
+            # linear function that assigns weights to miners
             def f(x: int):
                 return max(0, true_m * x + true_b)
 
@@ -490,6 +497,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
             total = 0
 
+            # assign weights to remaining miners
             for rank in range(left, min(right, n)):
                 uid = rankings[rank]
 
@@ -505,6 +513,9 @@ class BaseValidatorNeuron(BaseNeuron):
         return raw_weights
 
     def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
+        """
+        Sets the validator weights on the chain, by calling the `set_weights` extrinsic on the chain with the processed weights and uids.
+        """
         result, msg = self.subtensor.set_weights(
             wallet=self.wallet,
             netuid=self.config.netuid,
@@ -565,6 +576,7 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug("uint_weights", uint_weights)
         bt.logging.debug("uint_uids", uint_uids)
 
+        # log the weights that would be set on chain
         wandb_data = {"weights": {}}
         for uid, weight in zip(uint_uids, uint_weights):
             wandb_data["weights"][str(uid)] = weight
@@ -633,7 +645,19 @@ class BaseValidatorNeuron(BaseNeuron):
         task_type: Literal["organic", "synthetic"],
         alpha: float,
     ):
-        """Performs exponential moving average on the scores based on the rewards received from the miners."""
+        """
+        Updates `self.scores` and `self.rankings` for the miners that were part of a specific tournament round.
+
+        `self.scores` is the exponential moving average rank of the miners.
+        `self.rankings` is the sorted list of uids based on the scores (rank moving average).
+
+        Args:
+            wandb_data (dict): Dictionary to store data for wandb logging.
+            ranks (np.ndarray): Array of ranks for the miners, length of num miners in tournament round.
+            uids (List[int]): List of uids for the miners, length of num miners in tournament round.
+            task_type (Literal["organic", "synthetic"]): Type of task that the miners were part of.
+            alpha (float): Exponential moving average factor.
+        """
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
         if np.isnan(ranks).any():
@@ -651,6 +675,7 @@ class BaseValidatorNeuron(BaseNeuron):
             f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
         )
 
+        # update scores with rewards based on new rankings within miner group that was queried in the tournament round
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
@@ -667,8 +692,10 @@ class BaseValidatorNeuron(BaseNeuron):
 
         bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
+        # update rankings based on new scores (moving avg rankings)
         self.rankings = np.argsort(self.scores)
 
+        # log scores and rankings and other data to wandb for synthetic queries
         if task_type == "synthetic":
             for uid in uids_array:
                 # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
