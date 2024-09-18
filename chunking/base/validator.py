@@ -328,7 +328,7 @@ class BaseValidatorNeuron(BaseNeuron):
             while True:
                 bt.logging.info(f"step({self.step}) block({self.block})")
                 # Run multiple forwards concurrently.
-                self.loop.run_until_complethe(self.concurrent_forward())
+                self.loop.run_until_complete(self.concurrent_forward())
 
                 # Check if we should exit.
                 if self.should_exit:
@@ -512,21 +512,6 @@ class BaseValidatorNeuron(BaseNeuron):
 
         return raw_weights
 
-    def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
-        """
-        Sets the validator weights on the chain, by calling the `set_weights` extrinsic on the chain with the processed weights and uids.
-        """
-        result, msg = self.subtensor.set_weights(
-            wallet=self.wallet,
-            netuid=self.config.netuid,
-            uids=uint_uids,
-            weights=uint_weights,
-            wait_for_finalization=False,
-            wait_for_inclusion=False,
-            version_key=self.spec_version,
-        )
-        return result, msg
-
     def set_weights(self: "BaseValidatorNeuron"):
         """
         Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
@@ -586,17 +571,34 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.warning("Skipping set_weights extrinsic call.")
             return
 
-        try:
-            result, msg = self.set_weights_on_chain(uint_uids, uint_weights)
-            if result is True:
-                bt.logging.success(
-                    f"submitted set_weights extrinsic to chain, msg: {msg}"
+        timeout_seconds = self.config.neuron.set_weights_timeout_seconds
+
+        # Set the weights on chain via our subtensor connection.
+        def set_weights_on_chain():
+            result, msg = self.subtensor.set_weights(
+                wallet=self.wallet,
+                netuid=self.config.netuid,
+                uids=uint_uids,
+                weights=uint_weights,
+                wait_for_finalization=True,
+                wait_for_inclusion=True,
+                version_key=self.spec_version,
+            )
+            return result, msg
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(set_weights_on_chain)
+            try:
+                result, msg = future.result(timeout=timeout_seconds)
+                if result is True:
+                    bt.logging.success("set_weights on chain successfully!")
+                else:
+                    bt.logging.error("set_weights failed", msg)
+            except concurrent.futures.TimeoutError:
+                bt.logging.error(
+                    f"set_weights operation timed out after {timeout_seconds} seconds"
                 )
-            else:
-                bt.logging.error(f"set_weights failed: {msg}")
-        except Exception as e:
-            bt.logging.error(f"Error setting weights on chain: {e}")
-            traceback.print_exc()
+                return
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
