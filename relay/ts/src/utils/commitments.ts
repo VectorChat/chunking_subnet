@@ -1,6 +1,6 @@
 import { ApiPromise, WsProvider, Keyring } from '@polkadot/api';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { hexToU8a, u8aToHex } from '@polkadot/util';
+import { BN, hexToU8a, u8aToHex } from '@polkadot/util';
 import { base58Decode, base58Encode } from '@polkadot/util-crypto';
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +8,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import "../__generated__/interfaces/augment-api.ts"
 import { AccountId32 } from '@polkadot/types/interfaces';
-import { IpfsInscription } from '../listener.ts';
+import { IpfsCommitment, IpfsInscription } from '../listener.ts';
 
 const WS_URL = 'ws://127.0.0.1:9946';
 const COLDKEY_NAME = 'owner-localnet';
@@ -82,7 +82,7 @@ export function parseIpfsClusterIdFromExtrinsic(commitmentInfo: any): string | n
     return ipfsId;
 }
 
-export function parseIpfsClusterIdFromStorage(commitmentInfo: any): IpfsInscription | null {
+export function parseIpfsClusterIdFromStorage(commitmentInfo: any): IpfsCommitment | null {
     const fields = commitmentInfo?.info?.get('fields');
 
     const firstField = fields?.[0];
@@ -99,8 +99,7 @@ export function parseIpfsClusterIdFromStorage(commitmentInfo: any): IpfsInscript
     const ipfsId = base58Encode(rawBytes);
     return {
         ipfsClusterId: ipfsId,
-        hotkey: commitmentInfo.hotkey,
-        inscribedAt: commitmentInfo.block
+        inscribedAt: (commitmentInfo.block as BN).toNumber()
     };
 }
 
@@ -115,7 +114,10 @@ export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid:
             const commitmentInfo = commitment.unwrap();
             const parsedCommitment = parseIpfsClusterIdFromStorage(commitmentInfo);
             if (parsedCommitment !== null) {
-                ipfsClusterIdCommitments.push(parsedCommitment);
+                ipfsClusterIdCommitments.push({
+                    ...parsedCommitment,
+                    hotkey: accountId.toString()
+                });
             }
         } else {
             console.log(`No commitment found for ${accountId.toString()}`);
@@ -149,7 +151,7 @@ async function main() {
                     const ipfsBytes = decodeIpfsId(ipfsId);
                     console.log(`IPFS bytes (hex): ${u8aToHex(ipfsBytes)}`);
                     console.log(`IPFS bytes length: ${ipfsBytes.length}`);
-                    await inscribeIpfsClusterId(api, argv.netuid, hotkey, ipfsBytes);
+                    await inscribeIpfsClusterId(api, argv.netuid as number, hotkey, ipfsBytes);
                 } catch (e) {
                     console.error(`Error processing ${ipfsId}:`, e);
                     if (e instanceof Error) {
@@ -164,7 +166,7 @@ async function main() {
             const provider = new WsProvider(WS_URL);
             const api = await ApiPromise.create({ provider });
 
-            const ipfsClusterIdCommitments = await queryCommitmentsForIpfsClusterIds(api, argv.netuid);
+            const ipfsClusterIdCommitments = await queryCommitmentsForIpfsClusterIds(api, argv.netuid as number);
             console.log('IPFS Cluster ID Commitments:', ipfsClusterIdCommitments);
 
             await api.disconnect();

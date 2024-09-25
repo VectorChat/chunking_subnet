@@ -3,21 +3,26 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { Event, SignedBlock } from "@polkadot/types/interfaces"
 import { Option } from "@polkadot/types"
-import { parseIpfsClusterIdFromExtrinsic } from "./utils/commitments";
+import { parseIpfsClusterIdFromExtrinsic, queryCommitmentsForIpfsClusterIds } from "./utils/commitments";
 import { getExtrinsicErrorString } from "./utils/extrinsic";
 import { fromRao } from "./utils/rao";
+import fs from "fs";
 
-// Represents an inscription on the chain for a specific hotkey
-export type IpfsInscription = {
+export type IpfsCommitment = {
     ipfsClusterId: string;
     inscribedAt: number;
+
+}
+
+// Represents an commitment on the chain for a specific hotkey
+export type IpfsInscription = IpfsCommitment & {
     hotkey: string;
 }
 
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
 
 
-async function updateLatestInscriptionMap(api: ApiPromise, block: SignedBlock, netuid: number, allowUnsuccessfulCommitments: boolean) {
+async function updateLatestInscriptionMapFromExtrinsics(api: ApiPromise, block: SignedBlock, netuid: number, allowUnsuccessfulCommitments: boolean) {
     const extrinsics = block.block.extrinsics;
 
     const apiAt = await api.at(block.block.header.hash);
@@ -87,19 +92,33 @@ async function updateLatestInscriptionMap(api: ApiPromise, block: SignedBlock, n
     }
 }
 
-const trustedIpfsClusterIds: string[] = [];
+async function updateLatestInscriptionMap(api: ApiPromise, netuid: number) {
+    const ipfsClusterIdCommitments = await queryCommitmentsForIpfsClusterIds(api, netuid)
+
+    for (const inscription of ipfsClusterIdCommitments) {
+        latestInscriptionMap[inscription.hotkey] = inscription
+    }
+    console.log("updated latest inscription map with", ipfsClusterIdCommitments.length, "commitments")
+}
+
+const trustedIpfsClusterIds: Set<string> = new Set()
 
 async function canBeTrusted(api: ApiPromise, hotkey: string, minStake: number, netuid: number, inscription: IpfsInscription, currentBlockNumber: number, timeWindow: number) {
     console.log("Checking if", inscription.ipfsClusterId, "can be trusted")
+    console.log("getting uid for", {
+        netuid,
+        hotkey,
+    })
     const uid = await api.query.subtensorModule.uids(netuid, hotkey)
     if (uid.isNone) {
-        console.log("Hotkey", hotkey, "not found in uids")
+        console.log("Hotkey", hotkey, "not found in metagraph")
         return false;
     }
+    console.log("uid", uid.unwrap().toNumber())
     const validatorPermitArray = await api.query.subtensorModule.validatorPermit(netuid)
     const hasValidatorPermit = validatorPermitArray[uid.unwrap().toNumber()].toPrimitive()
     if (!hasValidatorPermit) {
-        console.log("Hotkey", hotkey, "not found in validatorPermit")
+        console.log("Hotkey", hotkey, "does not have a validator permit")
         return false;
     }
     const stakeRao = await api.query.subtensorModule.totalHotkeyStake(hotkey)
@@ -110,25 +129,88 @@ async function canBeTrusted(api: ApiPromise, hotkey: string, minStake: number, n
     }
 
     if (inscription.inscribedAt < currentBlockNumber - timeWindow) {
-        console.log("Hotkey", hotkey, "inscribed at", inscription.inscribedAt, "which is older than", timeWindow, "blocks")
+        console.log("Hotkey", hotkey, "inscribed at", inscription.inscribedAt, "which is older than", timeWindow, "blocks", {
+            inscribedAt: inscription.inscribedAt,
+            timeWindow,
+            currentBlockNumber,
+        })
         return false;
     }
+    console.log(`Inscription will expire in ${inscription.inscribedAt + timeWindow - currentBlockNumber} blocks`, {
+        inscribedAt: inscription.inscribedAt,
+        timeWindow,
+        currentBlockNumber,
+    })
 
     return true;
 }
 
 
 async function updateTrustedIpfsClusterIds(api: ApiPromise, netuid: number, minStake: number, timeWindow: number, currentBlockNumber: number) {
+    let wasChange = false;
     for (const [hotkey, ipfsInscription] of Object.entries(latestInscriptionMap)) {
-        if (await canBeTrusted(api, hotkey, minStake, netuid, ipfsInscription, currentBlockNumber, timeWindow)) {
+        console.log("handling", ipfsInscription)
+        const wasTrusted = trustedIpfsClusterIds.has(ipfsInscription.ipfsClusterId)
+
+        const currentlyTrusted = await canBeTrusted(api, hotkey, minStake, netuid, ipfsInscription, currentBlockNumber, timeWindow)
+
+        console.log({
+            wasTrusted,
+            currentlyTrusted,
+        })
+
+        if (wasTrusted && !currentlyTrusted) {
+            console.log("Removing trusted IPFS Cluster ID", ipfsInscription.ipfsClusterId)
+            trustedIpfsClusterIds.delete(ipfsInscription.ipfsClusterId)
+            wasChange = true;
+        } else if (!wasTrusted && currentlyTrusted) {
             console.log("Adding trusted IPFS Cluster ID", ipfsInscription.ipfsClusterId)
-            trustedIpfsClusterIds.push(ipfsInscription.ipfsClusterId)
+            trustedIpfsClusterIds.add(ipfsInscription.ipfsClusterId)
+            wasChange = true;
         }
     }
+
+    return wasChange;
+}
+
+function setIsEqual(a: Set<string>, b: Set<string>) {
+    return a.size === b.size && Array.from(a).every((value) => b.has(value));
+}
+
+function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, alwaysUpdate = false) {
+    const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
+
+    const serviceJsonTrustedPeers = serviceJson.consensus.crdt.trusted_peers || []
+
+    const trustedPeers = Array.from(trustedIpfsClusterIds)
+
+    const currentEqualsStored = setIsEqual(new Set(serviceJsonTrustedPeers), trustedIpfsClusterIds)
+
+    const doUpdate = alwaysUpdate || !currentEqualsStored
+
+    if (!doUpdate) {
+        console.log("service.json already up to date with trusted peers", trustedPeers)
+        return false;
+    }
+
+    console.log("updating service json file because alwaysUpdate is true or current does not match stored", {
+        alwaysUpdate,
+        currentEqualsStored,
+    })
+
+    serviceJson.consensus.crdt.trusted_peers = trustedPeers
+
+    fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
+    console.log("updated service.json with trusted peers", trustedPeers, "at", serviceJsonFilePath)
+    return true;
+}
+
+function restartIpfsClusterService() {
+
 }
 
 async function main() {
-    const argv = yargs(hideBin(process.argv))
+    const argv = await yargs(hideBin(process.argv))
         .option('ws-url', {
             type: 'string',
             default: 'ws://127.0.0.1:9946',
@@ -136,20 +218,33 @@ async function main() {
         })
         .option('netuid', {
             type: 'number',
-            description: 'The ID of the subnet to listen for'
+            description: 'The ID of the subnet to listen for',
         })
         .option('min-stake', {
             type: 'number',
-            description: 'The minimum stake in TAO for a validator that advertises its IPFS cluster ID to be considered trusted.'
+            description: 'The minimum stake in TAO for a validator that advertises its IPFS cluster ID to be considered trusted.',
+            requiresArg: true,
         })
         .option('time-window', {
             type: 'number',
-            description: 'The number of blocks to look back to consider an IPFS cluster ID trusted.'
+            description: 'The number of blocks to look back to consider an IPFS cluster ID trusted.',
+            default: 100
         })
         .option('allow-unsuccessful-commitments', {
             type: 'boolean',
             description: 'Whether to allow unsuccessful commitments to be considered handled, useful for debugging'
         })
+        .option('service-json-file-path', {
+            type: 'string',
+            description: 'The path to the service.json file to update',
+            default: './service.json'
+        })
+        .option('always-update-service-json', {
+            type: 'boolean',
+            description: 'Whether to always update the service.json file with the trusted peers',
+            default: false
+        })
+        .demandOption(['netuid', 'min-stake'])
         .help()
         .parse();
 
@@ -176,19 +271,27 @@ async function main() {
     // const unsub = await api.query.commitments.commitmentOf.entries(argv.netuid, (data) => {
     //     console.log("Got data", data);
     // });
-    // const unsub = await api.rpc.chain.subscribeFinalizedHeads(async (header) => {
+    const unsub = await api.rpc.chain.subscribeFinalizedHeads(async (header) => {
 
-    //     const block = await api.rpc.chain.getBlock(header.hash)
+        const block = await api.rpc.chain.getBlock(header.hash)
+        const blockNumber = block.block.header.number.toNumber()
+        console.log(`Processing block #${blockNumber}`)
 
-    //     await updateLatestInscriptionMap(api, block, argv.netuid, argv.allowUnsuccessfulCommitments)
-    //     console.log("updated latest inscription map")
+        await updateLatestInscriptionMap(api, argv.netuid)
+        console.log("updated latest inscription map", latestInscriptionMap)
 
-    //     await updateTrustedIpfsClusterIds(api, argv.netuid, argv.minStake, argv.timeWindow, block.block.header.number.toNumber())
-    //     console.log("updated trusted ipfs cluster ids")
+        const wasChange = await updateTrustedIpfsClusterIds(api, argv.netuid, argv.minStake, argv.timeWindow, blockNumber)
+        console.log("updated trusted ipfs cluster ids", { wasChange })
 
+        console.log("Trusted IPFS Cluster IDs:", trustedIpfsClusterIds)
 
-    //     console.log("Trusted IPFS Cluster IDs:", trustedIpfsClusterIds)
-    // })
+        if (wasChange) {
+            const didUpdate = updateTrustedPeersInServiceJsonFile(argv.serviceJsonFilePath, argv.alwaysUpdateServiceJson)
+            if (didUpdate) {
+                restartIpfsClusterService()
+            }
+        }
+    })
 
 }
 
