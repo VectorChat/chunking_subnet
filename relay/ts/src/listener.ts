@@ -2,23 +2,10 @@ import { ApiPromise, WsProvider } from "@polkadot/api";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { Event, SignedBlock } from "@polkadot/types/interfaces"
-import { Option } from "@polkadot/types"
 import { parseIpfsClusterIdFromExtrinsic, queryCommitmentsForIpfsClusterIds } from "./utils/commitments";
 import { getExtrinsicErrorString } from "./utils/extrinsic";
 import { fromRao } from "./utils/rao";
 import fs from "fs";
-
-export type IpfsCommitment = {
-    ipfsClusterId: string;
-    inscribedAt: number;
-
-}
-
-// Represents an commitment on the chain for a specific hotkey
-export type IpfsInscription = IpfsCommitment & {
-    hotkey: string;
-}
-
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
 
 
