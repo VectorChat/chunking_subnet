@@ -6,79 +6,86 @@ import { parseIpfsClusterIdFromExtrinsic, queryCommitmentsForIpfsClusterIds } fr
 import { getExtrinsicErrorString } from "./utils/extrinsic";
 import { fromRao } from "./utils/rao";
 import fs from "fs";
+import { IpfsInscription } from "./types";
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
 
 
-async function updateLatestInscriptionMapFromExtrinsics(api: ApiPromise, block: SignedBlock, netuid: number, allowUnsuccessfulCommitments: boolean) {
-    const extrinsics = block.block.extrinsics;
+// async function updateLatestInscriptionMapFromExtrinsics(api: ApiPromise, block: SignedBlock, netuid: number, allowUnsuccessfulCommitments: boolean) {
+//     const extrinsics = block.block.extrinsics;
 
-    const apiAt = await api.at(block.block.header.hash);
-    const allRecords = await apiAt.query.system.events()
+//     const apiAt = await api.at(block.block.header.hash);
+//     const allRecords = await apiAt.query.system.events()
 
-    const blockNumber = block.block.header.number.toNumber();
+//     const blockNumber = block.block.header.number.toNumber();
 
-    console.log(`Processing block #${blockNumber} with ${extrinsics.length} extrinsics`)
+//     console.log(`Processing block #${blockNumber} with ${extrinsics.length} extrinsics`)
 
-    for (let index = 0; index < extrinsics.length; index++) {
-        const extrinsic = extrinsics[index];
-        if (!api.tx.commitments.setCommitment.is(extrinsic)) {
-            continue;
-        }
-        console.log("Found commitment extrinsic")
+//     for (let index = 0; index < extrinsics.length; index++) {
+//         const extrinsic = extrinsics[index];
+//         if (!api.tx.commitments.setCommitment.is(extrinsic)) {
+//             continue;
+//         }
+//         console.log("Found commitment extrinsic")
 
-        const commitmentNetuid = extrinsic.args[0]
+//         const commitmentNetuid = extrinsic.args[0]
 
-        if (commitmentNetuid.toNumber() !== netuid) {
-            console.log("Skipping commitment extrinsic for netuid", commitmentNetuid.toNumber())
-            continue;
-        }
-        console.log("Found commitment extrinsic for netuid", netuid)
+//         if (commitmentNetuid.toNumber() !== netuid) {
+//             console.log("Skipping commitment extrinsic for netuid", commitmentNetuid.toNumber())
+//             continue;
+//         }
+//         console.log("Found commitment extrinsic for netuid", netuid)
 
-        const extrinsicEvents = allRecords
-            // filter the specific events based on the phase and then the
-            // index of our extrinsic in the block
-            .filter(({ phase }) =>
-                phase.isApplyExtrinsic &&
-                phase.asApplyExtrinsic.eq(index)
-            )
-            .map(({ event }) => (event as unknown as Event))
+//         const extrinsicEvents = allRecords
+//             // filter the specific events based on the phase and then the
+//             // index of our extrinsic in the block
+//             .filter(({ phase }) =>
+//                 phase.isApplyExtrinsic &&
+//                 phase.asApplyExtrinsic.eq(index)
+//             )
+//             .map(({ event }) => (event as unknown as Event))
 
-        const extrinsicIsSuccess = extrinsicEvents.some((e) => api.events.system.ExtrinsicSuccess.is(e));
-        if (!extrinsicIsSuccess && !allowUnsuccessfulCommitments) {
-            console.log("unable to find success event for extrinsic", extrinsic.toHuman())
-            const errorString = getExtrinsicErrorString(extrinsicEvents, api)
-            console.log("Parsed extrinsic error:", errorString)
-            continue;
-        }
-
-
-        console.log(`Found successful commitment at block ${blockNumber} for netuid ${netuid}`)
-        const commitmentInfo = extrinsic.args[1]
-        console.log("commitmentInfo", commitmentInfo.toHuman())
-
-        const ipfsClusterId = parseIpfsClusterIdFromExtrinsic(commitmentInfo)
-
-        const parsedCommitment: IpfsInscription | null = ipfsClusterId ? {
-            ipfsClusterId,
-            hotkey: extrinsic.signer.toString(),
-            inscribedAt: blockNumber
-        } : null
-
-        const signer = extrinsic.signer.toString()
-        if (parsedCommitment === null) {
-            console.log(`Failed to parse commitment for signer ${signer}, skipping...`)
-            continue
-        }
+//         const extrinsicIsSuccess = extrinsicEvents.some((e) => api.events.system.ExtrinsicSuccess.is(e));
+//         if (!extrinsicIsSuccess && !allowUnsuccessfulCommitments) {
+//             console.log("unable to find success event for extrinsic", extrinsic.toHuman())
+//             const errorString = getExtrinsicErrorString(extrinsicEvents, api)
+//             console.log("Parsed extrinsic error:", errorString)
+//             continue;
+//         }
 
 
-        console.log(`IPFS Cluster ID: ${ipfsClusterId}`)
-        console.log(`Hotkey: ${parsedCommitment.hotkey}`)
+//         console.log(`Found successful commitment at block ${blockNumber} for netuid ${netuid}`)
+//         const commitmentInfo = extrinsic.args[1]
+//         console.log("commitmentInfo", commitmentInfo.toHuman())
 
-        latestInscriptionMap[parsedCommitment.hotkey] = parsedCommitment
-        console.log("Updated inscription map for signer", signer, "with", latestInscriptionMap[signer])
-    }
-}
+//         const ipfsClusterId = parseIpfsClusterIdFromExtrinsic(commitmentInfo)
 
+//         const parsedCommitment: IpfsInscription | null = ipfsClusterId ? {
+//             ipfsClusterId,
+//             hotkey: extrinsic.signer.toString(),
+//             inscribedAt: blockNumber
+//         } : null
+
+//         const signer = extrinsic.signer.toString()
+//         if (parsedCommitment === null) {
+//             console.log(`Failed to parse commitment for signer ${signer}, skipping...`)
+//             continue
+//         }
+
+
+//         console.log(`IPFS Cluster ID: ${ipfsClusterId}`)
+//         console.log(`Hotkey: ${parsedCommitment.hotkey}`)
+
+//         latestInscriptionMap[parsedCommitment.hotkey] = parsedCommitment
+//         console.log("Updated inscription map for signer", signer, "with", latestInscriptionMap[signer])
+//     }
+// }
+
+/**
+ * Updates the latest inscription map for the given netuid. Fetches the latest commitments via a websocket call. 
+ *  
+ * @param api 
+ * @param netuid 
+ */
 async function updateLatestInscriptionMap(api: ApiPromise, netuid: number) {
     const ipfsClusterIdCommitments = await queryCommitmentsForIpfsClusterIds(api, netuid)
 
@@ -88,8 +95,23 @@ async function updateLatestInscriptionMap(api: ApiPromise, netuid: number) {
     console.log("updated latest inscription map with", ipfsClusterIdCommitments.length, "commitments")
 }
 
+/**
+ * The set of IPFS Cluster IDs that are currently trusted.
+ */
 const trustedIpfsClusterIds: Set<string> = new Set()
 
+/**
+ * Checks if the given IPFS Cluster ID can be trusted based on the given criteria.
+ * 
+ * @param api - The Polkadot API instance.
+ * @param hotkey - The hotkey associated with the IPFS Cluster ID. This is the account that should have set the commitment on chain.
+ * @param minStake - The minimum stake required for a validator to be considered trusted.
+ * @param netuid - The subnet unique identifier.
+ * @param inscription - The IPFS inscription data.
+ * @param currentBlockNumber - The current block number at the time of checking trustworthiness.
+ * @param timeWindow - The time window in blocks to consider the inscription valid.
+ * @returns - True if the IPFS Cluster ID can be trusted, false otherwise.
+ */
 async function canBeTrusted(api: ApiPromise, hotkey: string, minStake: number, netuid: number, inscription: IpfsInscription, currentBlockNumber: number, timeWindow: number) {
     console.log("Checking if", inscription.ipfsClusterId, "can be trusted")
     console.log("getting uid for", {
@@ -132,7 +154,16 @@ async function canBeTrusted(api: ApiPromise, hotkey: string, minStake: number, n
     return true;
 }
 
-
+/**
+ * Updates the set of trusted IPFS Cluster IDs based on the latest inscription map and the given criteria that determines trustworthiness.
+ * 
+ * @param api - The Polkadot API instance.
+ * @param netuid - The subnet unique identifier.
+ * @param minStake - The minimum stake required for a validator to be considered trusted.
+ * @param timeWindow - The time window in blocks to consider the inscription valid.
+ * @param currentBlockNumber - The current block number at the time of checking trustworthiness.
+ * @returns - True if the set of trusted IPFS Cluster IDs changed, false otherwise.
+ */
 async function updateTrustedIpfsClusterIds(api: ApiPromise, netuid: number, minStake: number, timeWindow: number, currentBlockNumber: number) {
     let wasChange = false;
     for (const [hotkey, ipfsInscription] of Object.entries(latestInscriptionMap)) {
@@ -160,10 +191,24 @@ async function updateTrustedIpfsClusterIds(api: ApiPromise, netuid: number, minS
     return wasChange;
 }
 
+/**
+ * Checks if two sets are equal.
+ * 
+ * @param a - The first set.
+ * @param b - The second set.
+ * @returns - True if the sets are equal, false otherwise.
+ */
 function setIsEqual(a: Set<string>, b: Set<string>) {
     return a.size === b.size && Array.from(a).every((value) => b.has(value));
 }
 
+/**
+ * Updates the service.json file with the trusted peers. It only updates the file if the current set of trusted peers is different from the stored set of trusted peers.
+ * 
+ * @param serviceJsonFilePath - The path to the service.json file.
+ * @param alwaysUpdate - Whether to always update the service.json file.
+ * @returns - True if the service.json file was updated, false otherwise.
+ */
 function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, alwaysUpdate = false) {
     const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
 
@@ -192,8 +237,9 @@ function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, always
     return true;
 }
 
+// TODO: call custom api endpoint running in ipfs-manager container
 function restartIpfsClusterService() {
-
+    console.log("restarting ipfs cluster service")
 }
 
 async function main() {
@@ -242,22 +288,11 @@ async function main() {
 
     const api = await ApiPromise.create({ provider });
 
-    // for (let blockNumber = 1; blockNumber <= 10; blockNumber++) {
-    //     const blockHash = await api.rpc.chain.getBlockHash(blockNumber)
-    //     const block = await api.rpc.chain.getBlock(blockHash)
-    //     await updateLatestInscriptionMap(api, block, argv.netuid, argv.allowUnsuccessfulCommitments)
-    //     console.log("updated latest inscription map")
-
-    //     await updateTrustedIpfsClusterIds(api, argv.netuid, argv.minStake, argv.timeWindow, block.block.header.number.toNumber())
-    //     console.log("updated trusted ipfs cluster ids")
-    // }
-    // console.log("latest inscription map", latestInscriptionMap)
-    // console.log("Trusted IPFS Cluster IDs:", trustedIpfsClusterIds)
-
-    // listen to commitments for the target netuid
-    // const unsub = await api.query.commitments.commitmentOf.entries(argv.netuid, (data) => {
-    //     console.log("Got data", data);
-    // });
+    // subscribe to finalized heads:
+    //  - update latest inscription map
+    //  - update trusted ipfs cluster ids based off of latest inscriptions
+    //  - update service.json if there were any changes
+    //  - restart ipfs cluster service if there were any changes
     const unsub = await api.rpc.chain.subscribeFinalizedHeads(async (header) => {
 
         const block = await api.rpc.chain.getBlock(header.hash)
