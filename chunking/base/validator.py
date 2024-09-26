@@ -317,8 +317,8 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         # Check that validator is registered on the network.
-        self.sync()
-        self.sync_articles()
+        # self.sync()
+        # self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
 
         interval_seconds = self.config.neuron.synthetic_query_interval_seconds
@@ -327,6 +327,11 @@ class BaseValidatorNeuron(BaseNeuron):
         try:
             while True:
                 bt.logging.info(f"step({self.step}) block({self.block})")
+
+                # Sync metagraph and potentially set weights.
+                self.sync()
+                self.sync_articles()               
+
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
 
@@ -334,9 +339,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 if self.should_exit:
                     break
 
-                # Sync metagraph and potentially set weights.
-                self.sync()
-                self.sync_articles()
+                # Save the current tournament state to disk.
                 self.save_state()
 
                 bt.logging.debug(
