@@ -51,7 +51,7 @@ export async function inscribeIpfsClusterId(api: ApiPromise, netuid: number, hot
 
     const tx = api.tx.commitments.setCommitment(netuid, commitmentInfo);
 
-    console.log("Submitting transaction...", tx.toHuman())
+    console.log("Submitting transaction... (note that the tx is signed right before sending, which is why it's not shown as signed here)\n", tx.toHuman())
     return new Promise<void>((resolve, reject) => {
         tx.signAndSend(hotkey, ({ status, events }) => {
             console.log("Transaction status:", status.toHuman())
@@ -140,7 +140,7 @@ export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid:
     return ipfsClusterIdCommitments;
 }
 
-export async function doInscribe(api: ApiPromise, netuid: number, ipfsId: string, bittensorColdkeyName: string,bittensorHotkeyName: string) {
+export async function doInscribe(api: ApiPromise, netuid: number, ipfsId: string, bittensorColdkeyName: string, bittensorHotkeyName: string) {
     console.log("Doing inscribe", {
         netuid,
         ipfsId,
@@ -172,7 +172,11 @@ async function main() {
                 const hotkeyName = BT_HOTKEY_NAMES[i];
                 const coldkeyName = COLDKEY_NAME;
                 console.log(`Processing IPFS ID: ${ipfsId}`);
-                await doInscribe(api, argv.netuid as number, ipfsId, coldkeyName, hotkeyName);
+                try {
+                    await doInscribe(api, argv.netuid as number, ipfsId, coldkeyName, hotkeyName);
+                } catch (e) {
+                    console.error(`Error inscribing ${ipfsId}:`, e)
+                }
             }
 
             await api.disconnect();

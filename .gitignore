@@ -11,6 +11,8 @@ __pycache__/
 script.py
 *.js
 c*.sh
+!ipfs-start.sh
+!cluster-start.sh
 .vscode/
 .env
 start.sh

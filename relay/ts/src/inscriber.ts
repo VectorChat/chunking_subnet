@@ -2,8 +2,20 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { doInscribe } from './utils/commitments';
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import z from 'zod';
 import { sleep } from './utils/misc';
+import axios from 'axios';
+import path from 'path';
+
+async function getIpfsIdFromCluster(ipfsClusterRestUrl: string) {
+    try {
+        const endpoint = path.join(ipfsClusterRestUrl, 'id');
+        const response = await axios.get(endpoint);
+        return String(response.data.id);
+    } catch (error) {
+        console.error('Error fetching IPFS ID from cluster:', error);
+        throw error;
+    }
+}
 
 async function main() {
     const argv = await yargs(hideBin(process.argv))
@@ -45,23 +57,34 @@ async function main() {
             description: 'Sleep time in milliseconds after a failed inscribe attempt',
             default: 5_000
         })
-        .demandOption(['netuid', 'ipfs-id', 'bittensor-hotkey-name'])
+        .option('ipfs-cluster-rest-url', {
+            alias: 'u',
+            type: 'string',
+            description: 'REST URL of the IPFS Cluster to fetch the IPFS ID from',
+            default: 'http://cluster:9094'
+        })
+        .demandOption(['netuid', 'bittensor-hotkey-name', 'bittensor-coldkey-name', ])
         .help()
         .parse();
 
-    const inputSchema = z.object({
-        netuid: z.number().gte(0),
-        ipfsId: z.string(),
-        bittensorHotkeyName: z.string(),
-        bittensorColdkeyName: z.string(),
-        inscribeRateLimit: z.number().gt(0),
-        wsUrl: z.string(),
-        inscribeFailSleepMs: z.number().gte(0),
-    });
+    // const inputSchema = z.object({
+    //     netuid: z.number().gte(0),
+    //     ipfsId: z.string(),
+    //     bittensorHotkeyName: z.string(),
+    //     bittensorColdkeyName: z.string(),
+    //     inscribeRateLimit: z.number().gt(0),
+    //     wsUrl: z.string(),
+    //     inscribeFailSleepMs: z.number().gte(0),
+    // });
 
-    const parsedInputArgs = inputSchema.parse(argv);
+    // const parsedInputArgs = inputSchema.parse(argv);
+    const parsedInputArgs = argv
 
     console.log("Parsed input args:", parsedInputArgs);
+
+    const ipfsId = parsedInputArgs.ipfsId ?? await getIpfsIdFromCluster(parsedInputArgs.ipfsClusterRestUrl)
+
+    console.log(`Using IPFS ID: ${ipfsId}`)
 
     while (true) {
         const provider = new WsProvider(argv.wsUrl);
@@ -71,24 +94,22 @@ async function main() {
         const sleepMs = parsedInputArgs.inscribeRateLimit * 12 * 1000
 
         try {
-
-
             await doInscribe(
                 api,
                 parsedInputArgs.netuid,
-                parsedInputArgs.ipfsId,
+                ipfsId,
                 parsedInputArgs.bittensorColdkeyName,
                 parsedInputArgs.bittensorHotkeyName,
             )
 
-            console.log(`Inscribed ${parsedInputArgs.ipfsId} at ${new Date().toISOString()}`);
+            console.log(`Inscribed ${ipfsId} at ${new Date().toISOString()}`);
 
             console.log(`Sleeping for ${sleepMs}ms...`)
             await sleep(sleepMs)
         } catch (e) {
             console.error(e)
 
-            console.log(`Unable to inscribe ${parsedInputArgs.ipfsId}. Sleeping for ${parsedInputArgs.inscribeFailSleepMs}ms before retrying...`)
+            console.log(`Unable to inscribe ${ipfsId}. Sleeping for ${parsedInputArgs.inscribeFailSleepMs}ms before retrying...`)
             await sleep(parsedInputArgs.inscribeFailSleepMs)
         }
     }
