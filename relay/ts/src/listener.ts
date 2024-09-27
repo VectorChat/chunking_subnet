@@ -1,84 +1,13 @@
 import { ApiPromise, WsProvider } from "@polkadot/api";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import type { Event, SignedBlock } from "@polkadot/types/interfaces"
-import { parseIpfsClusterIdFromExtrinsic, queryCommitmentsForIpfsClusterIds } from "./utils/commitments";
-import { getExtrinsicErrorString } from "./utils/extrinsic";
+import { queryCommitmentsForIpfsClusterIds } from "./utils/commitments";
 import { fromRao } from "./utils/rao";
-import fs from "fs";
 import { IpfsInscription } from "./types";
+import axios from "axios";
+
+
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
-
-
-// async function updateLatestInscriptionMapFromExtrinsics(api: ApiPromise, block: SignedBlock, netuid: number, allowUnsuccessfulCommitments: boolean) {
-//     const extrinsics = block.block.extrinsics;
-
-//     const apiAt = await api.at(block.block.header.hash);
-//     const allRecords = await apiAt.query.system.events()
-
-//     const blockNumber = block.block.header.number.toNumber();
-
-//     console.log(`Processing block #${blockNumber} with ${extrinsics.length} extrinsics`)
-
-//     for (let index = 0; index < extrinsics.length; index++) {
-//         const extrinsic = extrinsics[index];
-//         if (!api.tx.commitments.setCommitment.is(extrinsic)) {
-//             continue;
-//         }
-//         console.log("Found commitment extrinsic")
-
-//         const commitmentNetuid = extrinsic.args[0]
-
-//         if (commitmentNetuid.toNumber() !== netuid) {
-//             console.log("Skipping commitment extrinsic for netuid", commitmentNetuid.toNumber())
-//             continue;
-//         }
-//         console.log("Found commitment extrinsic for netuid", netuid)
-
-//         const extrinsicEvents = allRecords
-//             // filter the specific events based on the phase and then the
-//             // index of our extrinsic in the block
-//             .filter(({ phase }) =>
-//                 phase.isApplyExtrinsic &&
-//                 phase.asApplyExtrinsic.eq(index)
-//             )
-//             .map(({ event }) => (event as unknown as Event))
-
-//         const extrinsicIsSuccess = extrinsicEvents.some((e) => api.events.system.ExtrinsicSuccess.is(e));
-//         if (!extrinsicIsSuccess && !allowUnsuccessfulCommitments) {
-//             console.log("unable to find success event for extrinsic", extrinsic.toHuman())
-//             const errorString = getExtrinsicErrorString(extrinsicEvents, api)
-//             console.log("Parsed extrinsic error:", errorString)
-//             continue;
-//         }
-
-
-//         console.log(`Found successful commitment at block ${blockNumber} for netuid ${netuid}`)
-//         const commitmentInfo = extrinsic.args[1]
-//         console.log("commitmentInfo", commitmentInfo.toHuman())
-
-//         const ipfsClusterId = parseIpfsClusterIdFromExtrinsic(commitmentInfo)
-
-//         const parsedCommitment: IpfsInscription | null = ipfsClusterId ? {
-//             ipfsClusterId,
-//             hotkey: extrinsic.signer.toString(),
-//             inscribedAt: blockNumber
-//         } : null
-
-//         const signer = extrinsic.signer.toString()
-//         if (parsedCommitment === null) {
-//             console.log(`Failed to parse commitment for signer ${signer}, skipping...`)
-//             continue
-//         }
-
-
-//         console.log(`IPFS Cluster ID: ${ipfsClusterId}`)
-//         console.log(`Hotkey: ${parsedCommitment.hotkey}`)
-
-//         latestInscriptionMap[parsedCommitment.hotkey] = parsedCommitment
-//         console.log("Updated inscription map for signer", signer, "with", latestInscriptionMap[signer])
-//     }
-// }
 
 /**
  * Updates the latest inscription map for the given netuid. Fetches the latest commitments via a websocket call. 
@@ -202,46 +131,81 @@ function setIsEqual(a: Set<string>, b: Set<string>) {
     return a.size === b.size && Array.from(a).every((value) => b.has(value));
 }
 
+// /**
+//  * Updates the service.json file with the trusted peers. It only updates the file if the current set of trusted peers is different from the stored set of trusted peers.
+//  * 
+//  * @param serviceJsonFilePath - The path to the service.json file.
+//  * @param alwaysUpdate - Whether to always update the service.json file.
+//  * @returns - True if the service.json file was updated, false otherwise.
+//  */
+// function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, alwaysUpdate = false) {
+//     const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
+
+//     const serviceJsonTrustedPeers = serviceJson.consensus.crdt.trusted_peers || []
+
+//     const trustedPeers = Array.from(trustedIpfsClusterIds)
+
+//     const currentEqualsStored = setIsEqual(new Set(serviceJsonTrustedPeers), trustedIpfsClusterIds)
+
+//     const doUpdate = alwaysUpdate || !currentEqualsStored
+
+//     if (!doUpdate) {
+//         console.log("service.json already up to date with trusted peers", trustedPeers)
+//         return false;
+//     }
+
+//     console.log("updating service json file because alwaysUpdate is true or current does not match stored", {
+//         alwaysUpdate,
+//         currentEqualsStored,
+//     })
+
+//     serviceJson.consensus.crdt.trusted_peers = trustedPeers
+
+//     fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
+//     console.log("updated service.json with trusted peers", trustedPeers, "at", serviceJsonFilePath)
+//     return true;
+// }
+
 /**
- * Updates the service.json file with the trusted peers. It only updates the file if the current set of trusted peers is different from the stored set of trusted peers.
+ * Updates the trusted peers in the IPFS Cluster service and restarts the service via the IPFS Manager API.
  * 
- * @param serviceJsonFilePath - The path to the service.json file.
- * @param alwaysUpdate - Whether to always update the service.json file.
- * @returns - True if the service.json file was updated, false otherwise.
+ * @param trustedPeers - The set of trusted IPFS Cluster IDs.
+ * @returns - True if the trusted peers were updated and the service was restarted, false otherwise.
  */
-function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, alwaysUpdate = false) {
-    const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
-
-    const serviceJsonTrustedPeers = serviceJson.consensus.crdt.trusted_peers || []
-
-    const trustedPeers = Array.from(trustedIpfsClusterIds)
-
-    const currentEqualsStored = setIsEqual(new Set(serviceJsonTrustedPeers), trustedIpfsClusterIds)
-
-    const doUpdate = alwaysUpdate || !currentEqualsStored
-
-    if (!doUpdate) {
-        console.log("service.json already up to date with trusted peers", trustedPeers)
+async function updateTrustedPeersViaApi(trustedPeers: string[]) {
+    try {
+        const response = await axios.put('http://ipfs-manager:3000/update-trusted-peers', {
+            trustedPeers: Array.from(trustedPeers)
+        });
+        console.log('Updated trusted peers:', response.data);
+        return true;
+    } catch (error) {
+        console.error('Failed to update trusted peers:', error);
         return false;
     }
-
-    console.log("updating service json file because alwaysUpdate is true or current does not match stored", {
-        alwaysUpdate,
-        currentEqualsStored,
-    })
-
-    serviceJson.consensus.crdt.trusted_peers = trustedPeers
-
-    fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
-    console.log("updated service.json with trusted peers", trustedPeers, "at", serviceJsonFilePath)
-    return true;
 }
 
-// TODO: call custom api endpoint running in ipfs-manager container
-function restartIpfsClusterService() {
-    console.log("restarting ipfs cluster service")
+/**
+ * Helper function to update the trusted peers in the IPFS Cluster service and restart the service.
+ * 
+ * @param trustedPeers - The set of trusted IPFS Cluster IDs.
+ * @returns - True if the trusted peers were updated and the service was restarted, false otherwise.
+ */
+async function updateTrustedPeersAndRestartService(trustedPeers: Set<string>) {
+    const updatedPeers = Array.from(trustedPeers);
+    const success = await updateTrustedPeersViaApi(updatedPeers);
+    if (success) {
+        console.log('Trusted peers updated and IPFS Cluster service restarted');
+    } else {
+        console.log('Failed to update trusted peers or restart IPFS Cluster service');
+    }
+    return success;
 }
 
+
+/**
+ * Main function to start the listener.
+ */
 async function main() {
     const argv = await yargs(hideBin(process.argv))
         .option('ws-url', {
@@ -256,26 +220,15 @@ async function main() {
         .option('min-stake', {
             type: 'number',
             description: 'The minimum stake in TAO for a validator that advertises its IPFS cluster ID to be considered trusted.',
-            requiresArg: true,
         })
         .option('time-window', {
             type: 'number',
             description: 'The number of blocks to look back to consider an IPFS cluster ID trusted.',
-            default: 100
+            default: 300 // 1 hour 
         })
         .option('allow-unsuccessful-commitments', {
             type: 'boolean',
-            description: 'Whether to allow unsuccessful commitments to be considered handled, useful for debugging'
-        })
-        .option('service-json-file-path', {
-            type: 'string',
-            description: 'The path to the service.json file to update',
-            default: './service.json'
-        })
-        .option('always-update-service-json', {
-            type: 'boolean',
-            description: 'Whether to always update the service.json file with the trusted peers',
-            default: false
+            description: 'Whether to allow unsuccessful commitments to be considered handled, should only be used when debugging'
         })
         .demandOption(['netuid', 'min-stake'])
         .help()
@@ -308,15 +261,19 @@ async function main() {
         console.log("Trusted IPFS Cluster IDs:", trustedIpfsClusterIds)
 
         if (wasChange) {
-            const didUpdate = updateTrustedPeersInServiceJsonFile(argv.serviceJsonFilePath, argv.alwaysUpdateServiceJson)
+            const didUpdate = await updateTrustedPeersAndRestartService(trustedIpfsClusterIds)
             if (didUpdate) {
-                restartIpfsClusterService()
+                console.log('Successfully updated trusted peers and restarted IPFS Cluster service');
+            } else {
+                console.log('Failed to update trusted peers or restart IPFS Cluster service');
             }
         }
     })
-
 }
 
+/**
+ * Entry point for the listener.
+ */
 if (require.main === module) {
     main()
 }

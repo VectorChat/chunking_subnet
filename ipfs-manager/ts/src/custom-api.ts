@@ -27,10 +27,10 @@ app.put('/update-trusted-peers', async (req: Request, res: Response) => {
           console.error('Error restarting IPFS Cluster:', error);
           return res.status(500).json({ error: 'Failed to restart IPFS Cluster' });
         }
-        res.json({ message: 'Trusted peers updated and IPFS Cluster restarted' });
+        res.status(200).json({ message: 'Trusted peers updated and IPFS Cluster restarted' });
       });
     } else {
-      res.json({ message: 'No changes in trusted peers' });
+      res.status(200).json({ message: 'No changes in trusted peers' });
     }
 
   } catch (error) {
@@ -51,7 +51,7 @@ app.get('/status', (req, res) => {
       const ipfsStatus = processes.find((p: any) => p.name === 'ipfs')?.pm2_env?.status;
       const ipfsClusterStatus = processes.find((p: any) => p.name === 'ipfs-cluster-service')?.pm2_env?.status;
 
-      res.json({
+      res.status(200).json({
         ipfs: ipfsStatus === 'online',
         ipfsCluster: ipfsClusterStatus === 'online',
       });

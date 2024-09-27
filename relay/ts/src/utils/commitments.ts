@@ -7,8 +7,7 @@ import path from 'path';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import "../__generated__/interfaces/augment-api.ts"
-import { AccountId32 } from '@polkadot/types/interfaces';
-import { IpfsCommitment, IpfsInscription } from '../listener.ts';
+import { IpfsCommitment, IpfsInscription } from '../types.ts';
 
 const WS_URL = 'ws://127.0.0.1:9946';
 const COLDKEY_NAME = 'owner-localnet';
@@ -27,7 +26,7 @@ const BT_HOTKEY_NAMES = [
     'validator4',
 ];
 
-function loadHotkey(coldkeyName: string, hotkeyName: string): KeyringPair {
+export function loadHotkey(coldkeyName: string, hotkeyName: string): KeyringPair {
     const keyring = new Keyring({ type: 'sr25519' });
     const filePath = path.join(process.env.HOME!, '.bittensor', 'wallets', coldkeyName, 'hotkeys', hotkeyName);
     const keyData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -35,7 +34,7 @@ function loadHotkey(coldkeyName: string, hotkeyName: string): KeyringPair {
     return keyring.addFromUri(mnemonic);
 }
 
-function decodeIpfsId(ipfsId: string): Uint8Array {
+export function decodeIpfsId(ipfsId: string): Uint8Array {
     return base58Decode(ipfsId);
 }
 
@@ -56,13 +55,20 @@ export async function inscribeIpfsClusterId(api: ApiPromise, netuid: number, hot
     return new Promise<void>((resolve, reject) => {
         tx.signAndSend(hotkey, ({ status, events }) => {
             console.log("Transaction status:", status.toHuman())
-            if (status.isInBlock || status.isFinalized) {
+            if (status.isFinalized) {
+                let foundCommitmentEvent = false;
                 events.forEach(({ event }) => {
                     if (api.events.commitments.Commitment.is(event)) {
-                        console.log(`Commitment set for ${hotkey.address}. Block hash: ${status.asInBlock}`);
-                        resolve();
+                        console.log(`Commitment set for ${hotkey.address}. Block hash: ${status.asFinalized}`);
+                        foundCommitmentEvent = true;
                     }
                 });
+                if (!foundCommitmentEvent) {
+                    console.error('No commitment event found in extrinsic events');
+                    reject(new Error('No commitment event found in extrinsic events'));
+                } else {
+                    resolve();
+                }
             }
         }).catch(reject);
     });
@@ -103,6 +109,12 @@ export function parseIpfsClusterIdFromStorage(commitmentInfo: any): IpfsCommitme
     };
 }
 
+export async function getInscription(api: ApiPromise, netuid: number, bittensorHotkeyName: string) {
+    const hotkey = loadHotkey(COLDKEY_NAME, bittensorHotkeyName);
+    const inscriptions = await api.query.inscriptions.inscriptionOf.entries(hotkey.address);
+    return inscriptions;
+}
+
 export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid: number) {
     const commitments = await api.query.commitments.commitmentOf.entries(netuid);
 
@@ -128,6 +140,20 @@ export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid:
     return ipfsClusterIdCommitments;
 }
 
+export async function doInscribe(api: ApiPromise, netuid: number, ipfsId: string, bittensorColdkeyName: string,bittensorHotkeyName: string) {
+    console.log("Doing inscribe", {
+        netuid,
+        ipfsId,
+        bittensorHotkeyName
+    });
+    const hotkey = loadHotkey(bittensorColdkeyName, bittensorHotkeyName);
+    console.log(`Loaded hotkey: ${hotkey.address}`);
+    const ipfsBytes = decodeIpfsId(ipfsId);
+    console.log(`IPFS bytes (hex): ${u8aToHex(ipfsBytes)}`);
+    console.log(`IPFS bytes length: ${ipfsBytes.length}`);
+    await inscribeIpfsClusterId(api, netuid, hotkey, ipfsBytes);
+}
+
 async function main() {
 
     const argv = yargs(hideBin(process.argv))
@@ -144,20 +170,9 @@ async function main() {
             for (let i = 0; i < TEST_IPFS_CLUSTER_IDS.length; i++) {
                 const ipfsId = TEST_IPFS_CLUSTER_IDS[i];
                 const hotkeyName = BT_HOTKEY_NAMES[i];
+                const coldkeyName = COLDKEY_NAME;
                 console.log(`Processing IPFS ID: ${ipfsId}`);
-                const hotkey = loadHotkey(COLDKEY_NAME, hotkeyName);
-                console.log(`Loaded hotkey: ${hotkey.address}`);
-                try {
-                    const ipfsBytes = decodeIpfsId(ipfsId);
-                    console.log(`IPFS bytes (hex): ${u8aToHex(ipfsBytes)}`);
-                    console.log(`IPFS bytes length: ${ipfsBytes.length}`);
-                    await inscribeIpfsClusterId(api, argv.netuid as number, hotkey, ipfsBytes);
-                } catch (e) {
-                    console.error(`Error processing ${ipfsId}:`, e);
-                    if (e instanceof Error) {
-                        console.error(e.stack);
-                    }
-                }
+                await doInscribe(api, argv.netuid as number, ipfsId, coldkeyName, hotkeyName);
             }
 
             await api.disconnect();
