@@ -24,9 +24,9 @@ else
 
   # Set up the swarm key
   SWARM_KEY_FILE="$repo/swarm.key"
-  SWARM_KEY_PERM=0400
+#   SWARM_KEY_PERM=0400
 
-  chmod $SWARM_KEY_PERM "$SWARM_KEY_FILE"
+#   chmod $SWARM_KEY_PERM "$SWARM_KEY_FILE"
   echo "Swarm key set up at $SWARM_KEY_FILE"
 
   # Additional configuration for private network
