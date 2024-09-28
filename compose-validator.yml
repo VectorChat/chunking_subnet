@@ -35,7 +35,7 @@ services:
       CLUSTER_PEERNAME: cluster
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: "*"
+      # CLUSTER_CRDT_TRUSTEDPEERS: "*"
       CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094 # Expose API
       LEADER_IPFS_CLUSTER_MULTIADDR: ${LEADER_IPFS_CLUSTER_MULTIADDR}
       IS_LEADER: ${IS_LEADER:-false}
@@ -55,7 +55,6 @@ services:
     networks:
       - ipfs-network
     restart: unless-stopped
-    
 
   listener:
     build:
