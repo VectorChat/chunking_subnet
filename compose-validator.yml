@@ -60,7 +60,6 @@ services:
   listener:
     build:
       context: ./relay/ts
-      dockerfile: Dockerfile.listener
     command: sh -c "npx tsx src/listener.ts ${LISTENER_ARGS}"
     volumes:
       - ipfs-cluster-data:/data/ipfs-cluster
@@ -72,7 +71,6 @@ services:
   inscriber:
     build:
       context: ./relay/ts
-      dockerfile: Dockerfile.inscriber
     command: sh -c "npx tsx src/inscriber.ts ${INSCRIBER_ARGS}"
     volumes:
       - ~/.bittensor:/root/.bittensor

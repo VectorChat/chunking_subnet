@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "gen-polkadot:local": "pnpm polkadot-types-from-chain --endpoint ws://127.0.0.1:9946 --output ./src/__generated__/interfaces"
+    "gen-polkadot:local": "pnpm polkadot-types-from-chain --endpoint ws://127.0.0.1:9946 --output ./src/__generated__/interfaces",
+    "gen-polkadot:finney": "pnpm polkadot-types-from-chain --endpoint wss://entrypoint-finney.opentensor.ai:443 --output ./src/__generated__/interfaces"
   },
   "keywords": [],
   "author": "",
