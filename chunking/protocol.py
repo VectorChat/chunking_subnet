@@ -16,8 +16,12 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from typing import Optional, List
+from typing import Literal, Optional, List
 import bittensor as bt
+
+
+chunkSynapseType = Literal["synthetic", "organic"]
+
 
 class chunkSynapse(bt.Synapse):
     """
@@ -31,15 +35,25 @@ class chunkSynapse(bt.Synapse):
     - time_soft_max: float containing the maximum time the miner can take before being penalized.
     - chunks: List[str] containing chunks of text from document.
     - miner_signature: str containing the miner's signature of a json object containing document, chunk_size, chunk_qty, and chunks.
+
+    Optional Attributes:
+    - CID: str containing the IPFS CID of the the special relay mining payload
+
+    Response Attributes:
+    - chunks: List[str] containing chunks of text from document, created by the miner
+    - miner_signature: str containing the miner's signature of a json object containing document, chunk_size, chunk_qty, and chunks.
     """
 
-    name: str = 'chunkSynapse'
-    
-    # Required request input, filled by sending dendrite caller. It is a base64 encoded string.
+    name: str = "chunkSynapse"
+
+    # Required request input
     document: str
     chunk_size: int
     chunk_qty: int
     time_soft_max: float
+
+    # Optional request input
+    CID: Optional[str] = None
 
     # Optional request output, filled by recieving axon.
     chunks: Optional[List[str]] = None

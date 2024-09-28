@@ -7,7 +7,6 @@ import { IpfsInscription } from "./types";
 import fs from "fs";
 import express from "express";
 import z from "zod";
-import 'dotenv/config'
 
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
 

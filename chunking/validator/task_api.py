@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple
 from venv import logger
 import bittensor as bt
 import tiktoken
-from chunking.protocol import chunkSynapse
+from chunking.protocol import chunkSynapse, chunkSynapseType
 import requests
 import numpy as np
 from sr25519 import sign
@@ -12,6 +12,8 @@ import os
 from random import choice, choices
 from math import ceil
 
+from chunking.utils.tokens import num_tokens_from_string
+from chunking.validator.relay import make_relay_payload
 from neurons.validator import Validator
 
 
@@ -23,7 +25,7 @@ class Task:
     def __init__(
         self,
         synapse: chunkSynapse,
-        task_type: str,
+        task_type: chunkSynapseType,
         task_id: int,
         miner_uids: Optional[List[int]] = None,
     ):
@@ -202,22 +204,6 @@ class Task:
             )
 
 
-def num_tokens_from_string(string: str, encoding_name: str) -> int:
-    """
-    Helper function to calculate the number of tokens in a string.
-
-    Args:
-        string (str): The string to calculate the number of tokens for.
-        encoding_name (str): The name of the encoding to use.
-
-    Returns:
-        int: The number of tokens in the string.
-    """
-    encoding = tiktoken.get_encoding(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-
 SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
 
@@ -230,18 +216,21 @@ def get_wiki_content_for_page(pageid: int) -> str:
 
     Returns:
         str: The content of the Wikipedia page.
-    """ 
-    response = requests.get('https://en.wikipedia.org/w/api.php', params={
-        'action': 'query',
-        'format': 'json',
-        'pageids': pageid,
-        'prop': 'extracts',
-        'explaintext': True,
-        'exsectionformat': 'plain',
-    }).json()['query']['pages'][str(pageid)]
-    return response['extract'], response['title']
+    """
+    response = requests.get(
+        "https://en.wikipedia.org/w/api.php",
+        params={
+            "action": "query",
+            "format": "json",
+            "pageids": pageid,
+            "prop": "extracts",
+            "explaintext": True,
+            "exsectionformat": "plain",
+        },
+    ).json()["query"]["pages"][str(pageid)]
+    return response["extract"], response["title"]
 
-    
+
 def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
     pages = (
         choices(validator.articles, k=3)
@@ -285,8 +274,10 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
         .choices[0]
         .message.content
     )
-    
-    bt.logging.info(f"Generated first section of synthetic query at {time.time() - start} seconds, length: {len(synthetic_document)} characters")
+
+    bt.logging.info(
+        f"Generated first section of synthetic query at {time.time() - start} seconds, length: {len(synthetic_document)} characters"
+    )
 
     synthetic_document = " ".join(synthetic_document.split())
     previous_synthesis = synthetic_document
@@ -309,17 +300,21 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
             .choices[0]
             .message.content
         )
-        bt.logging.info(f"Generated next section of synthetic query at {time.time() - start} seconds, length: {len(next_synthesis)} characters")
+        bt.logging.info(
+            f"Generated next section of synthetic query at {time.time() - start} seconds, length: {len(next_synthesis)} characters"
+        )
         next_synthesis = " ".join(next_synthesis.split())
         synthetic_document += " " + next_synthesis
-        bt.logging.info(f"Total length of synthetic query at {time.time() - start} seconds: {len(synthetic_document)} characters")
+        bt.logging.info(
+            f"Total length of synthetic query at {time.time() - start} seconds: {len(synthetic_document)} characters"
+        )
         previous_synthesis = next_synthesis
 
     num_chars = len(synthetic_document)
 
     bt.logging.info(f"Generated synthetic query with {num_chars} characters")
 
-    num_tokens = num_tokens_from_string(synthetic_document, "o200k_base")
+    num_tokens = num_tokens_from_string(synthetic_document, "gpt-4o-mini")
 
     bt.logging.info(f"Generated synthetic query with {num_tokens} tokens")
 

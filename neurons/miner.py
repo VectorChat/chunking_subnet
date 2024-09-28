@@ -43,6 +43,10 @@ class Miner(BaseMinerNeuron):
         self.nonces = {}
         self.recent_queries = []
 
+    async def check_synapse(self, synapse: chunking.protocol.chunkSynapse) -> bool:
+
+        pass
+
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
     ) -> chunking.protocol.chunkSynapse:

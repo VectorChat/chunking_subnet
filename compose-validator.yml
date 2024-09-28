@@ -26,6 +26,8 @@ services:
         "chmod +x /usr/local/bin/ipfs-start.sh && /usr/local/bin/ipfs-start.sh",
       ]
     restart: unless-stopped
+    healthcheck:
+      interval: 8s
 
   cluster:
     image: ipfs/ipfs-cluster:latest
@@ -57,10 +59,18 @@ services:
       - ipfs-network
     restart: unless-stopped
 
+    healthcheck:
+      test: ["CMD", "ipfs-cluster-ctl", "id"]
+      interval: 8s
+      timeout: 10s
+      retries: 3
+
   listener:
     build:
       context: ./relay/ts
     command: sh -c "npx tsx src/listener.ts ${LISTENER_ARGS}"
+    environment:
+      - LEADER_IPFS_CLUSTER_ID=${LEADER_IPFS_CLUSTER_ID}
     volumes:
       - ipfs-cluster-data:/data/ipfs-cluster
     networks:
@@ -75,7 +85,7 @@ services:
       - ${BT_DIR}:/root/.bittensor
     depends_on:
       cluster:
-        condition: service_started
+        condition: service_healthy
     networks:
       - ipfs-network
     restart: unless-stopped

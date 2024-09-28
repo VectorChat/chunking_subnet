@@ -24,6 +24,7 @@ from math import floor
 import numpy as np
 from chunking.protocol import chunkSynapse
 from chunking.utils import uids
+from chunking.validator.relay import make_relay_payload
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.validator.task_api import Task
 from neurons.validator import Validator
@@ -102,7 +103,6 @@ async def forward(self: Validator):
         self (:obj:`bittensor.neuron.Neuron`): The neuron object which contains all the necessary state for the validator.
         synapse: The chunkSynapse containing the organic query
     """
-
     # initial structure for wandb logging
     wandb_data = {
         "modality": "text",
@@ -133,13 +133,19 @@ async def forward(self: Validator):
     # get new task to query miners with
     # this gets either an organic query from the API or a synthetic query (currently wikipedia)
     try:
-       tuple = Task.get_new_task(validator=self)
+        tuple = Task.get_new_task(validator=self)
+
+        task, pageid = tuple
+
+        CID = make_relay_payload(self, task.synapse.document)
+
+        task.synapse.CID = CID
+        print(f"Added CID: {CID} to task")
+
     except Exception as e:
         bt.logging.error(f"Error getting new task: {e}")
         bt.logging.error(traceback.format_exc())
         return
-
-    task, pageid = tuple
 
     # log pageid of wikipedia article used for synthetic query
     wandb_data["pageid"] = pageid
