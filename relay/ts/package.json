@@ -1,0 +1,30 @@
+{
+  "name": "ts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "gen-polkadot:local": "pnpm polkadot-types-from-chain --endpoint ws://127.0.0.1:9946 --output ./src/__generated__/interfaces"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@polkadot/api": "^13.1.1",
+    "@polkadot/api-base": "^13.1.1",
+    "@polkadot/keyring": "^13.1.1",
+    "@polkadot/rpc-core": "^13.1.1",
+    "@polkadot/typegen": "^13.1.1",
+    "@polkadot/types": "^13.1.1",
+    "@polkadot/types-augment": "^13.1.1",
+    "@polkadot/types-codec": "^13.1.1",
+    "@polkadot/util": "^13.1.1",
+    "@polkadot/util-crypto": "^13.1.1",
+    "@types/yargs": "^17.0.33",
+    "axios": "^1.7.7",
+    "decimal.js": "^10.4.3",
+    "tsx": "^4.19.1",
+    "yargs": "^17.7.2",
+    "zod": "^3.23.8"
+  }
+}
