@@ -1,0 +1,89 @@
+version: "3.8"
+
+services:
+  ipfs:
+    container_name: ipfs
+    image: ipfs/kubo:release
+    ports:
+      - "4001:4001" # ipfs swarm - expose if needed/wanted
+      # - "5001:5001" # ipfs api - expose if needed/wanted
+    #     - "8080:8080" # ipfs gateway - expose if needed/wanted
+    environment:
+      LIBP2P_FORCE_PNET: 1
+      LEADER_IPFS_MULTIADDR: ${LEADER_IPFS_MULTIADDR}
+      IPFS_SWARM_KEY_FILE: ${IPFS_SWARM_KEY_FILE:-/data/ipfs/swarm.key}
+      IS_LEADER: ${IS_LEADER:-false}
+    volumes:
+      - ipfs-data:/data/ipfs
+      - ./ipfs-start.sh:/usr/local/bin/ipfs-start.sh
+      - ./swarm.key:/data/ipfs/swarm.key
+    networks:
+      - ipfs-network
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "chmod +x /usr/local/bin/ipfs-start.sh && /usr/local/bin/ipfs-start.sh",
+      ]
+    restart: unless-stopped
+
+  cluster:
+    image: ipfs/ipfs-cluster:latest
+    depends_on:
+      - ipfs
+    environment:
+      CLUSTER_PEERNAME: cluster
+      CLUSTER_SECRET: ${CLUSTER_SECRET}
+      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_CRDT_TRUSTEDPEERS: "*"
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094 # Expose API
+      LEADER_IPFS_CLUSTER_MULTIADDR: ${LEADER_IPFS_CLUSTER_MULTIADDR}
+      IS_LEADER: ${IS_LEADER:-false}
+      # CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+      # Open API port (allows ipfs-cluster-ctl usage on host)
+      - "127.0.0.1:9094:9094"
+      # The cluster swarm port would need  to be exposed if this container
+      # was to connect to cluster peers on other hosts.
+      # But this is just a testing cluster.
+      # - "9095:9095" # Cluster IPFS Proxy endpoint
+      - "9096:9096" # Cluster swarm endpoint
+    volumes:
+      - ipfs-cluster-data:/data/ipfs-cluster
+      - ./cluster-start.sh:/usr/local/bin/cluster-start.sh
+    entrypoint: ["/bin/sh", "/usr/local/bin/cluster-start.sh"]
+    networks:
+      - ipfs-network
+    restart: unless-stopped
+    
+
+  listener:
+    build:
+      context: ./relay/ts
+      dockerfile: Dockerfile.listener
+    command: sh -c "npx tsx src/listener.ts ${LISTENER_ARGS}"
+    volumes:
+      - ipfs-cluster-data:/data/ipfs-cluster
+    depends_on:
+      - cluster
+    networks:
+      - ipfs-network
+
+  inscriber:
+    build:
+      context: ./relay/ts
+      dockerfile: Dockerfile.inscriber
+    command: sh -c "npx tsx src/inscriber.ts ${INSCRIBER_ARGS}"
+    volumes:
+      - ~/.bittensor:/root/.bittensor
+    depends_on:
+      - cluster
+    networks:
+      - ipfs-network
+
+networks:
+  ipfs-network:
+
+volumes:
+  ipfs-data:
+  ipfs-cluster-data:
