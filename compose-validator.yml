@@ -72,7 +72,9 @@ services:
       context: ./relay/ts
     command: sh -c "npx tsx src/inscriber.ts ${INSCRIBER_ARGS}"
     volumes:
-      - ~/.bittensor:/root/.bittensor
+      - type: bind
+        source: ~/.bittensor
+        target: /root/.bittensor
     depends_on:
       - cluster
     networks:
