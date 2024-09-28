@@ -1,0 +1,7 @@
+FROM ipfs/ipfs-cluster:master-latest
+
+# download jq
+RUN apk add --no-cache jq curl
+
+# set the cluster name
+ENV CLUSTER_NAME=ipfs-cluster

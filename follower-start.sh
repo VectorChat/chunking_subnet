@@ -4,8 +4,14 @@ set -e
 user=ipfs
 
 CHECK_INTERVAL=${CHECK_INTERVAL:-1}
-
 RESTART_FILE=${RESTART_FILE:-/data/ipfs-cluster/restart}
+CLUSTER_NAME=${CLUSTER_NAME:-"ipfs-cluster"}
+LISTENER_URL=${LISTENER_URL:-http://listener:3000}
+
+echo "Using listener URL: $LISTENER_URL"
+echo "Using cluster name: $CLUSTER_NAME"
+echo "Using leader IPFS cluster multiaddr: $LEADER_IPFS_CLUSTER_MULTIADDR"
+echo "Using IPFS cluster path: $IPFS_CLUSTER_PATH"
 
 if [ -n "$DOCKER_DEBUG" ]; then
    set -x
@@ -21,6 +27,11 @@ else
     fi
 fi
 
+if [ -z "$CLUSTER_SECRET" ]; then
+    echo "CLUSTER_SECRET is not set. Exiting..."
+    exit 1
+fi
+
 # Function to run command as ipfs user
 run_as_ipfs() {
     if [ $(id -u) -eq 0 ]; then
@@ -30,6 +41,7 @@ run_as_ipfs() {
     fi
 }
 
+# watch the restart file and exit if it exists
 watch_restart_file() {
     while true; do
         if [ -f "$RESTART_FILE" ]; then
@@ -40,6 +52,27 @@ watch_restart_file() {
         fi
         sleep $CHECK_INTERVAL
     done
+}
+
+fetch_trusted_peers() {
+    echo "Fetching trusted peers from listener service..."
+    trusted_peers=$(curl -s ${LISTENER_URL}/trusted-peers)
+    if [ $? -ne 0 ]; then
+        echo "Failed to fetch trusted peers. Exiting..."
+        exit 1
+    fi
+    echo "Fetched trusted peers: $trusted_peers"
+}
+
+update_service_json() {
+    echo "Updating service.json with trusted peers and leader address..."
+    FOLLOWER_SERVICE_JSON=${IPFS_CLUSTER_PATH}/$CLUSTER_NAME/service.json
+    jq --argjson peers "$trusted_peers" \
+       --arg leader "$LEADER_IPFS_CLUSTER_MULTIADDR" \
+       '.consensus.crdt.trusted_peers = $peers | .cluster.peer_addresses = [$leader]' \
+       ${FOLLOWER_SERVICE_JSON} > ${FOLLOWER_SERVICE_JSON}.tmp
+    mv ${FOLLOWER_SERVICE_JSON}.tmp ${FOLLOWER_SERVICE_JSON}
+    echo "Updated service.json"
 }
 
 start_ipfs_cluster() {
@@ -56,30 +89,30 @@ start_ipfs_cluster() {
     fi
 
     # Only ipfs user can get here
-    ipfs-cluster-service --version
+    ipfs-cluster-follow --version
 
     if [ -e "${IPFS_CLUSTER_PATH}/service.json" ]; then
         echo "Found IPFS cluster configuration at ${IPFS_CLUSTER_PATH}"
     else
-        echo "This container only runs ipfs-cluster-service. ipfs needs to be run separately!"
         echo "Initializing default configuration..."
+        ipfs-cluster-follow "$CLUSTER_NAME" init https://example.com
         ipfs-cluster-service init --consensus "${IPFS_CLUSTER_CONSENSUS}"
-
-        # if [ -n "$LEADER_IPFS_CLUSTER_MULTIADDR" ]; then
-            # add config to ipfs
-        #     ipfs-cluster-ctl add "${IPFS_CLUSTER_PATH}/service.json" --name follower-config
-        # fi
+        # copy service.json to $CLUSTER_NAME config directory
+        cp ${IPFS_CLUSTER_PATH}/service.json ${IPFS_CLUSTER_PATH}/$CLUSTER_NAME/service.json
     fi
 
-    echo "Starting IPFS Cluster"
+    # Fetch trusted peers and update service.json for follower config for $CLUSTER_NAME
+    fetch_trusted_peers
+    update_service_json
+
+    echo "Starting IPFS Cluster Follower"
     echo "Watching for restart file: $RESTART_FILE"
     echo "Check interval: ${CHECK_INTERVAL} second(s)"
 
     # Start the restart file watcher in the background
     watch_restart_file $$ &
 
-    # Start ipfs-cluster-service in the foreground
-    exec ipfs-cluster-service daemon --bootstrap "$LEADER_IPFS_CLUSTER_MULTIADDR" "$@"
+    exec ipfs-cluster-follow "$CLUSTER_NAME" run "$@"
 }
 
 # Start the IPFS cluster

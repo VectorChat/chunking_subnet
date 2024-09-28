@@ -5,7 +5,9 @@ import { queryCommitmentsForIpfsClusterIds } from "./utils/commitments";
 import { fromRao } from "./utils/rao";
 import { IpfsInscription } from "./types";
 import fs from "fs";
-
+import express from "express";
+import z from "zod";
+import 'dotenv/config'
 
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
 
@@ -140,40 +142,44 @@ function setIsEqual(a: Set<string>, b: Set<string>) {
  * @returns - True if the service.json file was updated, false otherwise.
  */
 function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, alwaysUpdate = false) {
-    const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
+    try {
+        const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
 
-    const serviceJsonTrustedPeers = serviceJson.consensus.crdt.trusted_peers || []
+        const serviceJsonTrustedPeers = serviceJson.consensus.crdt.trusted_peers || []
 
-    const trustedPeers = Array.from(trustedIpfsClusterIds)
+        const trustedPeers = Array.from(trustedIpfsClusterIds)
 
-    const currentEqualsStored = setIsEqual(new Set(serviceJsonTrustedPeers), trustedIpfsClusterIds)
+        const currentEqualsStored = setIsEqual(new Set(serviceJsonTrustedPeers), trustedIpfsClusterIds)
 
-    const doUpdate = alwaysUpdate || !currentEqualsStored
+        const doUpdate = alwaysUpdate || !currentEqualsStored
 
-    console.log({
-        serviceJsonTrustedPeers,
-        trustedPeers,
-        currentEqualsStored,
-        doUpdate,
-    })
+        console.log({
+            serviceJsonTrustedPeers,
+            trustedPeers,
+            currentEqualsStored,
+            doUpdate,
+        })
 
-    if (!doUpdate) {
-        console.log("service.json already up to date with trusted peers", trustedPeers)
+        if (!doUpdate) {
+            console.log("service.json already up to date with trusted peers", trustedPeers)
+            return false;
+        }
+
+        console.log("updating service json file because alwaysUpdate is true or current does not match stored", {
+            alwaysUpdate,
+            currentEqualsStored,
+        })
+
+        serviceJson.consensus.crdt.trusted_peers = trustedPeers
+
+        fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
+        console.log("updated service.json with trusted peers", trustedPeers, "at", serviceJsonFilePath)
+        return true;
+    } catch (e) {
+        console.error("error updating service.json file", e)
         return false;
     }
-
-    console.log("updating service json file because alwaysUpdate is true or current does not match stored", {
-        alwaysUpdate,
-        currentEqualsStored,
-    })
-
-    serviceJson.consensus.crdt.trusted_peers = trustedPeers
-
-    fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
-    console.log("updated service.json with trusted peers", trustedPeers, "at", serviceJsonFilePath)
-    return true;
 }
-
 /**
  * Restarts the IPFS Cluster service via a file. The extended ipfs cluster image will watch for file existence and restart the service.
  * 
@@ -181,43 +187,37 @@ function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, always
  */
 function restartIpfsClusterServiceViaFile(restartFilePath: string) {
     fs.writeFileSync(restartFilePath, "restart")
+    console.log("restart file written, ipfs cluster service will restart soon")
 }
 
-// /**
-//  * Updates the trusted peers in the IPFS Cluster service and restarts the service via the IPFS Manager API.
-//  * 
-//  * @param trustedPeers - The set of trusted IPFS Cluster IDs.
-//  * @returns - True if the trusted peers were updated and the service was restarted, false otherwise.
-//  */
-// async function updateTrustedPeersViaApi(trustedPeers: string[]) {
-//     try {
-//         const response = await axios.put('http://ipfs-manager:3000/update-trusted-peers', {
-//             trustedPeers: Array.from(trustedPeers)
-//         });
-//         console.log('Updated trusted peers:', response.data);
-//         return true;
-//     } catch (error) {
-//         console.error('Failed to update trusted peers:', error);
-//         return false;
-//     }
-// }
+/**
+ * Updates the peer addresses in the service.json file. These contain the full peer multiaddrs that should be connected to on boot. 
+ *  
+ * @param serviceJsonFilePath - The path to the service.json file.
+ * @param peerAddresses - The list of peer addresses to update.
+ * @returns - True if the service.json file was updated, false otherwise.
+ */
+function updatePeerAddressesInServiceJsonFile(serviceJsonFilePath: string, peerMultiaddrs: string[]) {
+    const serviceJson = JSON.parse(fs.readFileSync(serviceJsonFilePath, 'utf8'));
 
-// /**
-//  * Helper function to update the trusted peers in the IPFS Cluster service and restart the service.
-//  * 
-//  * @param trustedPeers - The set of trusted IPFS Cluster IDs.
-//  * @returns - True if the trusted peers were updated and the service was restarted, false otherwise.
-//  */
-// async function updateTrustedPeersAndRestartService(trustedPeers: Set<string>) {
-//     const updatedPeers = Array.from(trustedPeers);
-//     const success = await updateTrustedPeersViaApi(updatedPeers);
-//     if (success) {
-//         console.log('Trusted peers updated and IPFS Cluster service restarted');
-//     } else {
-//         console.log('Failed to update trusted peers or restart IPFS Cluster service');
-//     }
-//     return success;
-// }
+    const currentPeerAddresses: string[] = serviceJson.cluster.peer_addresses || []
+
+    const currentPeerAddressesSet = new Set(currentPeerAddresses)
+
+    const newPeerAddressesSet = new Set(peerMultiaddrs)
+
+    const didChange = !setIsEqual(currentPeerAddressesSet, newPeerAddressesSet)
+
+    if (!didChange) {
+        console.log("service.json already up to date with peer addresses", peerMultiaddrs)
+        return false;
+    }
+
+    serviceJson.cluster.peer_addresses = Array.from(newPeerAddressesSet)
+    fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
+    console.log("updated service.json with peer addresses", peerMultiaddrs, "at", serviceJsonFilePath)
+    return true;
+}
 
 
 /**
@@ -262,24 +262,42 @@ async function main() {
             description: 'The path to the service.json file.',
             default: '/data/ipfs-cluster/service.json'
         })
-        .option('leader-ipfs-cluster-id', {
-            type: 'string',
-            description: 'The IPFS Cluster ID of the leader.',
+        .option('port', {
+            type: 'number',
+            description: 'The port to listen on for the custom API.',
+            default: 3000
         })
-        .demandOption(['netuid', 'min-stake', 'leader-ipfs-cluster-id'])
+        .demandOption(['netuid', 'min-stake'])
         .help()
         .parse();
 
     // print the argv
     console.log(argv);
 
+    const envSchema = z.object({
+        LEADER_IPFS_CLUSTER_ID: z.string(),
+        // LEADER_IPFS_CLUSTER_MULTIADDR: z.string(),
+    })
+
+    const env = envSchema.parse(process.env)
+
     const provider = new WsProvider(argv.wsUrl);
 
     const api = await ApiPromise.create({ provider });
 
-    trustedIpfsClusterIds.add(argv.leaderIpfsClusterId)
+    // add the leader ipfs cluster id to the trusted list
+    trustedIpfsClusterIds.add(env.LEADER_IPFS_CLUSTER_ID)
 
-    console.log("Initial trusted IPFS Cluster IDs:\n", trustedIpfsClusterIds)
+    console.log("Automatically added leader ipfs cluster id to trusted list", env.LEADER_IPFS_CLUSTER_ID)
+
+    // // update the service.json file with the leader ipfs cluster multiaddr for proper bootstrapping 
+    // const didUpdate = updatePeerAddressesInServiceJsonFile(argv.serviceJsonFilePath, [env.LEADER_IPFS_CLUSTER_MULTIADDR])
+    // if (didUpdate) {
+    //     console.log("Updated service.json with leader ipfs cluster multiaddr", env.LEADER_IPFS_CLUSTER_MULTIADDR, "restarting ipfs cluster service")
+    //     restartIpfsClusterServiceViaFile(argv.restartFilePath)
+    // } else {
+    //     console.log("Not restarting IPFS Cluster service because service.json was not updated")
+    // }
 
     // subscribe to finalized heads:
     //  - update latest inscription map
@@ -313,6 +331,20 @@ async function main() {
         }
     })
 
+    const app = express()
+
+    app.get('/trusted-peers', (req, res) => {
+        res.json(Array.from(trustedIpfsClusterIds))
+    })
+
+    app.get('/health', (req, res) => {
+        console.log("health check")
+        res.send('OK')
+    })
+
+    app.listen(argv.port, () => {
+        console.log('Server is running on port', argv.port)
+    })
 }
 
 /**
