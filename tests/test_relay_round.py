@@ -17,7 +17,13 @@ import bittensor as bt
 from tests.utils.articles import get_articles
 
 
-async def runner(chain_endpoint: str):
+async def runner(args: argparse.Namespace):
+    chain_endpoint = args.chain_endpoint
+    axon_wallet = args.axon_wallet
+    axon_hotkey = args.axon_hotkey
+    axon_ip = args.axon_ip
+    axon_port = args.axon_port
+
     articles = get_articles()
 
     bt.logging.set_debug()
@@ -61,11 +67,20 @@ async def runner(chain_endpoint: str):
         CID=cid,
     )
 
-    metagraph = bt.metagraph(netuid=1, network=chain_endpoint)
+    # metagraph = bt.metagraph(netuid=1, network=chain_endpoint)
+    #     test_uid = 16
 
-    test_uid = 16
+    axon_wallet = bt.wallet(name=axon_wallet, hotkey=axon_hotkey)
 
-    axons: list[bt.axon] = [metagraph.axons[test_uid]]
+    axon = bt.axon(
+        wallet=axon_wallet,
+        ip=axon_ip,
+        port=axon_port,
+    )
+
+    axons = [axon]
+
+    bt.logging.debug(f"Querying axons: {axons}")
 
     bt.logging.debug(f"Querying axons: {axons}")
 
@@ -76,18 +91,20 @@ async def runner(chain_endpoint: str):
         deserialize=False,
     )
 
-    bt.logging.debug(f"Received responses: {responses}")
-
     chunks = responses[0].chunks
     bt.logging.debug(f"Received {len(chunks)} chunks" if chunks else "No chunks received")
 
 
-def test_relay_round(chain_endpoint: str):
-    asyncio.run(runner(chain_endpoint))
+def test_relay_round(args: argparse.Namespace):
+    asyncio.run(runner(args))
 
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--chain_endpoint", type=str, default="ws://127.0.0.1:9946")
+    argparser.add_argument("--axon_wallet", type=str, default="owner-localnet")
+    argparser.add_argument("--axon_hotkey", type=str, default="miner1")
+    argparser.add_argument("--axon_ip", type=str, default="127.0.0.1")
+    argparser.add_argument("--axon_port", type=int, default=8092)
     args = argparser.parse_args()
-    test_relay_round(args.chain_endpoint)
+    test_relay_round(args)
