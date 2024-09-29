@@ -46,38 +46,41 @@ class Miner(BaseMinerNeuron):
         self.recent_queries = []
 
     async def check_synapse(self, synapse: chunking.protocol.chunkSynapse) -> bool:
+        try:
+            if not synapse.CID:
+                bt.logging.error("No CID found in synapse")
+                return False
 
-        if not synapse.CID:
-            bt.logging.error("No CID found in synapse")
+            raw_content = get_from_ipfs(synapse.CID)
+
+            if not raw_content:
+                bt.logging.error(f"No content found in IPFS for CID: {synapse.CID}")
+                return False
+
+            obj = json.loads(raw_content)
+
+            message = obj["message"]
+
+            if not message:
+                bt.logging.error("No message found in IPFS object")
+                return False
+
+            signature = obj["signature"]
+
+            if not signature:
+                bt.logging.error("No signature found in IPFS object")
+                return False
+
+            validator_hotkey = synapse.dendrite.hotkey
+
+            if not verify_signature(signature, message, validator_hotkey):
+                bt.logging.error("Signature mismatch")
+                return False
+
+            return True
+        except Exception as e:
+            bt.logging.error(f"Error checking synapse: {e}")
             return False
-
-        raw_content = get_from_ipfs(synapse.CID)
-
-        if not raw_content:
-            bt.logging.error(f"No content found in IPFS for CID: {synapse.CID}")
-            return False
-
-        obj = json.loads(raw_content)
-
-        message = obj["message"]
-
-        if not message:
-            bt.logging.error("No message found in IPFS object")
-            return False
-
-        signature = obj["signature"]
-
-        if not signature:
-            bt.logging.error("No signature found in IPFS object")
-            return False
-
-        validator_hotkey = synapse.dendrite.hotkey
-
-        if not verify_signature(signature, message, validator_hotkey):
-            bt.logging.error("Signature mismatch")
-            return False
-
-        return True
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
@@ -99,7 +102,9 @@ class Miner(BaseMinerNeuron):
         )
 
         if not await self.check_synapse(synapse):
-            bt.logging.error(f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}")
+            bt.logging.error(
+                f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}"
+            )
             return synapse
 
         document = sent_tokenize(synapse.document)
