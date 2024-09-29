@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 from random import random
 from re import A
@@ -16,7 +17,7 @@ import bittensor as bt
 from tests.utils.articles import get_articles
 
 
-async def runner():
+async def runner(chain_endpoint: str):
     articles = get_articles()
 
     bt.logging.set_debug()
@@ -60,7 +61,7 @@ async def runner():
         CID=cid,
     )
 
-    metagraph = bt.metagraph(netuid=1, network="ws://127.0.0.1:9946")
+    metagraph = bt.metagraph(netuid=1, network=chain_endpoint)
 
     test_uid = 16
 
@@ -79,9 +80,12 @@ async def runner():
     assert responses[0].chunks is not None
 
 
-def test_relay_round():
-    asyncio.run(runner())
+def test_relay_round(chain_endpoint: str):
+    asyncio.run(runner(chain_endpoint))
 
 
 if __name__ == "__main__":
-    test_relay_round()
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("--chain_endpoint", type=str, default="ws://127.0.0.1:9946")
+    args = argparser.parse_args()
+    test_relay_round(args.chain_endpoint)

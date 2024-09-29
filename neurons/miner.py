@@ -98,7 +98,7 @@ class Miner(BaseMinerNeuron):
             f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}"
         )
 
-        if not self.check_synapse(synapse):
+        if not await self.check_synapse(synapse):
             bt.logging.error(f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}")
             return synapse
 
