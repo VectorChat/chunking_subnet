@@ -50,7 +50,7 @@ async def runner(args: argparse.Namespace):
     bt.logging.debug(f"Generated doc, {len(doc)} chars")
 
     cid = await make_relay_payload(
-        None, doc, aclient, "text-embedding-ada-002", vali_wallet
+        None, doc, aclient, "text-embedding-ada-002", vali_wallet, True
     )
 
     bt.logging.debug(f"Made relay payload: {cid}")
@@ -84,8 +84,6 @@ async def runner(args: argparse.Namespace):
 
     bt.logging.debug(f"Querying axons: {axons}")
 
-    bt.logging.debug(f"Querying axons: {axons}")
-
     responses: list[chunkSynapse] = vali_dendrite.query(
         axons=axons,
         timeout=synapse.timeout,
@@ -97,6 +95,7 @@ async def runner(args: argparse.Namespace):
     bt.logging.debug(
         f"Received {len(chunks)} chunks" if chunks else "No chunks received"
     )
+
 
 def test_relay_round(args: argparse.Namespace):
     asyncio.run(runner(args))

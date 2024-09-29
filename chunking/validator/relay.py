@@ -13,6 +13,7 @@ from chunking.utils.tokens import (
 from neurons.validator import Validator
 import hashlib
 import bittensor as bt
+import numpy as np
 
 
 def sha256_hash(data: str) -> str:
@@ -26,6 +27,11 @@ async def make_embeddings(
     embedding_model: str | None = None,
     verbose=False,
 ) -> str:
+    def _verbose(message: str):
+        if verbose:
+            print(message)
+
+    _verbose(f"Making embeddings for document of length {len(document)} chars")
 
     if not self and (not openai_client and not embedding_model):
         raise ValueError(
@@ -43,12 +49,12 @@ async def make_embeddings(
     for i in range(0, len(tokens), token_limit):
         chunk_tokens = tokens[i : i + token_limit]
         chunk = get_string_from_tokens(chunk_tokens, embedding_model)
+        _verbose(f"Chunk: {chunk[:100]}...")
         embed_chunks.append(chunk)
 
-    if verbose:
-        print(
-            f"Embed chunk sizes: {[num_tokens_from_string(chunk, embedding_model) for chunk in embed_chunks]}"
-        )
+    _verbose(
+        f"Embed chunk sizes: {[num_tokens_from_string(chunk, embedding_model) for chunk in embed_chunks]}"
+    )
 
     coros = []
     for chunk in embed_chunks:
@@ -56,9 +62,17 @@ async def make_embeddings(
             openai_client.embeddings.create(model=embedding_model, input=chunk)
         )
 
+    _verbose(f"Waiting for {len(coros)} coroutines to complete")
+
     results = await asyncio.gather(*coros)
 
     embeddings = [result.data[0].embedding for result in results]
+
+    for i, embedding in enumerate(embeddings):
+        _verbose(f"Embedding {i} size: {len(embedding)}")
+        # if any NaN in embedding, print the embedding
+        if np.any(np.isnan(embedding)):
+            _verbose(f"Embedding {i} has NaN values: {embedding}\n\nCorresponding chunk: {embed_chunks[i][:100]}...")
 
     return embeddings
 
