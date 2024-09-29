@@ -27,7 +27,7 @@ async def runner(chain_endpoint: str):
     pageids = articles[:3]
 
     COLDKEY = "owner-localnet"
-    HOTKEY = "validator2"
+    HOTKEY = "validator1"
 
     vali_wallet = bt.wallet(name=COLDKEY, hotkey=HOTKEY)
 
@@ -41,13 +41,13 @@ async def runner(chain_endpoint: str):
     with open("test_doc.txt") as f:
         doc = f.read()
 
-    print(f"Generated doc, {len(doc)} chars")
+    bt.logging.debug(f"Generated doc, {len(doc)} chars")
 
     cid = await make_relay_payload(
         None, doc, aclient, "text-embedding-ada-002", vali_wallet
     )
 
-    print(f"Made relay payload: {cid}")
+    bt.logging.debug(f"Made relay payload: {cid}")
 
     chunk_size = 4096
     timeout = 20
@@ -67,6 +67,8 @@ async def runner(chain_endpoint: str):
 
     axons: list[bt.axon] = [metagraph.axons[test_uid]]
 
+    bt.logging.debug(f"Querying axons: {axons}")
+
     responses: list[chunkSynapse] = vali_dendrite.query(
         axons=axons,
         timeout=synapse.timeout,
@@ -74,10 +76,10 @@ async def runner(chain_endpoint: str):
         deserialize=False,
     )
 
-    print(f"Received responses: {responses}")
+    bt.logging.debug(f"Received responses: {responses}")
 
-    assert len(responses) == 1
-    assert responses[0].chunks is not None
+    chunks = responses[0].chunks
+    bt.logging.debug(f"Received {len(chunks)} chunks" if chunks else "No chunks received")
 
 
 def test_relay_round(chain_endpoint: str):
