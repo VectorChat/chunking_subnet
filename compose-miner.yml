@@ -6,7 +6,7 @@ services:
     image: ipfs/kubo:release
     ports:
       - "4001:4001" # ipfs swarm - expose if needed/wanted
-      # - "5001:5001" # ipfs api - expose if needed/wanted
+      - "127.0.0.1:5001:5001" # ipfs api - expose if needed/wanted
     #     - "8080:8080" # ipfs gateway - expose if needed/wanted
     environment:
       LIBP2P_FORCE_PNET: 1
