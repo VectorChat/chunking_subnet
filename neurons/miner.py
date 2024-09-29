@@ -35,6 +35,7 @@ from bittensor.constants import V_7_2_0
 
 from chunking.utils.ipfs import get_from_ipfs
 from chunking.utils.signature import verify_signature
+from chunking.validator.relay import sha256_hash
 
 
 class Miner(BaseMinerNeuron):
@@ -67,6 +68,8 @@ class Miner(BaseMinerNeuron):
                 bt.logging.error("No message found in IPFS object")
                 return False
 
+            message_hash = sha256_hash(message)
+
             signature = obj["signature"]
 
             print(f"Got signature: {signature}")
@@ -80,7 +83,7 @@ class Miner(BaseMinerNeuron):
             print(f"Validator hotkey: {validator_hotkey}")
 
             print(f"Verifying signature...")
-            if not verify_signature(signature, message, validator_hotkey):
+            if not verify_signature(signature, message_hash, validator_hotkey):
                 bt.logging.error("Signature mismatch")
                 return False
 

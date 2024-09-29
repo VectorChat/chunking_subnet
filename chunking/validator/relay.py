@@ -29,7 +29,7 @@ async def make_embeddings(
 ) -> str:
     def _verbose(message: str):
         if verbose:
-            print(message)
+            bt.logging.debug(message)
 
     _verbose(f"Making embeddings for document of length {len(document)} chars")
 
