@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   ipfs:
-    container_name: ipfs
+    container_name: miner-ipfs
     image: ipfs/kubo:release
     ports:
       - "4001:4001" # ipfs swarm - expose if needed/wanted
@@ -30,6 +30,7 @@ services:
       interval: 10s
 
   cluster:
+    container_name: miner-cluster
     # image: ipfs/ipfs-cluster:latest
     build:
       context: ./
@@ -61,6 +62,7 @@ services:
     restart: unless-stopped
 
   listener:
+    container_name: miner-listener
     build:
       context: ./relay/ts
     command: sh -c "npx tsx src/listener.ts ${LISTENER_ARGS}"

@@ -27,15 +27,115 @@ class Task:
         synapse: chunkSynapse,
         task_type: chunkSynapseType,
         task_id: int,
+        page_id: int = -1,
         miner_uids: Optional[List[int]] = None,
     ):
         self.synapse = synapse
         self.task_type = task_type
         self.task_id = task_id
         self.miner_uids = miner_uids
+        self.page_id = page_id
 
     @classmethod
-    def get_new_task(self, validator: Validator) -> Tuple["Task", int]:
+    def get_organic_task(cls, validator: Validator) -> Optional["Task"]:
+        """
+        Get an organic task from the API host.
+
+        Args:
+            validator (Validator): The validator instance requesting the task.
+
+        Returns:
+            Task: The organic task
+        """
+        hotkey = validator.wallet.get_hotkey()
+        nonce = time.time_ns()
+        data = {"hotkey_address": hotkey.ss58_address, "nonce": nonce}
+
+        bt.logging.debug(
+            f"Requesting task from API host: '{os.environ['CHUNKING_API_HOST']}'"
+        )
+        bt.logging.debug(f"Request body: {data}")
+
+        # sign request with validator hotkey
+        request_signature = sign(
+            (hotkey.public_key, hotkey.private_key), str.encode(json.dumps(data))
+        ).hex()
+
+        API_host = os.environ["CHUNKING_API_HOST"]
+        task_url = f"{API_host}/task_api/get_new_task/"
+        headers = {"Content-Type": "application/json"}
+        request_data = {"data": data, "signature": request_signature}
+        bt.logging.debug(f"Request data: {request_data}")
+
+        try:
+            response = requests.post(url=task_url, headers=headers, json=request_data)
+            if response.status_code == 502:
+                raise Exception(f"API Host: '{API_host}' is down")
+            elif response.status_code == 403:
+                raise Exception(response.text())
+            elif response.status_code != 200:
+                raise Exception(
+                    f"Post to API failed with status code: {response.status_code}"
+                )
+            else:
+                task = response.json()
+                if task["task_id"] != -1:
+                    task_id = task["task_id"]
+                    miner_uids = task.get("miner_uids")
+                    bt.logging.debug(f"Received organic query with task id: {task_id}")
+                    if task.get("time_soft_max") == None:
+                        task["time_soft_max"] = 5.0
+                    if task.get("chunk_size") == None:
+                        task["chunk_size"] = 4096
+                    if task.get("chunk_qty") == None:
+                        task["chunk_qty"] = ceil(
+                            ceil(len(task["document"]) / task["chunk_size"]) * 1.5
+                        )
+                    bt.logging.debug(f"task: {task}")
+
+                    synapse = chunkSynapse(
+                        document=task["document"],
+                        time_soft_max=float(task["time_soft_max"]),
+                        chunk_size=int(task["chunk_size"]),
+                        chunk_qty=int(task["chunk_qty"]),
+                    )
+                else:
+                    bt.logging.info(
+                        f"No organic task available. Generating synthetic query"
+                    )
+                    raise Exception("No organic task available")
+                return (
+                    Task(
+                        synapse=synapse,
+                        task_type="organic",
+                        task_id=task_id,
+                        miner_uids=miner_uids,
+                    ),
+                )
+
+        except Exception as e:
+            bt.logging.error(
+                f"Failed to get task from API host: '{API_host}'. Exited with exception\n{e}"
+            )
+            return None
+
+    @classmethod
+    def get_synthetic_task(cls, validator: Validator) -> "Task":
+        """
+        Get a synthetic task from the API host.
+
+        Args:
+            validator (Validator): The validator instance requesting the task.
+
+        Returns:
+            Task: The synthetic task
+        """
+        bt.logging.debug("Generating synthetic query")
+        synapse, page = generate_synthetic_synapse(validator)
+        return Task(synapse=synapse, task_type="synthetic", task_id=-1, page_id=page)
+
+    @classmethod
+    async def get_new_task(self, validator: Validator) -> "Task":
         """
         Get a new task based on the validator's config.
 
@@ -53,84 +153,22 @@ class Task:
             Tuple[Task, int]: A tuple containing the task and the page ID.
         """
         if os.environ.get("ALLOW_ORGANIC_CHUNKING_QUERIES") == "True":
-            hotkey = validator.wallet.get_hotkey()
-            nonce = time.time_ns()
-            data = {"hotkey_address": hotkey.ss58_address, "nonce": nonce}
+            task = self.get_organic_task(validator)
+        else:
+            task = None
 
-            bt.logging.debug(
-                f"Requesting task from API host: '{os.environ['CHUNKING_API_HOST']}'"
-            )
-            bt.logging.debug(f"Request body: {data}")
+        if task is None:
+            task = self.get_synthetic_task(validator)
 
-            # sign request with validator hotkey
-            request_signature = sign(
-                (hotkey.public_key, hotkey.private_key), str.encode(json.dumps(data))
-            ).hex()
+        bt.logging.debug(f"Created task: {task}")
 
-            API_host = os.environ["CHUNKING_API_HOST"]
-            task_url = f"{API_host}/task_api/get_new_task/"
-            headers = {"Content-Type": "application/json"}
-            request_data = {"data": data, "signature": request_signature}
-            bt.logging.debug(f"Request data: {request_data}")
+        CID = await make_relay_payload(validator, task.synapse.document)
 
-            try:
-                response = requests.post(
-                    url=task_url, headers=headers, json=request_data
-                )
-                if response.status_code == 502:
-                    raise Exception(f"API Host: '{API_host}' is down")
-                elif response.status_code == 403:
-                    raise Exception(response.text())
-                elif response.status_code != 200:
-                    raise Exception(
-                        f"Post to API failed with status code: {response.status_code}"
-                    )
-                else:
-                    task = response.json()
-                    if task["task_id"] != -1:
-                        task_id = task["task_id"]
-                        miner_uids = task.get("miner_uids")
-                        bt.logging.debug(
-                            f"Received organic query with task id: {task_id}"
-                        )
-                        if task.get("time_soft_max") == None:
-                            task["time_soft_max"] = 5.0
-                        if task.get("chunk_size") == None:
-                            task["chunk_size"] = 4096
-                        if task.get("chunk_qty") == None:
-                            task["chunk_qty"] = ceil(
-                                ceil(len(task["document"]) / task["chunk_size"]) * 1.5
-                            )
-                        bt.logging.debug(f"task: {task}")
+        task.synapse.CID = CID
 
-                        synapse = chunkSynapse(
-                            document=task["document"],
-                            time_soft_max=float(task["time_soft_max"]),
-                            chunk_size=int(task["chunk_size"]),
-                            chunk_qty=int(task["chunk_qty"]),
-                        )
-                    else:
-                        bt.logging.info(
-                            f"No organic task available. Generating synthetic query"
-                        )
-                        raise Exception("No organic task available")
-                return (
-                    Task(
-                        synapse=synapse,
-                        task_type="organic",
-                        task_id=task_id,
-                        miner_uids=miner_uids,
-                    ),
-                    -1,
-                )
+        bt.logging.debug(f"Added CID: {CID} to task")
 
-            except Exception as e:
-                bt.logging.error(
-                    f"Failed to get task from API host: '{API_host}'. Exited with exception\n{e}"
-                )
-        bt.logging.debug("Generating synthetic query")
-        synapse, page = generate_synthetic_synapse(validator)
-        return (Task(synapse=synapse, task_type="synthetic", task_id=-1), page)
+        return task
 
     @classmethod
     def return_response(cls, validator, response_data):
@@ -231,11 +269,16 @@ def get_wiki_content_for_page(pageid: int) -> str:
     return response["extract"], response["title"]
 
 
-def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
+def generate_doc_with_llm(validator, pageids=None, timeout=20, client=None) -> str:
+    if pageids and len(pageids) != 3:
+        raise ValueError("pageids must be a list of 3 pageids")
+
+    client = client if client is not None else validator.client
+
     pages = (
-        choices(validator.articles, k=3)
-        if pageids == None or len(pageids) < 3
-        else pageids
+        choices(pageids, k=3)
+        if pageids != None and len(pageids) == 3
+        else choices(validator.articles, k=3)
     )
     source_articles = []
     article_names = []
@@ -250,7 +293,7 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
     start = time.time()
 
     synthetic_document = (
-        validator.client.chat.completions.create(
+        client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.7,
             messages=[
@@ -286,7 +329,7 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
 
     for j in range(5):
         next_synthesis = (
-            validator.client.chat.completions.create(
+            client.chat.completions.create(
                 model="gpt-4o-mini",
                 temperature=0.7,
                 messages=[
@@ -351,15 +394,17 @@ def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, 
         content = get_wiki_content_for_page(page)
     return content, page
 
+def calculate_chunk_qty(document: str, chunk_size: int) -> int:
+    return ceil(ceil(len(document) / chunk_size) * 1.5)
 
-def generate_synthetic_synapse(validator, timeout=20) -> Tuple[chunkSynapse, int]:
+def generate_synthetic_synapse(validator, timeout=20, pageids=None) -> Tuple[chunkSynapse, int]:
 
     bt.logging.info("Generating synthetic query with llm")
-    document = generate_doc_with_llm(validator)
+    document = generate_doc_with_llm(validator, pageids)
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
-    chunk_qty = ceil(ceil(len(document) / chunk_size) * 1.5)
+    chunk_qty = calculate_chunk_qty(document, chunk_size)
     synapse = chunkSynapse(
         document=document,
         time_soft_max=time_soft_max,

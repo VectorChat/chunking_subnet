@@ -30,22 +30,54 @@ import json
 from sr25519 import sign
 from substrateinterface import Keypair
 
-from bittensor.errors import (
-    SynapseDendriteNoneException
-)
+from bittensor.errors import SynapseDendriteNoneException
 from bittensor.constants import V_7_2_0
+
+from chunking.utils.ipfs import get_from_ipfs
+from chunking.utils.signature import verify_signature
+
 
 class Miner(BaseMinerNeuron):
 
     def __init__(self):
         super(Miner, self).__init__()
-        
+
         self.nonces = {}
         self.recent_queries = []
 
     async def check_synapse(self, synapse: chunking.protocol.chunkSynapse) -> bool:
 
-        pass
+        if not synapse.CID:
+            bt.logging.error("No CID found in synapse")
+            return False
+
+        raw_content = get_from_ipfs(synapse.CID)
+
+        if not raw_content:
+            bt.logging.error(f"No content found in IPFS for CID: {synapse.CID}")
+            return False
+
+        obj = json.loads(raw_content)
+
+        message = obj["message"]
+
+        if not message:
+            bt.logging.error("No message found in IPFS object")
+            return False
+
+        signature = obj["signature"]
+
+        if not signature:
+            bt.logging.error("No signature found in IPFS object")
+            return False
+
+        validator_hotkey = synapse.dendrite.hotkey
+
+        if not verify_signature(signature, message, validator_hotkey):
+            bt.logging.error("Signature mismatch")
+            return False
+
+        return True
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
@@ -60,69 +92,85 @@ class Miner(BaseMinerNeuron):
             chunking.protocol.chunkSynapse: The synapse object with the 'chunks' field set to the generated chunks.
 
         """
-        # default miner logic, see docs/miner_guide.md for help writing your own miner logic
 
-        bt.logging.debug(f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}")
+        # default miner logic, see docs/miner_guide.md for help writing your own miner logic
+        bt.logging.debug(
+            f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}"
+        )
+
+        if not self.check_synapse(synapse):
+            bt.logging.error(f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}")
+            return synapse
 
         document = sent_tokenize(synapse.document)
         document_words = word_tokenize(synapse.document)
-        bt.logging.debug(f"From hotkey {synapse.dendrite.hotkey[:10]}: Received query: \"{document[0]} ...\"")
+        bt.logging.debug(
+            f'From hotkey {synapse.dendrite.hotkey[:10]}: Received query: "{document[0]} ..."'
+        )
 
         removal_stack = []
         for i, query in enumerate(self.recent_queries):
-            if time.time() > query['timeout']:
+            if time.time() > query["timeout"]:
                 removal_stack.append(i)
-                
+
         while len(removal_stack) > 0:
             del self.recent_queries[removal_stack.pop(-1)]
 
-        
         for query in self.recent_queries:
-            if abs(len(synapse.document) - query['length']) < 1000:
+            if abs(len(synapse.document) - query["length"]) < 1000:
                 match_count = 0
                 checks_count = 0
                 # check how closely the incoming document matches previous queries
                 for i in range(len(document_words) - 3):
-                    if ' '.join(document_words[i:i+3]) in query['combined_words']:
+                    if " ".join(document_words[i : i + 3]) in query["combined_words"]:
                         match_count += 1
                     checks_count += 1
                 if match_count / checks_count > 0.35:
-                    bt.logging.debug(f"Ignoring duplicate query from hotkey {synapse.dendrite.hotkey}")
+                    bt.logging.debug(
+                        f"Ignoring duplicate query from hotkey {synapse.dendrite.hotkey}"
+                    )
                     return None
 
-        self.recent_queries.append({
-                'timeout': synapse.timeout + time.time(),
-                'length': len(synapse.document),
-                'combined_words': ' '.join(document_words)
-        })
-        
-        chunks = []       
+        self.recent_queries.append(
+            {
+                "timeout": synapse.timeout + time.time(),
+                "length": len(synapse.document),
+                "combined_words": " ".join(document_words),
+            }
+        )
+
+        chunks = []
         while len(document) > 0:
             chunks.append(document[0])
             del document[0]
             while len(document) > 0:
                 if len(chunks[-1] + " " + document[0]) > synapse.chunk_size:
                     break
-                chunks[-1] += (" " + document.pop(0))
+                chunks[-1] += " " + document.pop(0)
 
         bt.logging.debug(f"Created {len(chunks)} chunks")
 
         synapse.chunks = chunks
 
         response_data = {
-            'document': synapse.document,
-            'chunk_size': synapse.chunk_size,
-            'chunk_qty': synapse.chunk_qty,
-            'chunks': synapse.chunks,
+            "document": synapse.document,
+            "chunk_size": synapse.chunk_size,
+            "chunk_qty": synapse.chunk_qty,
+            "chunks": synapse.chunks,
         }
-                
-        synapse.miner_signature = str(sign(
-            (self.wallet.get_hotkey().public_key, self.wallet.get_hotkey().private_key),
-            str.encode(json.dumps(response_data))
-        ).hex())
-        
+
+        synapse.miner_signature = str(
+            sign(
+                (
+                    self.wallet.get_hotkey().public_key,
+                    self.wallet.get_hotkey().private_key,
+                ),
+                str.encode(json.dumps(response_data)),
+            ).hex()
+        )
+
         bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
-        
+
         return synapse
 
     async def blacklist(
@@ -159,39 +207,49 @@ class Miner(BaseMinerNeuron):
         """
         uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
         if (
-            not synapse.dendrite.hotkey or
-            not synapse.dendrite.hotkey in self.metagraph.hotkeys
+            not synapse.dendrite.hotkey
+            or not synapse.dendrite.hotkey in self.metagraph.hotkeys
         ):
             if self.config.blacklist.allow_non_registered:
-                bt.logging.warning(f"Accepting request from un-registered hotkey {synapse.dendrite.hotkey}")
+                bt.logging.warning(
+                    f"Accepting request from un-registered hotkey {synapse.dendrite.hotkey}"
+                )
                 return False, "Allowing un-registered hotkey"
             else:
                 # Ignore requests from un-registered entities.
-                bt.logging.warning(f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}")
+                bt.logging.warning(
+                    f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}"
+                )
                 return True, "Unrecognized hotkey"
 
         if not self.metagraph.validator_permit[uid]:
             if self.config.blacklist.force_validator_permit:
                 # Ignore request from non-validator
-                bt.logging.warning(f"Blacklisting a request from non-validator hotkey {synapse.dendrite.hotkey}")
+                bt.logging.warning(
+                    f"Blacklisting a request from non-validator hotkey {synapse.dendrite.hotkey}"
+                )
                 return True, "Non-validator hotkey"
             else:
-                bt.logging.warning(f"Accepting request from non-validator hotkey {synapse.dendrite.hotkey}")
+                bt.logging.warning(
+                    f"Accepting request from non-validator hotkey {synapse.dendrite.hotkey}"
+                )
                 return False, "Validator permit not required"
-            
+
         stake = self.metagraph.S[uid].item()
-        
+
         if stake < self.config.blacklist.minimum_stake:
             # Ignore request from entity with insufficient stake.
-            bt.logging.warning(f"Blacklisting request from hotkey {synapse.dendrite.hotkey} with insufficient stake: {stake}")
+            bt.logging.warning(
+                f"Blacklisting request from hotkey {synapse.dendrite.hotkey} with insufficient stake: {stake}"
+            )
             return True, "Insufficient stake"
 
-        bt.logging.debug(f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}")
+        bt.logging.debug(
+            f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
+        )
         return False, "Hotkey recognized!"
 
-    async def priority(
-        self, synapse: chunking.protocol.chunkSynapse
-    ) -> float:
+    async def priority(self, synapse: chunking.protocol.chunkSynapse) -> float:
         """
         The priority function determines the order in which requests are handled. More valuable or higher-priority
         requests are processed before others. You should design your own priority mechanism with care.
@@ -211,9 +269,15 @@ class Miner(BaseMinerNeuron):
         Example priority logic:
         - A higher stake results in a higher priority value.
         """
-        caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)  # Get the caller index.
-        priority = float(self.metagraph.S[caller_uid])  # Return the stake as the priority.
-        bt.logging.debug(f"Prioritizing {synapse.dendrite.hotkey} with value: ", priority)
+        caller_uid = self.metagraph.hotkeys.index(
+            synapse.dendrite.hotkey
+        )  # Get the caller index.
+        priority = float(
+            self.metagraph.S[caller_uid]
+        )  # Return the stake as the priority.
+        bt.logging.debug(
+            f"Prioritizing {synapse.dendrite.hotkey} with value: ", priority
+        )
         return priority
 
     def _to_nanoseconds(self, seconds: float) -> int:
@@ -222,15 +286,13 @@ class Miner(BaseMinerNeuron):
     def _to_seconds(self, nanoseconds: int) -> float:
         return float(nanoseconds / 1_000_000_000)
 
-    async def verify(
-        self, synapse: chunking.protocol.chunkSynapse
-    ) -> None:
-        
+    async def verify(self, synapse: chunking.protocol.chunkSynapse) -> None:
+
         if self.config.neuron.disable_verification:
             bt.logging.warning("Verification disabled")
             return
-        
-         # Build the keypair from the dendrite_hotkey
+
+        # Build the keypair from the dendrite_hotkey
         if synapse.dendrite is not None:
             keypair = Keypair(ss58_address=synapse.dendrite.hotkey)
 
@@ -243,42 +305,56 @@ class Miner(BaseMinerNeuron):
             # Requests must have nonces to be safe from replays
             if synapse.dendrite.nonce is None:
                 raise Exception("Missing Nonce")
-                        
-                        
 
-            if synapse.dendrite.version is not None and synapse.dendrite.version >= V_7_2_0:
+            if (
+                synapse.dendrite.version is not None
+                and synapse.dendrite.version >= V_7_2_0
+            ):
                 bt.logging.debug(f"Using custom synapse verification logic")
                 # If we don't have a nonce stored, ensure that the nonce falls within
                 # a reasonable delta.
                 cur_time = time.time_ns()
-                
-                allowed_delta = min(self.config.neuron.synapse_verify_allowed_delta, self._to_nanoseconds(synapse.timeout or 0))
-                
-                latest_allowed_nonce = synapse.dendrite.nonce + allowed_delta                                
-                
+
+                allowed_delta = min(
+                    self.config.neuron.synapse_verify_allowed_delta,
+                    self._to_nanoseconds(synapse.timeout or 0),
+                )
+
+                latest_allowed_nonce = synapse.dendrite.nonce + allowed_delta
+
                 bt.logging.debug(f"synapse.dendrite.nonce: {synapse.dendrite.nonce}")
                 bt.logging.debug(f"latest_allowed_nonce: {latest_allowed_nonce}")
                 bt.logging.debug(f"cur time: {cur_time}")
-                bt.logging.debug(f"delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}")
-                
+                bt.logging.debug(
+                    f"delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}"
+                )
+
                 if (
                     self.nonces.get(endpoint_key) is None
                     and synapse.dendrite.nonce > latest_allowed_nonce
                 ):
-                    raise Exception(f"Nonce is too old. Allowed delta in seconds: {self._to_seconds(allowed_delta)}, got delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}")
+                    raise Exception(
+                        f"Nonce is too old. Allowed delta in seconds: {self._to_seconds(allowed_delta)}, got delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}"
+                    )
                 if (
                     self.nonces.get(endpoint_key) is not None
                     and synapse.dendrite.nonce <= self.nonces[endpoint_key]
                 ):
-                    raise Exception(f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}")
+                    raise Exception(
+                        f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}"
+                    )
             else:
-                bt.logging.warning(f"Using synapse verification logic for version < 7.2.0: {synapse.dendrite.version}")
+                bt.logging.warning(
+                    f"Using synapse verification logic for version < 7.2.0: {synapse.dendrite.version}"
+                )
                 if (
                     endpoint_key in self.nonces.keys()
                     and self.nonces[endpoint_key] is not None
                     and synapse.dendrite.nonce <= self.nonces[endpoint_key]
                 ):
-                    raise Exception(f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}")
+                    raise Exception(
+                        f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}"
+                    )
 
             if not keypair.verify(message, synapse.dendrite.signature):
                 raise Exception(
@@ -289,6 +365,7 @@ class Miner(BaseMinerNeuron):
             self.nonces[endpoint_key] = synapse.dendrite.nonce  # type: ignore
         else:
             raise SynapseDendriteNoneException(synapse=synapse)
+
 
 # This is the main function, which runs the miner.
 if __name__ == "__main__":

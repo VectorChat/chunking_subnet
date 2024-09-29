@@ -5,9 +5,9 @@ services:
     container_name: ipfs
     image: ipfs/kubo:release
     ports:
-      - "4001:4001" # ipfs swarm - expose if needed/wanted
-      # - "5001:5001" # ipfs api - expose if needed/wanted
-    #     - "8080:8080" # ipfs gateway - expose if needed/wanted
+      - "4001:4001" # ipfs swarm
+      - "127.0.0.1:5001:5001" # ipfs api
+    #     - "8080:8080" # ipfs gateway
     environment:
       LIBP2P_FORCE_PNET: 1
       LEADER_IPFS_MULTIADDR: ${LEADER_IPFS_MULTIADDR}
@@ -46,9 +46,6 @@ services:
     ports:
       # Open API port (allows ipfs-cluster-ctl usage on host)
       - "127.0.0.1:9094:9094"
-      # The cluster swarm port would need  to be exposed if this container
-      # was to connect to cluster peers on other hosts.
-      # But this is just a testing cluster.
       # - "9095:9095" # Cluster IPFS Proxy endpoint
       - "9096:9096" # Cluster swarm endpoint
     volumes:

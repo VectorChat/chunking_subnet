@@ -231,40 +231,7 @@ async function main() {
         })
         .option('netuid', {
             type: 'number',
-            description: 'The ID of the subnet to listen for',
-        })
-        .option('min-stake', {
-            type: 'number',
-            description: 'The minimum stake in TAO for a validator that advertises its IPFS cluster ID to be considered trusted.',
-        })
-        .option('time-window', {
-            type: 'number',
-            description: 'The number of blocks to look back to consider an IPFS cluster ID trusted.',
-            default: 300 // 1 hour 
-        })
-        .option('allow-unsuccessful-commitments', {
-            type: 'boolean',
-            description: 'Whether to allow unsuccessful commitments to be considered handled, should only be used when debugging'
-        })
-        .option('restart-file-path', {
-            type: 'string',
-            description: 'The path to the file that will be created to restart the service.',
-            default: '/data/ipfs-cluster/restart'
-        })
-        .option('always-update-service-json', {
-            type: 'boolean',
-            description: 'Whether to always update the service.json file.',
             default: false
-        })
-        .option('service-json-file-path', {
-            type: 'string',
-            description: 'The path to the service.json file.',
-            default: '/data/ipfs-cluster/service.json'
-        })
-        .option('port', {
-            type: 'number',
-            description: 'The port to listen on for the custom API.',
-            default: 3000
         })
         .demandOption(['netuid', 'min-stake'])
         .help()

@@ -133,14 +133,7 @@ async def forward(self: Validator):
     # get new task to query miners with
     # this gets either an organic query from the API or a synthetic query (currently wikipedia)
     try:
-        tuple = Task.get_new_task(validator=self)
-
-        task, pageid = tuple
-
-        CID = await make_relay_payload(self, task.synapse.document)
-
-        task.synapse.CID = CID
-        print(f"Added CID: {CID} to task")
+        task = await Task.get_new_task(validator=self)
 
     except Exception as e:
         bt.logging.error(f"Error getting new task: {e}")
@@ -148,7 +141,7 @@ async def forward(self: Validator):
         return
 
     # log pageid of wikipedia article used for synthetic query
-    wandb_data["pageid"] = pageid
+    wandb_data["pageid"] = task.page_id or -1
 
     # if there are uids to query (organic query), choose a random miner group from the tournament round that contains at least one uid from the organic query
     # if there are no uids to query (synthetic query), choose a random miner group from the tournament round
