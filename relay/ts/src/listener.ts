@@ -231,7 +231,37 @@ async function main() {
         })
         .option('netuid', {
             type: 'number',
+            description: 'The subnet unique identifier.',
+        })
+        .option('min-stake', {
+            type: 'number',
+            description: 'The minimum stake required for a validator to be considered trusted.',
+            default: 100
+        })
+        .option('time-window', {
+            type: 'number',
+            description: 'The time window in blocks to consider the inscription valid.',
+            default: 300
+        })
+        .option('always-update-service-json', {
+            type: 'boolean',
+            description: 'Whether to always update the service.json file.',
             default: false
+        })
+        .option('service-json-file-path', {
+            type: 'string',
+            description: 'The path to the service.json file.',
+            default: '/data/ipfs-cluster/service.json'
+        })
+        .option('restart-file-path', {
+            type: 'string',
+            description: 'The path to the file that will be created to restart the service.',
+            default: '/data/ipfs-cluster/restart'
+        })
+        .option('port', {
+            type: 'number',
+            description: 'The port to run custom endpoints on.',
+            default: 3000
         })
         .demandOption(['netuid', 'min-stake'])
         .help()
