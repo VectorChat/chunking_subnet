@@ -43,7 +43,7 @@ async def make_embeddings(
 
     tokens = get_tokens_from_string(document, embedding_model)
 
-    token_limit = 8192
+    token_limit = 8191
 
     embed_chunks = []
     for i in range(0, len(tokens), token_limit):
