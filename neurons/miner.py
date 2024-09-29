@@ -59,7 +59,9 @@ class Miner(BaseMinerNeuron):
 
             obj = json.loads(raw_content)
 
-            message = obj["message"]
+            message = json.dumps(obj["message"])
+
+            print(f"Got message ({len(message)} chars): {message[:200]}...")
 
             if not message:
                 bt.logging.error("No message found in IPFS object")
@@ -67,12 +69,17 @@ class Miner(BaseMinerNeuron):
 
             signature = obj["signature"]
 
+            print(f"Got signature: {signature}")
+
             if not signature:
                 bt.logging.error("No signature found in IPFS object")
                 return False
 
             validator_hotkey = synapse.dendrite.hotkey
 
+            print(f"Validator hotkey: {validator_hotkey}")
+
+            print(f"Verifying signature...")
             if not verify_signature(signature, message, validator_hotkey):
                 bt.logging.error("Signature mismatch")
                 return False
