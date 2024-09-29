@@ -50,10 +50,15 @@ async def make_embeddings(
             f"Embed chunk sizes: {[num_tokens_from_string(chunk, embedding_model) for chunk in embed_chunks]}"
         )
 
-    embeddings = []
+    coros = []
     for chunk in embed_chunks:
-        res = await openai_client.embeddings.create(model=embedding_model, input=chunk)
-        embeddings.append(res.data[0].embedding)
+        coros.append(
+            openai_client.embeddings.create(model=embedding_model, input=chunk)
+        )
+
+    results = await asyncio.gather(*coros)
+
+    embeddings = [result.data[0].embedding for result in results]
 
     return embeddings
 

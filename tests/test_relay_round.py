@@ -1,5 +1,6 @@
 import asyncio
 from random import random
+from re import A
 
 from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
@@ -42,7 +43,7 @@ async def runner():
     print(f"Generated doc, {len(doc)} chars")
 
     cid = await make_relay_payload(
-        None, doc, client, "text-embedding-ada-002", vali_wallet
+        None, doc, aclient, "text-embedding-ada-002", vali_wallet
     )
 
     print(f"Made relay payload: {cid}")
