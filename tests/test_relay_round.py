@@ -20,7 +20,7 @@ async def runner():
 
     bt.logging.set_debug()
 
-    print(f"Got {len(articles)} articles")
+    bt.logging.debug(f"Got {len(articles)} articles")
 
     pageids = articles[:3]
 
@@ -34,11 +34,16 @@ async def runner():
     client = OpenAI()
     aclient = AsyncOpenAI()
 
-    doc = generate_doc_with_llm(None, pageids=pageids, timeout=20, client=client)
+    # doc = generate_doc_with_llm(None, pageids=pageids, timeout=20, client=client)
 
-    print(f"Generated doc: {doc}")
+    with open("test_doc.txt") as f:
+        doc = f.read()
 
-    cid = await make_relay_payload(None, doc, client, "text-embedding-ada-002", vali_wallet)
+    print(f"Generated doc, {len(doc)} chars")
+
+    cid = await make_relay_payload(
+        None, doc, client, "text-embedding-ada-002", vali_wallet
+    )
 
     print(f"Made relay payload: {cid}")
 
