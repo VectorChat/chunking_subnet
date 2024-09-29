@@ -137,7 +137,7 @@ async def forward(self: Validator):
 
         task, pageid = tuple
 
-        CID = make_relay_payload(self, task.synapse.document)
+        CID = await make_relay_payload(self, task.synapse.document)
 
         task.synapse.CID = CID
         print(f"Added CID: {CID} to task")
