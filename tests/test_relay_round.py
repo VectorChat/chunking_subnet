@@ -67,16 +67,18 @@ async def runner(args: argparse.Namespace):
         CID=cid,
     )
 
-    # metagraph = bt.metagraph(netuid=1, network=chain_endpoint)
-    #     test_uid = 16
+    if args.use_local_axon:
+        axon_wallet = bt.wallet(name=axon_wallet, hotkey=axon_hotkey)
 
-    axon_wallet = bt.wallet(name=axon_wallet, hotkey=axon_hotkey)
-
-    axon = bt.axon(
-        wallet=axon_wallet,
-        ip=axon_ip,
-        port=axon_port,
-    )
+        axon = bt.axon(
+            wallet=axon_wallet,
+            ip=axon_ip,
+            port=axon_port,
+        )
+    else:
+        metagraph = bt.metagraph(netuid=1, network=chain_endpoint)
+        uid = 16
+        axon = metagraph.axons[uid]
 
     axons = [axon]
 
@@ -92,8 +94,9 @@ async def runner(args: argparse.Namespace):
     )
 
     chunks = responses[0].chunks
-    bt.logging.debug(f"Received {len(chunks)} chunks" if chunks else "No chunks received")
-
+    bt.logging.debug(
+        f"Received {len(chunks)} chunks" if chunks else "No chunks received"
+    )
 
 def test_relay_round(args: argparse.Namespace):
     asyncio.run(runner(args))
@@ -106,5 +109,6 @@ if __name__ == "__main__":
     argparser.add_argument("--axon_hotkey", type=str, default="miner1")
     argparser.add_argument("--axon_ip", type=str, default="127.0.0.1")
     argparser.add_argument("--axon_port", type=int, default=8092)
+    argparser.add_argument("--use_local_axon", action="store_true")
     args = argparser.parse_args()
     test_relay_round(args)
