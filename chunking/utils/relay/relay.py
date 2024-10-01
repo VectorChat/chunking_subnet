@@ -6,7 +6,7 @@ import json
 import os
 from typing import List
 from openai import AsyncOpenAI
-from chunking.utils.ipfs.ipfs import add_to_ipfs_cluster, get_pinned_cids
+from chunking.utils.ipfs.ipfs import add_to_ipfs_cluster, get_from_ipfs, get_pinned_cids
 from chunking.utils.relay.types import IPFSRelayPin, RelayMessage, RelayPayload
 from chunking.utils.tokens import (
     get_string_from_tokens,
@@ -171,6 +171,13 @@ async def make_relay_payload(
     _verbose(f"Removed temporary file {tmp_file}")
 
     return cid
+
+
+async def get_relay_payload(cid: str, verbose=False) -> RelayPayload:
+    raw_content = await get_from_ipfs(cid, verbose=verbose)
+    obj = json.loads(raw_content)
+    payload = RelayPayload(**obj)
+    return payload
 
 
 async def get_recent_relay_pins(

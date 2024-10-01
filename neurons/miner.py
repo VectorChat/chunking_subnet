@@ -36,7 +36,7 @@ from bittensor.constants import V_7_2_0
 from chunking.utils.ipfs.ipfs import get_from_ipfs, get_pinned_cids
 from chunking.utils.maths import calc_cosine_similarity
 from chunking.utils.signature import verify_signature
-from chunking.utils.relay.relay import RelayPayload, get_recent_relay_pins, make_embeddings, sha256_hash
+from chunking.utils.relay.relay import RelayPayload, get_recent_relay_pins, get_relay_payload, make_embeddings, sha256_hash
 
 
 class Miner(BaseMinerNeuron):
@@ -106,7 +106,7 @@ class Miner(BaseMinerNeuron):
                 return False
 
             try:
-                relay_payload = await get_from_ipfs(synapse.CID, verbose=True)
+                relay_payload = await get_relay_payload(synapse.CID, verbose=True)
             except Exception as e:
                 bt.logging.error(f"Error getting content from IPFS: {e}")
                 return False
