@@ -1,3 +1,4 @@
+from datetime import timedelta, datetime
 import requests
 import json
 
@@ -35,6 +36,43 @@ def add_to_ipfs_cluster(file_path: str, api_url="http://localhost:9094"):
         print(f"An error occurred: {str(e)}")
         return None
 
+def get_all_cids_and_content(cluster_api_url="http://localhost:9094", ipfs_api_url="http://localhost:5001", delta = timedelta(minutes=20)):
+    """
+    Get all CIDs and their content from the IPFS cluster.
+
+    Args:
+        cluster_api_url (str): URL of the IPFS Cluster API (default: http://localhost:9094)
+        ipfs_api_url (str): URL of the IPFS API (default: http://localhost:5001)
+
+    Returns:
+        dict: A dictionary with CIDs as keys and their content as values
+    """
+    endpoint = f"{cluster_api_url}/pins"
+
+    print(f"Getting all CIDs from IPFS Cluster at {cluster_api_url}")
+
+    try:
+        response = requests.get(endpoint)
+        response.raise_for_status()
+
+        pins = response.json()
+
+        cid_content = {}
+
+        for pin in pins:
+            cid = pin["cid"]
+            created_at = datetime.fromisoformat(pin["created_at"])
+            content = get_from_ipfs(cid, ipfs_api_url)
+            if content is not None:
+                cid_content[cid] = content
+            else:
+                print(f"Failed to retrieve content for CID: {cid}")
+
+        return cid_content
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while fetching CIDs: {str(e)}")
+        return None
 
 def get_from_ipfs(cid: str, api_url="http://localhost:5001"):
     """
@@ -83,3 +121,11 @@ if __name__ == "__main__":
             print("Failed to get content from IPFS.")
     else:
         print("Failed to add file to IPFS cluster.")
+
+    all_cids = get_all_cids_and_content()
+    if all_cids:
+        print("All CIDs and their content:")
+        for cid, content in all_cids.items():
+            print(f"CID: {cid}")
+            print(f"Content: {content}")
+            print()

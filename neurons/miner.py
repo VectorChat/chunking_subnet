@@ -60,15 +60,16 @@ class Miner(BaseMinerNeuron):
 
             obj = json.loads(raw_content)
 
-            message = json.dumps(obj["message"])
+            message = obj["message"]
+            message_str = json.dumps(message)
 
-            print(f"Got message ({len(message)} chars): {message[:200]}...")
+            print(f"Got message ({len(message_str)} chars): {message_str[:200]}...")
 
-            if not message:
+            if not message_str:
                 bt.logging.error("No message found in IPFS object")
                 return False
 
-            message_hash = sha256_hash(message)
+            message_hash = sha256_hash(message_str)
 
             signature = obj["signature"]
 
