@@ -24,10 +24,9 @@ def sha256_hash(data: str) -> str:
 
 
 async def make_embeddings(
-    self: Validator | None,
     document: str,
-    openai_client: AsyncOpenAI | None = None,
-    embedding_model: str | None = None,
+    async_openai_client: AsyncOpenAI,
+    embedding_model: str = "text-embedding-ada-002",
     target_token_amt: int = 5000,
     verbose=False,
 ) -> str:
@@ -36,22 +35,6 @@ async def make_embeddings(
             bt.logging.debug(message)
 
     _verbose(f"Making embeddings for document of length {len(document)} chars")
-
-    if not self and (not openai_client and not embedding_model):
-        _verbose(
-            "No validator or OpenAI client or embedding model provided, using default"
-        )
-        openai_client = AsyncOpenAI()
-        embedding_model = "text-embedding-ada-002"
-        _verbose(
-            f"Using OpenAI client: {openai_client} and embedding model: {embedding_model}"
-        )
-    else:
-        openai_client = self.aclient if self else openai_client
-        embedding_model = self.embedding_model if self else embedding_model
-        _verbose(
-            f"Using provided OpenAI client: {openai_client} and embedding model: {embedding_model}"
-        )
 
     tokens = get_tokens_from_string(document, embedding_model)
     _verbose(f"Got {len(tokens)} tokens")
@@ -74,7 +57,7 @@ async def make_embeddings(
     async def get_embedding(chunk: str, i: int) -> list[float]:
         try:
             _verbose(f"Getting embedding for chunk {i}")
-            result = await openai_client.embeddings.create(
+            result = await async_openai_client.embeddings.create(
                 model=embedding_model, input=chunk
             )
             _verbose(f"Got embedding for chunk {i}")
@@ -105,11 +88,10 @@ async def make_embeddings(
 
 
 async def make_relay_payload(
-    self: Validator | None,
     document: str,
-    openai_client: AsyncOpenAI | None = None,
-    embedding_model: str | None = None,
-    wallet: bt.wallet | None = None,
+    openai_client: AsyncOpenAI,
+    wallet: bt.wallet,
+    embedding_model: str = "text-embedding-ada-002",
     verbose=False,
 ) -> str:
 
@@ -123,7 +105,7 @@ async def make_relay_payload(
     _verbose(f"Document hash: {doc_hash}")
 
     embeddings = await make_embeddings(
-        self, document, openai_client, embedding_model, verbose=verbose
+        document, openai_client, embedding_model, verbose=verbose
     )
     _verbose(f"Made {len(embeddings)} embeddings")
 
@@ -140,7 +122,6 @@ async def make_relay_payload(
 
     _verbose(f"Message hash: {message_hash}")
 
-    wallet = self.wallet if self else wallet
     message_sig = wallet.hotkey.sign(message_hash.encode()).hex()
 
     _verbose(f"Message signature: {message_sig}")
@@ -230,7 +211,7 @@ if __name__ == "__main__":
     client = AsyncOpenAI()
     cid = asyncio.run(
         make_relay_payload(
-            None, document, client, args.embedding_model, wallet, verbose=True
+            document, client, wallet, args.embedding_model, verbose=True
         )
     )
     print(f"CID: {cid}")

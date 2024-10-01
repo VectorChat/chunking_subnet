@@ -57,7 +57,7 @@ async def runner(args: argparse.Namespace):
 
     bt.logging.debug("Making relay payload")
     cid = await make_relay_payload(
-        None, doc, aclient, "text-embedding-ada-002", vali_wallet, True
+        doc, aclient, vali_wallet, "text-embedding-ada-002", True
     )
 
     bt.logging.debug(f"Made relay payload: {cid}")

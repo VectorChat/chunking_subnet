@@ -162,7 +162,7 @@ class Task:
 
         bt.logging.debug(f"Created task: {task}")
 
-        CID = await make_relay_payload(validator, task.synapse.document)
+        CID = await make_relay_payload(task.synapse.document, validator.aclient, validator.wallet)
 
         task.synapse.CID = CID
 
