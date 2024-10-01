@@ -47,7 +47,7 @@ class Miner(BaseMinerNeuron):
         self.nonces = {}
         self.recent_queries = []
 
-    async def check_fuzzy_duplicate(self, req_document: str) -> bool:
+    async def check_fuzzy_duplicate(self, req_document: str, req_cid: str) -> bool:
 
         recent_pins = await get_recent_relay_pins()
         
@@ -62,6 +62,9 @@ class Miner(BaseMinerNeuron):
 
         req_doc_hash = sha256_hash(req_document)
         for pin in recent_pins:
+            if pin.cid == req_cid:
+                continue
+
             pin_doc_hash = pin.payload.message.document_hash
 
             if req_doc_hash == pin_doc_hash:
@@ -144,7 +147,7 @@ class Miner(BaseMinerNeuron):
             bt.logging.debug("Signature verified")
 
             bt.logging.debug("Checking for fuzzy duplicate...")
-            is_fuzzy_duplicate = await self.check_fuzzy_duplicate(synapse.document)
+            is_fuzzy_duplicate = await self.check_fuzzy_duplicate(synapse.document, synapse.CID)
 
             if is_fuzzy_duplicate:
                 bt.logging.info("Found fuzzy duplicate, skipping request")

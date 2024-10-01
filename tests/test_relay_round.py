@@ -1,6 +1,6 @@
 import argparse
 import asyncio
-from random import random
+import random
 from re import A
 
 from openai import AsyncOpenAI, OpenAI
@@ -9,6 +9,8 @@ from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import (
     Task,
     calculate_chunk_qty,
+    generate_doc_normal,
+    get_wiki_content_for_page,
 )
 import bittensor as bt
 from tests.utils.articles import get_articles
@@ -27,8 +29,6 @@ async def runner(args: argparse.Namespace):
 
     bt.logging.debug(f"Got {len(articles)} articles")
 
-    pageids = articles[:3]
-
     COLDKEY = "owner-localnet"
     HOTKEY = "validator1"
 
@@ -41,10 +41,19 @@ async def runner(args: argparse.Namespace):
 
     # doc = generate_doc_with_llm(None, pageids=pageids, timeout=20, client=client)
 
-    with open("test_doc.txt") as f:
-        doc = f.read()
+    random_article_index = random.randint(0, len(articles) - 1)
+    bt.logging.debug(f"Random article index: {random_article_index}")
 
-    bt.logging.debug(f"Generated doc, {len(doc)} chars")
+    random_article = articles[random_article_index]
+
+    bt.logging.debug(f"Random article: {random_article}")
+
+    doc, title = get_wiki_content_for_page(random_article)
+
+    # with open("test_doc.txt") as f:
+    #     doc = f.read()
+
+    bt.logging.debug(f"Generated doc, {title}, {len(doc)} chars")
 
     bt.logging.debug("Making relay payload")
     cid = await make_relay_payload(
