@@ -36,7 +36,7 @@ from bittensor.constants import V_7_2_0
 from chunking.utils.ipfs import get_from_ipfs, get_pinned_cids
 from chunking.utils.maths import calc_cosine_similarity
 from chunking.utils.signature import verify_signature
-from chunking.validator.relay import RelayPayload, make_embeddings, sha256_hash
+from chunking.utils.relay.relay import RelayPayload, make_embeddings, sha256_hash
 
 
 class Miner(BaseMinerNeuron):

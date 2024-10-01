@@ -2,13 +2,11 @@ import asyncio
 from datetime import timedelta, datetime
 from typing import Dict
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 import requests
 import json
 import bittensor as bt
-
-from chunking.validator.relay import RelayPayload
-
+from chunking.utils.relay.types import RelayPayload
 
 def add_to_ipfs_cluster(file_path: str, api_url="http://localhost:9094"):
     """

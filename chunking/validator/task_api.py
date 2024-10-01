@@ -13,7 +13,7 @@ from random import choice, choices
 from math import ceil
 
 from chunking.utils.tokens import num_tokens_from_string
-from chunking.validator.relay import make_relay_payload
+from chunking.utils.relay.relay import make_relay_payload
 from neurons.validator import Validator
 
 

@@ -3,9 +3,9 @@ from ast import arg
 import asyncio
 import json
 import os
-from openai import AsyncOpenAI, OpenAI
-from pydantic import BaseModel
+from openai import AsyncOpenAI
 from chunking.utils.ipfs import add_to_ipfs_cluster
+from chunking.utils.relay.types import RelayMessage, RelayPayload
 from chunking.utils.tokens import (
     get_string_from_tokens,
     get_tokens_from_string,
@@ -77,14 +77,6 @@ async def make_embeddings(
             _verbose(f"Embedding {i} has NaN values: {embedding}\n\nCorresponding chunk: {embed_chunks[i][:100]}...")
 
     return embeddings
-
-class RelayMessage(BaseModel):
-    document_hash: str
-    embeddings: list[list[float]]
-
-class RelayPayload(BaseModel):
-    message: RelayMessage
-    signature: str
 
 
 async def make_relay_payload(
