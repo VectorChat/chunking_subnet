@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 from openai import AsyncOpenAI, OpenAI
+from pydantic import BaseModel
 from chunking.utils.ipfs import add_to_ipfs_cluster
 from chunking.utils.tokens import (
     get_string_from_tokens,
@@ -25,6 +26,7 @@ async def make_embeddings(
     document: str,
     openai_client: AsyncOpenAI | None = None,
     embedding_model: str | None = None,
+    target_token_amt: int = 5000,
     verbose=False,
 ) -> str:
     def _verbose(message: str):
@@ -43,7 +45,7 @@ async def make_embeddings(
 
     tokens = get_tokens_from_string(document, embedding_model)
 
-    token_limit = 8191
+    token_limit = target_token_amt
 
     embed_chunks = []
     for i in range(0, len(tokens), token_limit):
@@ -76,6 +78,14 @@ async def make_embeddings(
 
     return embeddings
 
+class RelayMessage(BaseModel):
+    document_hash: str
+    embeddings: list[list[float]]
+
+class RelayPayload(BaseModel):
+    message: RelayMessage
+    signature: str
+
 
 async def make_relay_payload(
     self: Validator | None,
@@ -88,7 +98,7 @@ async def make_relay_payload(
 
     def _verbose(message: str):
         if verbose:
-            print(message)
+            bt.logging.debug(message)
 
     _verbose(f"Making relay payload for document of length {len(document)} chars")
 
@@ -100,14 +110,16 @@ async def make_relay_payload(
     )
     _verbose(f"Made {len(embeddings)} embeddings")
 
-    message = {
-        "document_hash": doc_hash,
-        "embeddings": embeddings,
-    }
+    message = RelayMessage(
+        document_hash=doc_hash,
+        embeddings=embeddings,
+    )
 
-    _verbose(f"Message: {json.dumps(message)[:100]}...")
+    message_dict = message.model_dump()
 
-    message_hash = sha256_hash(json.dumps(message))
+    _verbose(f"Message: {json.dumps(message_dict)[:100]}...")
+
+    message_hash = sha256_hash(json.dumps(message_dict))
 
     _verbose(f"Message hash: {message_hash}")
 
@@ -116,19 +128,21 @@ async def make_relay_payload(
 
     _verbose(f"Message signature: {message_sig}")
 
-    ipfs_payload = {
-        "message": message,
-        "signature": message_sig,
-    }
+    payload = RelayPayload(
+        message=message,
+        signature=message_sig,
+    )
+
+    payload_dict = payload.model_dump()
 
     _verbose(
-        f"IPFS payload:\n message: {json.dumps(ipfs_payload['message'])[:100]}...\n signature: {ipfs_payload['signature']}"
+        f"IPFS payload:\n message: {json.dumps(payload_dict['message'])[:100]}...\n signature: {payload_dict['signature']}"
     )
 
     tmp_file = "tmp_relay_payload.json"
 
     with open(tmp_file, "w") as f:
-        json.dump(ipfs_payload, f)
+        json.dump(payload_dict, f)
         _verbose(f"Wrote IPFS payload to {tmp_file}")
 
     cid = add_to_ipfs_cluster(tmp_file)

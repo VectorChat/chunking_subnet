@@ -400,7 +400,8 @@ def calculate_chunk_qty(document: str, chunk_size: int) -> int:
 def generate_synthetic_synapse(validator, timeout=20, pageids=None) -> Tuple[chunkSynapse, int]:
 
     bt.logging.info("Generating synthetic query with llm")
-    document = generate_doc_with_llm(validator, pageids)
+    # document = generate_doc_with_llm(validator, pageids)
+    document, pageid = generate_doc_normal(validator)
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
@@ -412,4 +413,4 @@ def generate_synthetic_synapse(validator, timeout=20, pageids=None) -> Tuple[chu
         chunk_qty=chunk_qty,
         timeout=timeout,
     )
-    return synapse, -1
+    return synapse, pageid

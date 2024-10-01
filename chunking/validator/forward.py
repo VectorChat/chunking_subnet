@@ -24,7 +24,6 @@ from math import floor
 import numpy as np
 from chunking.protocol import chunkSynapse
 from chunking.utils import uids
-from chunking.validator.relay import make_relay_payload
 from chunking.validator.reward import get_rewards, rank_responses
 from chunking.validator.task_api import Task
 from neurons.validator import Validator

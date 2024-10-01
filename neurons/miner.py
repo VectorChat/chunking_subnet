@@ -18,7 +18,7 @@
 
 
 import time
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import bittensor as bt
 
@@ -33,9 +33,10 @@ from substrateinterface import Keypair
 from bittensor.errors import SynapseDendriteNoneException
 from bittensor.constants import V_7_2_0
 
-from chunking.utils.ipfs import get_from_ipfs
+from chunking.utils.ipfs import get_from_ipfs, get_pinned_cids
+from chunking.utils.maths import calc_cosine_similarity
 from chunking.utils.signature import verify_signature
-from chunking.validator.relay import sha256_hash
+from chunking.validator.relay import RelayPayload, make_embeddings, sha256_hash
 
 
 class Miner(BaseMinerNeuron):
@@ -46,24 +47,76 @@ class Miner(BaseMinerNeuron):
         self.nonces = {}
         self.recent_queries = []
 
+    async def check_fuzzy_duplicate(self, req_document: str) -> bool:
+
+        recent_pins = await get_pinned_cids()
+
+        bt.logging.info(
+            f"Checking for fuzzy duplicate in {len(recent_pins)} recent pins"
+        )
+
+        embed_threshold = self.config.neuron.relay_embed_threshold
+        bt.logging.debug(
+            f"Using embedding threshold: {embed_threshold} to check for fuzzy duplicates"
+        )
+
+        req_doc_hash = sha256_hash(req_document)
+        for cid, payload in recent_pins.items():
+            pin_doc_hash = payload.message.document_hash
+
+            if req_doc_hash == pin_doc_hash:
+                bt.logging.info(
+                    f"Found exact duplicate document with CID: {cid}, hash: {req_doc_hash}"
+                )
+                return True
+
+            try:
+                req_embeddings = await make_embeddings(req_document)
+            except Exception as e:
+                bt.logging.error(
+                    f"Error making embeddings while checking for fuzzy duplicate: {e}"
+                )
+                continue
+
+            pin_embeddings = payload.message.embeddings
+
+            min_len = min(len(req_embeddings), len(pin_embeddings))
+
+            for i in range(min_len):
+                req_embedding = req_embeddings[i]
+                pin_embedding = pin_embeddings[i]
+
+                cosine_similarity = calc_cosine_similarity(req_embedding, pin_embedding)
+
+                if cosine_similarity > embed_threshold:
+                    bt.logging.info(
+                        f"Found fuzzy duplicate document with CID: {cid}, hash: {req_doc_hash}, cosine similarity: {cosine_similarity}"
+                    )
+                    return True
+
+        bt.logging.info(
+            f"No fuzzy duplicate found for request document with hash: {req_doc_hash}"
+        )
+        return False
+
     async def check_synapse(self, synapse: chunking.protocol.chunkSynapse) -> bool:
         try:
             if not synapse.CID:
                 bt.logging.error("No CID found in synapse")
                 return False
 
-            raw_content = get_from_ipfs(synapse.CID)
-
-            if not raw_content:
-                bt.logging.error(f"No content found in IPFS for CID: {synapse.CID}")
+            try:
+                relay_payload = await get_from_ipfs(synapse.CID, verbose=True)
+            except Exception as e:
+                bt.logging.error(f"Error getting content from IPFS: {e}")
                 return False
 
-            obj = json.loads(raw_content)
+            message = relay_payload.message
+            message_str = json.dumps(message.model_dump())
 
-            message = obj["message"]
-            message_str = json.dumps(message)
-
-            print(f"Got message ({len(message_str)} chars): {message_str[:200]}...")
+            bt.logging.debug(
+                f"Got message ({len(message_str)} chars): {message_str[:200]}..."
+            )
 
             if not message_str:
                 bt.logging.error("No message found in IPFS object")
@@ -71,9 +124,9 @@ class Miner(BaseMinerNeuron):
 
             message_hash = sha256_hash(message_str)
 
-            signature = obj["signature"]
+            signature = relay_payload.signature
 
-            print(f"Got signature: {signature}")
+            bt.logging.debug(f"Got signature: {signature}")
 
             if not signature:
                 bt.logging.error("No signature found in IPFS object")
@@ -81,12 +134,23 @@ class Miner(BaseMinerNeuron):
 
             validator_hotkey = synapse.dendrite.hotkey
 
-            print(f"Validator hotkey: {validator_hotkey}")
+            bt.logging.debug(f"Validator hotkey: {validator_hotkey}")
 
-            print(f"Verifying signature...")
+            bt.logging.debug(f"Verifying signature...")
             if not verify_signature(signature, message_hash, validator_hotkey):
                 bt.logging.error("Signature mismatch")
                 return False
+
+            bt.logging.debug("Signature verified")
+
+            bt.logging.debug("Checking for fuzzy duplicate...")
+            is_fuzzy_duplicate = await self.check_fuzzy_duplicate(synapse.document)
+
+            if is_fuzzy_duplicate:
+                bt.logging.info("Found fuzzy duplicate, skipping request")
+                return False
+
+            bt.logging.debug("No fuzzy duplicate found")
 
             return True
         except Exception as e:
