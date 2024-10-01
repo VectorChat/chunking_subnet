@@ -74,7 +74,7 @@ class Miner(BaseMinerNeuron):
                 return True
 
             try:
-                req_embeddings = await make_embeddings(req_document)
+                req_embeddings = await make_embeddings(self, req_document)
             except Exception as e:
                 bt.logging.error(
                     f"Error making embeddings while checking for fuzzy duplicate: {e}"
