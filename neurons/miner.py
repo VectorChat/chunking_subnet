@@ -55,7 +55,23 @@ class Miner(BaseMinerNeuron):
         self.recent_queries = []
         self.aclient = AsyncOpenAI()
 
-    async def check_fuzzy_duplicate(self, req_document: str, req_cid: str) -> bool:
+    async def check_duplicate(self, req_document: str, req_cid: str) -> bool:
+        """
+        Checks for exact and 'fuzzy' duplicates of the incoming document.
+
+        An exact duplicate is defined as a document with the same hash as the incoming document.
+
+        A fuzzy duplicate is defined as a document with a cosine similarity greater than the
+        provided embedding threshold (`--neuron.relay_embed_threshold`). Similarities are calculated
+        pairwise for the embeddings of the incoming document and the existing document.
+
+        Args:
+            req_document (str): The incoming document to check for duplicates.
+            req_cid (str): The CID of the incoming document.
+
+        Returns:
+            bool: True if a duplicate is found, False otherwise.
+        """
 
         recent_pins = await get_recent_relay_pins()
 
@@ -71,6 +87,7 @@ class Miner(BaseMinerNeuron):
         req_doc_hash = sha256_hash(req_document)
         for pin in recent_pins:
             if pin.cid == req_cid:
+                # Skip the incoming document itself.
                 continue
 
             pin_doc_hash = pin.payload.message.document_hash
@@ -115,17 +132,36 @@ class Miner(BaseMinerNeuron):
         return False
 
     async def check_synapse(self, synapse: chunking.protocol.chunkSynapse) -> bool:
+        """
+        Entrypoint for performing all checks to deter relay mining synapses.
+
+        Checks:
+        1) Check if the CID is pinned in IPFS.
+        2) Check if the relay payload is authentic.
+            - Check if the payload body is valid json.
+            - Check if the signature is valid.
+        3) Check for exact and fuzzy duplicates (semantically similar but with small or obscure changes).
+
+        Args:
+            synapse (chunking.protocol.chunkSynapse): The synapse object containing the document.
+
+        Returns:
+            bool: True if the synapse is valid, False otherwise.
+        """
         try:
+            # Check if the CID is pinned in IPFS.
             if not synapse.CID:
                 bt.logging.error("No CID found in synapse")
                 return False
 
+            # Get the relay payload from IPFS.
             try:
                 relay_payload = await get_relay_payload(synapse.CID)
             except Exception as e:
                 bt.logging.error(f"Error getting content from IPFS: {e}")
                 return False
 
+            # Get the message from the relay payload.
             message = relay_payload.message
             message_str = json.dumps(message.model_dump())
 
@@ -133,6 +169,7 @@ class Miner(BaseMinerNeuron):
                 f"Got message ({len(message_str)} chars): {message_str[:200]}..."
             )
 
+            # Check if the message is valid.
             if not message_str:
                 bt.logging.error("No message found in IPFS object")
                 return False
@@ -158,21 +195,56 @@ class Miner(BaseMinerNeuron):
 
             bt.logging.debug("Signature verified")
 
-            bt.logging.debug("Checking for fuzzy duplicate...")
-            is_fuzzy_duplicate = await self.check_fuzzy_duplicate(
-                synapse.document, synapse.CID
-            )
+            bt.logging.debug("Checking for exact and fuzzy duplicates...")
+            is_duplicate = await self.check_duplicate(synapse.document, synapse.CID)
 
-            if is_fuzzy_duplicate:
-                bt.logging.info("Found fuzzy duplicate, skipping request")
+            if is_duplicate:
+                bt.logging.info("Found duplicate, skipping request")
                 return False
 
-            bt.logging.debug("No fuzzy duplicate found")
+            bt.logging.debug("No duplicates found")
 
             return True
         except Exception as e:
             bt.logging.error(f"Error checking synapse: {e}")
             return False
+
+    def default_chunker(
+        self, document: str, chunk_size: int, max_num_chunks: int
+    ) -> List[str]:
+        """
+        Default chunker for chunking the document into chunks of the specified chunk size.
+
+        Notes:
+        - This is a very simple chunker that does not take into account the semantic meaning of the text.
+        - It does not factor in the maximum number of chunks.
+        """
+
+        sentences = sent_tokenize(document)
+
+        chunks = []
+        while len(sentences) > 0:
+            chunks.append(sentences[0])
+            del sentences[0]
+            while len(sentences) > 0:
+                if len(chunks[-1] + " " + sentences[0]) > chunk_size:
+                    break
+                chunks[-1] += " " + sentences.pop(0)
+
+        bt.logging.debug(f"Created {len(chunks)} chunks")
+
+        return chunks
+
+    def chunk_document(
+        self, document: str, chunk_size: int, max_num_chunks: int
+    ) -> List[str]:
+        """
+        Entrypoint for chunking the document into chunks of the specified chunk size.
+
+        After making your custom implementation of a chunker, you can call it here.
+        """
+
+        return self.default_chunker(document, chunk_size, max_num_chunks)
 
     async def forward(
         self, synapse: chunking.protocol.chunkSynapse
@@ -193,59 +265,16 @@ class Miner(BaseMinerNeuron):
             f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}"
         )
 
+        # Check if the synapse is being used for relay mining.
         if not await self.check_synapse(synapse):
             bt.logging.error(
                 f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}"
             )
             return synapse
 
-        document = sent_tokenize(synapse.document)
-        document_words = word_tokenize(synapse.document)
-        bt.logging.debug(
-            f'From hotkey {synapse.dendrite.hotkey[:10]}: Received query: "{document[0]} ..."'
+        chunks = self.chunk_document(
+            synapse.document, synapse.chunk_size, synapse.chunk_qty
         )
-
-        removal_stack = []
-        for i, query in enumerate(self.recent_queries):
-            if time.time() > query["timeout"]:
-                removal_stack.append(i)
-
-        while len(removal_stack) > 0:
-            del self.recent_queries[removal_stack.pop(-1)]
-
-        for query in self.recent_queries:
-            if abs(len(synapse.document) - query["length"]) < 1000:
-                match_count = 0
-                checks_count = 0
-                # check how closely the incoming document matches previous queries
-                for i in range(len(document_words) - 3):
-                    if " ".join(document_words[i : i + 3]) in query["combined_words"]:
-                        match_count += 1
-                    checks_count += 1
-                if match_count / checks_count > 0.35:
-                    bt.logging.debug(
-                        f"Ignoring duplicate query from hotkey {synapse.dendrite.hotkey}"
-                    )
-                    return None
-
-        self.recent_queries.append(
-            {
-                "timeout": synapse.timeout + time.time(),
-                "length": len(synapse.document),
-                "combined_words": " ".join(document_words),
-            }
-        )
-
-        chunks = []
-        while len(document) > 0:
-            chunks.append(document[0])
-            del document[0]
-            while len(document) > 0:
-                if len(chunks[-1] + " " + document[0]) > synapse.chunk_size:
-                    break
-                chunks[-1] += " " + document.pop(0)
-
-        bt.logging.debug(f"Created {len(chunks)} chunks")
 
         synapse.chunks = chunks
 

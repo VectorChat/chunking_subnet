@@ -7,6 +7,7 @@ import { IpfsInscription } from "./types";
 import fs from "fs";
 import express from "express";
 import z from "zod";
+import { logger } from "./logger";
 
 const latestInscriptionMap: Record<string, IpfsInscription> = {};
 
@@ -22,7 +23,7 @@ async function updateLatestInscriptionMap(api: ApiPromise, netuid: number) {
     for (const inscription of ipfsClusterIdCommitments) {
         latestInscriptionMap[inscription.hotkey] = inscription
     }
-    console.log("update latest inscription map with", ipfsClusterIdCommitments.length, "commitments")
+    logger.info(`updated latest inscription map with ${ipfsClusterIdCommitments.length} commitments`)
 }
 
 /**
@@ -43,43 +44,43 @@ const trustedIpfsClusterIds: Set<string> = new Set()
  * @returns - True if the IPFS Cluster ID can be trusted, false otherwise.
  */
 async function canBeTrusted(api: ApiPromise, hotkey: string, minStake: number, netuid: number, inscription: IpfsInscription, currentBlockNumber: number, timeWindow: number) {
-    console.log("Checking if", inscription.ipfsClusterId, "can be trusted")
-    console.log("getting uid for\n", {
+    logger.verbose(`Checking if ${inscription.ipfsClusterId} can be trusted`)
+    logger.verbose(`getting uid for\n ${JSON.stringify({
         netuid,
         hotkey,
-    })
+    }, null, 2)}`)
     const uid = await api.query.subtensorModule.uids(netuid, hotkey)
     if (uid.isNone) {
-        console.log("Hotkey", hotkey, "not found in metagraph")
+        logger.verbose(`Hotkey ${hotkey} not found in metagraph`)
         return false;
     }
-    console.log("uid", uid.unwrap().toNumber())
+    logger.verbose(`uid ${uid.unwrap().toNumber()}`)
     const validatorPermitArray = await api.query.subtensorModule.validatorPermit(netuid)
     const hasValidatorPermit = validatorPermitArray[uid.unwrap().toNumber()].toPrimitive()
     if (!hasValidatorPermit) {
-        console.log("Hotkey", hotkey, "does not have a validator permit")
+        logger.verbose(`Hotkey ${hotkey} does not have a validator permit`)
         return false;
     }
     const stakeRao = await api.query.subtensorModule.totalHotkeyStake(hotkey)
     const stakeTao = fromRao(stakeRao)
     if (stakeTao.lt(minStake)) {
-        console.log("Hotkey", hotkey, "has stake", stakeTao, "which is less than", minStake)
+        logger.verbose(`Hotkey ${hotkey} has stake ${stakeTao} which is less than ${minStake}`)
         return false;
     }
 
     if (inscription.inscribedAt < currentBlockNumber - timeWindow) {
-        console.log("Hotkey", hotkey, "inscribed at", inscription.inscribedAt, "which is older than", timeWindow, "blocks", {
+        logger.verbose(`Hotkey ${hotkey} inscribed at ${inscription.inscribedAt} which is older than ${timeWindow} blocks ${JSON.stringify({
             inscribedAt: inscription.inscribedAt,
             timeWindow,
             currentBlockNumber,
-        })
+        }, null, 2)}`)
         return false;
     }
-    console.log(`Inscription will expire in ${inscription.inscribedAt + timeWindow - currentBlockNumber} blocks`, {
+    logger.verbose(`Inscription will expire in ${inscription.inscribedAt + timeWindow - currentBlockNumber} blocks ${JSON.stringify({
         inscribedAt: inscription.inscribedAt,
         timeWindow,
         currentBlockNumber,
-    })
+    }, null, 2)}`)
 
     return true;
 }
@@ -97,23 +98,23 @@ async function canBeTrusted(api: ApiPromise, hotkey: string, minStake: number, n
 async function updateTrustedIpfsClusterIds(api: ApiPromise, netuid: number, minStake: number, timeWindow: number, currentBlockNumber: number) {
     let wasChange = false;
     for (const [hotkey, ipfsInscription] of Object.entries(latestInscriptionMap)) {
-        console.log("-".repeat(50))
-        console.log("handling\n", ipfsInscription)
+        logger.verbose("-".repeat(50))
+        logger.verbose(`handling\n${JSON.stringify(ipfsInscription, null, 2)}`)
         const wasTrusted = trustedIpfsClusterIds.has(ipfsInscription.ipfsClusterId)
 
         const currentlyTrusted = await canBeTrusted(api, hotkey, minStake, netuid, ipfsInscription, currentBlockNumber, timeWindow)
 
-        console.log({
+        logger.verbose(`${JSON.stringify({
             wasTrusted,
             currentlyTrusted,
-        })
+        }, null, 2)}`)
 
         if (wasTrusted && !currentlyTrusted) {
-            console.log("Removing trusted IPFS Cluster ID", ipfsInscription.ipfsClusterId)
+            logger.verbose(`Removing trusted IPFS Cluster ID ${ipfsInscription.ipfsClusterId}`)
             trustedIpfsClusterIds.delete(ipfsInscription.ipfsClusterId)
             wasChange = true;
-        } else if (!wasTrusted && currentlyTrusted) {
-            console.log("Adding trusted IPFS Cluster ID", ipfsInscription.ipfsClusterId)
+        } else if (currentlyTrusted) {
+            logger.verbose(`Adding trusted IPFS Cluster ID ${ipfsInscription.ipfsClusterId}`)
             trustedIpfsClusterIds.add(ipfsInscription.ipfsClusterId)
             wasChange = true;
         }
@@ -152,30 +153,30 @@ function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, always
 
         const doUpdate = alwaysUpdate || !currentEqualsStored
 
-        console.log({
+        logger.info(`${JSON.stringify({
             serviceJsonTrustedPeers,
             trustedPeers,
             currentEqualsStored,
             doUpdate,
-        })
+        }, null, 2)}`)
 
         if (!doUpdate) {
-            console.log("service.json already up to date with trusted peers", trustedPeers)
+            logger.info("service.json already up to date with trusted peers", trustedPeers)
             return false;
         }
 
-        console.log("updating service json file because alwaysUpdate is true or current does not match stored", {
+        logger.verbose(`updating service json file because alwaysUpdate is true or current does not match stored\n${JSON.stringify({
             alwaysUpdate,
             currentEqualsStored,
-        })
+        }, null, 2)}`)
 
         serviceJson.consensus.crdt.trusted_peers = trustedPeers
 
         fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
-        console.log("updated service.json with trusted peers", trustedPeers, "at", serviceJsonFilePath)
+        logger.info(`updated service.json with trusted peers\n${JSON.stringify(trustedPeers, null, 2)} at ${serviceJsonFilePath}`)
         return true;
     } catch (e) {
-        console.error("error updating service.json file", e)
+        logger.error("error updating service.json file", e)
         return false;
     }
 }
@@ -186,7 +187,7 @@ function updateTrustedPeersInServiceJsonFile(serviceJsonFilePath: string, always
  */
 function restartIpfsClusterServiceViaFile(restartFilePath: string) {
     fs.writeFileSync(restartFilePath, "restart")
-    console.log("restart file written, ipfs cluster service will restart soon")
+    logger.info(`restart file written at ${restartFilePath}, ipfs cluster service will restart soon`)
 }
 
 /**
@@ -208,13 +209,13 @@ function updatePeerAddressesInServiceJsonFile(serviceJsonFilePath: string, peerM
     const didChange = !setIsEqual(currentPeerAddressesSet, newPeerAddressesSet)
 
     if (!didChange) {
-        console.log("service.json already up to date with peer addresses", peerMultiaddrs)
+        logger.info(`service.json already up to date with peer addresses\n${JSON.stringify(peerMultiaddrs, null, 2)}`)
         return false;
     }
 
     serviceJson.cluster.peer_addresses = Array.from(newPeerAddressesSet)
     fs.writeFileSync(serviceJsonFilePath, JSON.stringify(serviceJson, null, 2));
-    console.log("updated service.json with peer addresses", peerMultiaddrs, "at", serviceJsonFilePath)
+    logger.info(`updated service.json with peer addresses\n${JSON.stringify(peerMultiaddrs, null, 2)} at ${serviceJsonFilePath}`)
     return true;
 }
 
@@ -263,12 +264,20 @@ async function main() {
             description: 'The port to run custom endpoints on.',
             default: 3000
         })
+        .option('log-level', {
+            type: 'string',
+            description: 'The log level to use.',
+            default: 'info'
+        })
         .demandOption(['netuid', 'min-stake'])
         .help()
         .parse();
 
+    logger.info(`Setting log level to: ${argv.logLevel}`)
+    logger.level = argv.logLevel
+
     // print the argv
-    console.log(argv);
+    logger.info(`Parsed input args:\n${JSON.stringify(argv, null, 2)}`)
 
     const envSchema = z.object({
         LEADER_IPFS_CLUSTER_ID: z.string(),
@@ -284,7 +293,7 @@ async function main() {
     // add the leader ipfs cluster id to the trusted list
     trustedIpfsClusterIds.add(env.LEADER_IPFS_CLUSTER_ID)
 
-    console.log("Automatically added leader ipfs cluster id to trusted list", env.LEADER_IPFS_CLUSTER_ID)
+    logger.info(`Automatically added leader ipfs cluster id to trusted list\n${env.LEADER_IPFS_CLUSTER_ID}`)
 
     // // update the service.json file with the leader ipfs cluster multiaddr for proper bootstrapping 
     // const didUpdate = updatePeerAddressesInServiceJsonFile(argv.serviceJsonFilePath, [env.LEADER_IPFS_CLUSTER_MULTIADDR])
@@ -305,24 +314,22 @@ async function main() {
         const block = await api.rpc.chain.getBlock(header.hash)
         const blockNumber = block.block.header.number.toNumber()
 
-        console.log("-".repeat(100))
-        console.log(`Processing block #${blockNumber}`)
-        console.log("-".repeat(100))
+        logger.info(`Processing block #${blockNumber}`)
 
         await updateLatestInscriptionMap(api, argv.netuid)
-        console.log("updated latest inscription map\n", latestInscriptionMap)
+        logger.verbose(`updated latest inscription map\n${JSON.stringify(latestInscriptionMap, null, 2)}`)
 
         const wasChange = await updateTrustedIpfsClusterIds(api, argv.netuid, argv.minStake, argv.timeWindow, blockNumber)
-        console.log("updated trusted ipfs cluster ids\n", { wasChange })
 
-        console.log("Trusted IPFS Cluster IDs:\n", trustedIpfsClusterIds)
+        logger.info(`Trusted IPFS Cluster IDs:\n${JSON.stringify(Array.from(trustedIpfsClusterIds), null, 2)}`)
 
         if (wasChange) {
             const didUpdate = updateTrustedPeersInServiceJsonFile(argv.serviceJsonFilePath, argv.alwaysUpdateServiceJson)
             if (didUpdate) {
+                logger.info("Restarting IPFS Cluster service because trusted peers changed")
                 restartIpfsClusterServiceViaFile(argv.restartFilePath)
             } else {
-                console.log("Not restarting IPFS Cluster service because service.json was not updated")
+                logger.info("Not restarting IPFS Cluster service because service.json was not updated")
             }
         }
     })

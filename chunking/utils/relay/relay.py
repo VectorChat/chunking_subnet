@@ -6,7 +6,11 @@ import json
 import os
 from typing import List
 from openai import AsyncOpenAI
-from chunking.utils.ipfs.ipfs import add_to_ipfs_cluster, get_from_ipfs, get_pinned_cids
+from chunking.utils.ipfs.ipfs import (
+    add_to_ipfs_and_pin_to_cluster,
+    get_from_ipfs,
+    get_pinned_cids,
+)
 from chunking.utils.relay.types import IPFSRelayPin, RelayMessage, RelayPayload
 from chunking.utils.tokens import (
     get_string_from_tokens,
@@ -26,6 +30,21 @@ def sha256_hash(data: str) -> str:
 def get_embed_chunks(
     document: str, embedding_model: str, target_token_amt: int
 ) -> List[str]:
+    """
+    Splits the document into chunks that are then passed to the embedding model.
+
+    Chunks are made deterministically by splitting the document into tokens, and then
+    grouping the tokens into chunks of the target token amount. Split points are chosen
+    at sentence boundaries.
+
+    Args:
+        document (str): The document to split into chunks.
+        embedding_model (str): The embedding model to use.
+        target_token_amt (int): The target token amount for each chunk.
+
+    Returns:
+        List[str]: The chunks of the document.
+    """
     tokens = get_tokens_from_string(document, embedding_model)
     token_limit = target_token_amt
     embed_chunks = []
@@ -42,7 +61,21 @@ async def make_embeddings(
     embedding_model: str = "text-embedding-ada-002",
     target_token_amt: int = 5000,
     verbose=False,
-) -> List[list[float]]:
+) -> List[List[float]]:
+    """
+    Makes embeddings for the document for use by the miner to check for fuzzy duplicates.
+
+    Args:
+        document (str): The document to make embeddings for.
+        async_openai_client (AsyncOpenAI): The OpenAI client to use.
+        embedding_model (str): The embedding model to use.
+        target_token_amt (int): The target token amount for each chunk.
+        verbose (bool): Whether to print debug information.
+
+    Returns:
+        List[list[float]]: The embeddings for the document.
+    """
+
     def _verbose(message: str):
         if verbose:
             bt.logging.debug(message)
@@ -56,6 +89,16 @@ async def make_embeddings(
     )
 
     async def get_embedding(chunk: str, i: int) -> list[float]:
+        """
+        Helper function to get the embedding for a chunk.
+
+        Args:
+            chunk (str): The chunk to make an embedding for.
+            i (int): The index of the chunk.
+
+        Returns:
+            list[float]: The embedding for the chunk.
+        """
         try:
             _verbose(f"Getting embedding for chunk {i}")
             result = await async_openai_client.embeddings.create(
@@ -95,6 +138,21 @@ async def make_relay_payload(
     embedding_model: str = "text-embedding-ada-002",
     verbose=False,
 ) -> str:
+    """
+    Makes a relay payload for the document for use by the miner to use to deter relay mining.
+    The miner will use the document hash to check if the document has already been relayed.
+    The miner will use the embeddings to check for fuzzy duplicates.
+
+    Args:
+        document (str): The document to make a relay payload for.
+        openai_client (AsyncOpenAI): The OpenAI client to use.
+        wallet (bt.wallet): The wallet to use.
+        embedding_model (str): The embedding model to use.
+        verbose (bool): Whether to print debug information.
+
+    Returns:
+        str: The CID of the relay payload.
+    """
 
     def _verbose(message: str):
         if verbose:
@@ -144,7 +202,12 @@ async def make_relay_payload(
         json.dump(payload_dict, f)
         _verbose(f"Wrote IPFS payload to {tmp_file}")
 
-    cid = add_to_ipfs_cluster(tmp_file)
+    cid = await add_to_ipfs_and_pin_to_cluster(
+        tmp_file, expiry_delta=timedelta(minutes=3)
+    )
+
+    if not cid:
+        raise Exception("Failed to add IPFS payload to cluster")
 
     _verbose(f"Added IPFS payload to cluster with CID: {cid}")
 
@@ -165,6 +228,18 @@ async def get_relay_payload(cid: str, verbose=False) -> RelayPayload:
 async def get_recent_relay_pins(
     delta=timedelta(minutes=20), verbose=False
 ) -> List[IPFSRelayPin]:
+    """
+    Gets recent relay pins from the IPFS cluster.
+
+    It fetches all current pins and filters by the time delta.
+
+    Args:
+        delta (timedelta): The time delta to get pins for.
+        verbose (bool): Whether to print debug information.
+
+    Returns:
+        List[IPFSRelayPin]: The recent relay pins.
+    """
     def _verbose(message: str):
         if verbose:
             bt.logging.debug(message)

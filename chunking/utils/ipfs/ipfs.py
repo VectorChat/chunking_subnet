@@ -8,42 +8,89 @@ import requests
 import json
 import bittensor as bt
 from chunking.utils.ipfs.types import IPFSPin
-from chunking.utils.relay.types import RelayPayload
 
+import httpx
+import json
+from datetime import datetime, timedelta
 
-def add_to_ipfs_cluster(file_path: str, api_url="http://localhost:9094"):
+async def add_to_ipfs_and_pin_to_cluster(file_path: str, 
+                                         expiry_delta: timedelta = None, 
+                                         ipfs_api_url: str = "http://localhost:5001", 
+                                         cluster_api_url: str = "http://localhost:9094",
+                                         verbose: bool = False,
+                                         **pin_options):
     """
-    Add content to an IPFS cluster via the localhost IPFS Cluster API.
+    Add content to IPFS and then pin it to an IPFS cluster with optional expiry time and other pin options.
 
     Args:
         file_path (str): Path to the file to be added
-        api_url (str): URL of the IPFS Cluster API (default: http://localhost:9094)
+        expiry_delta (timedelta): Time until the pin should expire (optional)
+        ipfs_api_url (str): URL of the IPFS API (default: http://localhost:5001)
+        cluster_api_url (str): URL of the IPFS Cluster API (default: http://localhost:9094)
+        **pin_options: Additional pin options (in snake_case)
 
     Returns:
-        CID of the added content
+        dict: Response from the cluster pin operation
     """
-    endpoint = f"{api_url}/add"
+    def _verbose(msg):
+        if verbose:
+            bt.logging.debug(msg)
 
-    print(f"Adding {file_path} to IPFS Cluster at {api_url}")
+    _verbose(f"Adding {file_path} to IPFS at {ipfs_api_url}")
 
     try:
-        with open(file_path, "rb") as file:
-            files = {"file": file}
-            print(f"Files: {files}")
-            response = requests.post(endpoint, files=files)
-            print(f"Response: {response}")
+        async with httpx.AsyncClient() as client:
+            # Add file to IPFS
+            with open(file_path, 'rb') as file:
+                files = {'file': file}
+                ipfs_response = await client.post(f"{ipfs_api_url}/api/v0/add", files=files)
+                ipfs_response.raise_for_status()
+                ipfs_result = ipfs_response.json()
+                cid = ipfs_result['Hash']
+                _verbose(f"File added to IPFS with CID: {cid}")
 
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            print(f"Result: {result}")
-            return result["cid"]
-        else:
-            print(f"Error: {response.status_code} - {response.text}")
-            return None
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
+            # Prepare pin options
+            options = {
+                "name": pin_options.get("name"),
+                "mode": pin_options.get("mode"),
+                "replication-min": pin_options.get("replication_factor_min"),
+                "replication-max": pin_options.get("replication_factor_max"),
+                "shard-size": pin_options.get("shard_size"),
+                "user-allocations": ','.join(pin_options.get("user_allocations", [])) if pin_options.get("user_allocations") else None,
+                "pin-update": pin_options.get("pin_update"),
+                "origins": ','.join(pin_options.get("origins", [])) if pin_options.get("origins") else None,
+            }
+
+            # Add expiry time if provided
+            if expiry_delta:
+                expiry_time = datetime.utcnow() + expiry_delta
+                options["expire-at"] = expiry_time.isoformat() + "Z"
+
+            # Add metadata if provided
+            if "metadata" in pin_options:
+                options.update({f"meta-{k}": v for k, v in pin_options["metadata"].items()})
+
+            # Remove None values
+            options = {k: v for k, v in options.items() if v is not None}
+
+            # Pin to IPFS Cluster
+            pin_endpoint = f"{cluster_api_url}/pins/{cid}"
+            _verbose(f"Pinning CID {cid} to IPFS Cluster at {cluster_api_url}")
+            _verbose(f"Pin options: {options}")
+
+            cluster_response = await client.post(pin_endpoint, params=options)
+            cluster_response.raise_for_status()
+            result = json.loads(cluster_response.text)
+            _verbose(f"Pin result: {result}")
+            cid = result.get("cid")
+            return cid
+
+    except httpx.HTTPStatusError as e:
+        _verbose(f"HTTP error occurred: {e}")
         return None
-
+    except Exception as e:
+        _verbose(f"An error occurred: {str(e)}")
+        return None
 
 async def get_pinned_cids(
     cluster_api_url="http://localhost:9094",
@@ -183,14 +230,15 @@ async def get_from_ipfs(cid: str, api_url="http://localhost:5001", verbose=False
 
 
 async def main():
-    test_str = "hello worlddddd"
+    test_str = "test test test test"
     test_file = "test.txt"
     with open(test_file, "w") as f:
         f.write(test_str)
 
     bt.logging.set_debug()
 
-    cid = add_to_ipfs_cluster(test_file)
+    cid = await add_to_ipfs_and_pin_to_cluster(test_file, expiry_delta=timedelta(minutes=1), verbose=True)
+
     if cid:
         bt.logging.debug(f"File added successfully. CID: {cid}")
 

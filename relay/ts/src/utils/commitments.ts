@@ -8,6 +8,8 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import "../__generated__/interfaces/augment-api.ts"
 import { IpfsCommitment, IpfsInscription } from '../types.ts';
+import { MILLISECONDS_PER_BLOCK } from './constants.ts';
+import { logger } from '../logger.ts';
 
 const WS_URL = 'ws://127.0.0.1:9946';
 const COLDKEY_NAME = 'owner-localnet';
@@ -47,24 +49,24 @@ export async function inscribeIpfsClusterId(api: ApiPromise, netuid: number, hot
         }]
     };
 
-    console.log('Commitment Info:', JSON.stringify(commitmentInfo, null, 2));
+    logger.verbose('Commitment Info:', JSON.stringify(commitmentInfo, null, 2));
 
     const tx = api.tx.commitments.setCommitment(netuid, commitmentInfo);
 
-    console.log("Submitting transaction... (note that the tx is signed right before sending, which is why it's not shown as signed here)\n", tx.toHuman())
+    logger.info("Submitting transaction... (note that the tx is signed right before sending, which is why it's not shown as signed here)\n", tx.toHuman())
     return new Promise<void>((resolve, reject) => {
         tx.signAndSend(hotkey, ({ status, events }) => {
-            console.log("Transaction status:", status.toHuman())
+            logger.info("Transaction status:", status.toHuman())
             if (status.isFinalized) {
                 let foundCommitmentEvent = false;
                 events.forEach(({ event }) => {
                     if (api.events.commitments.Commitment.is(event)) {
-                        console.log(`Commitment set for ${hotkey.address}. Block hash: ${status.asFinalized}`);
+                        logger.info(`Commitment set for ${hotkey.address}. Block hash: ${status.asFinalized}`);
                         foundCommitmentEvent = true;
                     }
                 });
                 if (!foundCommitmentEvent) {
-                    console.error('No commitment event found in extrinsic events');
+                    logger.error('No commitment event found in extrinsic events');
                     reject(new Error('No commitment event found in extrinsic events'));
                 } else {
                     resolve();
@@ -81,7 +83,7 @@ export function parseIpfsClusterIdFromExtrinsic(commitmentInfo: any): string | n
     const firstField = fields?.[0];
     const rawBytes = firstField?.__internal__raw as Uint8Array;
     if (rawBytes === undefined) {
-        console.error('rawBytes is undefined for commitment info:', commitmentInfo.toHuman());
+        logger.error('rawBytes is undefined for commitment info:', commitmentInfo.toHuman());
         return null;
     }
     const ipfsId = base58Encode(rawBytes);
@@ -95,11 +97,11 @@ export function parseIpfsClusterIdFromStorage(commitmentInfo: any): IpfsCommitme
     const rawBytes = firstField?.__internal__raw as Uint8Array;
 
     if (rawBytes === undefined) {
-        console.error('rawBytes is undefined for commitment info:', commitmentInfo.toHuman());
+        logger.error('rawBytes is undefined for commitment info:', commitmentInfo.toHuman());
         return null;
     }
     if (rawBytes.length !== 38) {
-        console.error('Invalid commitment info length:', rawBytes.length, "expected 38");
+        logger.error('Invalid commitment info length:', rawBytes.length, "expected 38");
         return null
     }
     const ipfsId = base58Encode(rawBytes);
@@ -109,10 +111,12 @@ export function parseIpfsClusterIdFromStorage(commitmentInfo: any): IpfsCommitme
     };
 }
 
-export async function getInscription(api: ApiPromise, netuid: number, bittensorHotkeyName: string) {
-    const hotkey = loadHotkey(COLDKEY_NAME, bittensorHotkeyName);
-    const inscriptions = await api.query.inscriptions.inscriptionOf.entries(hotkey.address);
-    return inscriptions;
+export async function getInscription(api: ApiPromise, netuid: number, hotkey: string) {
+    const commitment = await api.query.commitments.commitmentOf(netuid, hotkey);
+    if (commitment.isNone) {
+        return null;
+    }
+    return parseIpfsClusterIdFromStorage(commitment.unwrap());
 }
 
 export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid: number) {
@@ -121,7 +125,7 @@ export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid:
     const ipfsClusterIdCommitments: IpfsInscription[] = [];
     commitments.forEach(([key, commitment]) => {
         const [_, accountId] = key.args;
-        console.log('Account:', accountId.toString());
+        logger.verbose(`Querying commitment for account: ${accountId.toString()}`)
         if (commitment.isSome) {
             const commitmentInfo = commitment.unwrap();
             const parsedCommitment = parseIpfsClusterIdFromStorage(commitmentInfo);
@@ -132,9 +136,8 @@ export async function queryCommitmentsForIpfsClusterIds(api: ApiPromise, netuid:
                 });
             }
         } else {
-            console.log(`No commitment found for ${accountId.toString()}`);
+            logger.verbose(`No commitment found for ${accountId.toString()}`);
         }
-        console.log('---');
     });
 
     return ipfsClusterIdCommitments;
@@ -147,13 +150,66 @@ export async function doInscribe(api: ApiPromise, netuid: number, ipfsId: string
         bittensorHotkeyName
     });
     const hotkey = loadHotkey(bittensorColdkeyName, bittensorHotkeyName);
-    console.log(`Loaded hotkey: ${hotkey.address}`);
+    logger.verbose(`Loaded hotkey: ${hotkey.address}`);
     const ipfsBytes = decodeIpfsId(ipfsId);
-    console.log(`IPFS bytes (hex): ${u8aToHex(ipfsBytes)}`);
-    console.log(`IPFS bytes length: ${ipfsBytes.length}`);
+    logger.verbose(`IPFS bytes (hex): ${u8aToHex(ipfsBytes)}`);
+    logger.verbose(`IPFS bytes length: ${ipfsBytes.length}`);
     await inscribeIpfsClusterId(api, netuid, hotkey, ipfsBytes);
 }
 
+/**
+ * Checks if the given ipfs cluster id is already inscribed for the given netuid and hotkey. Returns the estimated sleep time in seconds until the rate limit completes,
+ * if the ipfs cluster id is already inscribed. Else, returns null meaning that the ipfs cluster id should be inscribed.
+ *  
+ * @param api the polkadot api instance
+ * @param netuid the subnet idenitifer
+ * @param ipfsClusterId the ipfs cluster id to check for
+ * @param bittensorColdkeyName the coldkey name for the bittensor coldkey that owns the hotkey
+ * @param bittensorHotkeyName the hotkey name for the bittensor hotkey that will eventually sign the inscription 
+ * @param inscribeRateLimit the rate limit for commitments/inscribes in blocks 
+ * 
+ * @returns the estimated sleep time in milliseconds if the ipfs cluster id is already inscribed
+ */
+export async function shouldInscribe(api: ApiPromise, netuid: number, ipfsClusterId: string, bittensorColdkeyName: string, bittensorHotkeyName: string, inscribeRateLimit: number): Promise<number | null> {
+    const hotkey = loadHotkey(bittensorColdkeyName, bittensorHotkeyName);
+    const curInscription = await getInscription(api, netuid, hotkey.address);
+    if (curInscription === null) {
+        // if the hotkey has no inscription, we should inscribe
+        logger.verbose(`No inscription found for ${hotkey.address}`)
+        return null;
+    }
+
+    const inscribedAt = curInscription.inscribedAt
+
+    logger.verbose(`Inscription found for ${hotkey.address} at block ${inscribedAt} with rate limit ${inscribeRateLimit}`)
+
+    const nextAllowedBlock = inscribedAt + inscribeRateLimit;
+
+    logger.verbose(`Next allowed block: ${nextAllowedBlock}`)
+
+    const currentBlockNumber = await api.query.system.number()
+
+    logger.verbose(`Current block number: ${currentBlockNumber}`)
+
+    if (currentBlockNumber.toNumber() >= nextAllowedBlock) {
+        // if the current block number surpasses the rate limit, we should inscribe
+        return null;
+    }
+
+    const blocksUntilAllowed = nextAllowedBlock - currentBlockNumber.toNumber();
+
+    logger.verbose(`Blocks until allowed: ${blocksUntilAllowed}`)
+
+    const millisecondsUntilAllowed = blocksUntilAllowed * MILLISECONDS_PER_BLOCK;
+
+    logger.verbose(`Milliseconds until allowed: ${millisecondsUntilAllowed}`)
+
+    return millisecondsUntilAllowed;
+}
+
+/**
+ * Main function, used for testing
+ */
 async function main() {
 
     const argv = yargs(hideBin(process.argv))

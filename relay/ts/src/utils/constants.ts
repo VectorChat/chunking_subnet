@@ -1,0 +1,1 @@
+export const MILLISECONDS_PER_BLOCK = 12_000;

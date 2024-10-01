@@ -162,6 +162,7 @@ class Task:
 
         bt.logging.debug(f"Created task: {task}")
 
+        # Make relay payload and pin to IPFS for both organic and synthetic queries
         CID = await make_relay_payload(task.synapse.document, validator.aclient, validator.wallet)
 
         task.synapse.CID = CID
@@ -270,6 +271,20 @@ def get_wiki_content_for_page(pageid: int) -> str:
 
 
 def generate_doc_with_llm(validator, pageids=None, timeout=20, client=None) -> str:
+    """
+    Generate a document from Wikipedia using an LLM.
+
+    This function fetches three Wikipedia pages, synthesizes their content, and generates a new article using an LLM.
+
+    Args:
+        validator (Validator): The validator instance.
+        pageids (List[int] | None): A list of page IDs to fetch content from.
+        timeout (int): The timeout for the LLM generation.
+        client (AsyncOpenAI | None): The OpenAI client to use.
+
+    Returns:
+        str: The generated document.
+    """
     if pageids and len(pageids) != 3:
         raise ValueError("pageids must be a list of 3 pageids")
 

@@ -1,10 +1,12 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { doInscribe } from './utils/commitments';
+import { doInscribe, shouldInscribe } from './utils/commitments';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { sleep } from './utils/misc';
 import axios from 'axios';
 import path from 'path';
+import { MILLISECONDS_PER_BLOCK } from './utils/constants';
+import { logger } from './logger';
 
 async function getIpfsIdFromCluster(ipfsClusterRestUrl: string) {
     try {
@@ -24,7 +26,7 @@ async function main() {
             type: 'number',
             description: 'Subnet Identifier',
         })
-        .option('ipfs-id', {
+        .option('ipfs-cluster-id', {
             alias: 'i',
             type: 'string',
             description: 'IPFS Cluster peer ID',
@@ -55,7 +57,7 @@ async function main() {
             alias: 'f',
             type: 'number',
             description: 'Sleep time in milliseconds after a failed inscribe attempt',
-            default: 5_000
+            default: 10_000
         })
         .option('ipfs-cluster-rest-url', {
             alias: 'u',
@@ -63,53 +65,65 @@ async function main() {
             description: 'REST URL of the IPFS Cluster to fetch the IPFS ID from',
             default: 'http://cluster:9094'
         })
-        .demandOption(['netuid', 'bittensor-hotkey-name', 'bittensor-coldkey-name', ])
+        .option('log-level', {
+            alias: 'l',
+            type: 'string',
+            description: 'Log level',
+            default: 'info'
+        })
+        .demandOption(['netuid', 'bittensor-hotkey-name', 'bittensor-coldkey-name',])
         .help()
         .parse();
 
-    // const inputSchema = z.object({
-    //     netuid: z.number().gte(0),
-    //     ipfsId: z.string(),
-    //     bittensorHotkeyName: z.string(),
-    //     bittensorColdkeyName: z.string(),
-    //     inscribeRateLimit: z.number().gt(0),
-    //     wsUrl: z.string(),
-    //     inscribeFailSleepMs: z.number().gte(0),
-    // });
-
-    // const parsedInputArgs = inputSchema.parse(argv);
     const parsedInputArgs = argv
 
-    console.log("Parsed input args:", parsedInputArgs);
+    logger.info(`Setting log level to: ${parsedInputArgs.logLevel}`)
+    logger.level = parsedInputArgs.logLevel
 
-    const ipfsId = parsedInputArgs.ipfsId ?? await getIpfsIdFromCluster(parsedInputArgs.ipfsClusterRestUrl)
+    logger.info(`Parsed input args:\n${JSON.stringify(parsedInputArgs, null, 2)}`)
 
-    console.log(`Using IPFS ID: ${ipfsId}`)
+    const ipfsClusterId = parsedInputArgs.ipfsClusterId ?? await getIpfsIdFromCluster(parsedInputArgs.ipfsClusterRestUrl)
+
+    logger.info(`Using IPFS Cluster ID: ${ipfsClusterId}`)
 
     while (true) {
         const provider = new WsProvider(argv.wsUrl);
 
         const api = await ApiPromise.create({ provider });
 
-        const sleepMs = parsedInputArgs.inscribeRateLimit * 12 * 1000
-
         try {
-            await doInscribe(
+            const sleepMs = await shouldInscribe(
                 api,
                 parsedInputArgs.netuid,
-                ipfsId,
+                ipfsClusterId,
                 parsedInputArgs.bittensorColdkeyName,
                 parsedInputArgs.bittensorHotkeyName,
+                parsedInputArgs.inscribeRateLimit,
             )
 
-            console.log(`Inscribed ${ipfsId} at ${new Date().toISOString()}`);
 
-            console.log(`Sleeping for ${sleepMs}ms...`)
-            await sleep(sleepMs)
+            if (sleepMs === null) {
+
+                logger.info(`Inscribing ${ipfsClusterId} at ${new Date().toLocaleTimeString()}`)
+                await doInscribe(
+                    api,
+                    parsedInputArgs.netuid,
+                    ipfsClusterId,
+                    parsedInputArgs.bittensorColdkeyName,
+                    parsedInputArgs.bittensorHotkeyName,
+                )
+
+                logger.info(`Inscribed ${ipfsClusterId} at ${new Date().toLocaleTimeString()}`);
+            } else {
+                const nextAllowedTime = new Date(Date.now() + sleepMs)
+                const blocksLeft = sleepMs / MILLISECONDS_PER_BLOCK
+                logger.info(`Sleeping for ${sleepMs}ms (${sleepMs / 1000 / 60} minutes)..., next inscribe allowed at ${nextAllowedTime.toLocaleTimeString()} in ~${blocksLeft} blocks`)
+                await sleep(sleepMs)
+            }
         } catch (e) {
-            console.error(e)
+            logger.error(e)
 
-            console.log(`Unable to inscribe ${ipfsId}. Sleeping for ${parsedInputArgs.inscribeFailSleepMs}ms before retrying...`)
+            logger.info(`Unable to inscribe ${ipfsClusterId}. Sleeping for ${parsedInputArgs.inscribeFailSleepMs}ms before retrying...`)
             await sleep(parsedInputArgs.inscribeFailSleepMs)
         }
     }
