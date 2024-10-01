@@ -46,6 +46,7 @@ class Miner(BaseMinerNeuron):
 
         self.nonces = {}
         self.recent_queries = []
+        self.aclient = AsyncOpenAI()
 
     async def check_fuzzy_duplicate(self, req_document: str, req_cid: str) -> bool:
 
