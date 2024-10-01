@@ -21,6 +21,7 @@ import time
 from typing import Dict, List, Tuple
 
 import bittensor as bt
+from openai import AsyncOpenAI
 
 import chunking
 from chunking.base.miner import BaseMinerNeuron
