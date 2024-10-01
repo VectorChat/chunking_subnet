@@ -37,7 +37,13 @@ from bittensor.constants import V_7_2_0
 from chunking.utils.ipfs.ipfs import get_from_ipfs, get_pinned_cids
 from chunking.utils.maths import calc_cosine_similarity
 from chunking.utils.signature import verify_signature
-from chunking.utils.relay.relay import RelayPayload, get_recent_relay_pins, get_relay_payload, make_embeddings, sha256_hash
+from chunking.utils.relay.relay import (
+    RelayPayload,
+    get_recent_relay_pins,
+    get_relay_payload,
+    make_embeddings,
+    sha256_hash,
+)
 
 
 class Miner(BaseMinerNeuron):
@@ -52,7 +58,7 @@ class Miner(BaseMinerNeuron):
     async def check_fuzzy_duplicate(self, req_document: str, req_cid: str) -> bool:
 
         recent_pins = await get_recent_relay_pins()
-        
+
         bt.logging.info(
             f"Checking for fuzzy duplicate in {len(recent_pins)} recent pins"
         )
@@ -87,17 +93,21 @@ class Miner(BaseMinerNeuron):
 
             min_len = min(len(req_embeddings), len(pin_embeddings))
 
+            similarities = []
+
             for i in range(min_len):
                 req_embedding = req_embeddings[i]
                 pin_embedding = pin_embeddings[i]
 
                 cosine_similarity = calc_cosine_similarity(req_embedding, pin_embedding)
-
+                similarities.append(cosine_similarity)
                 if cosine_similarity > embed_threshold:
                     bt.logging.info(
-                        f"Found fuzzy duplicate document with CID: {pin.cid}, hash: {req_doc_hash}, cosine similarity: {cosine_similarity}"
+                        f"Found fuzzy duplicate document with CID: {pin.cid}, hash: {req_doc_hash}, cosine similarity: {cosine_similarity}, current similarities: {similarities}, threshold: {embed_threshold}"
                     )
                     return True
+
+            bt.logging.debug(f"Similarities: {similarities}")
 
         bt.logging.info(
             f"No fuzzy duplicate found for request document with hash: {req_doc_hash}"
@@ -111,7 +121,7 @@ class Miner(BaseMinerNeuron):
                 return False
 
             try:
-                relay_payload = await get_relay_payload(synapse.CID, verbose=True)
+                relay_payload = await get_relay_payload(synapse.CID)
             except Exception as e:
                 bt.logging.error(f"Error getting content from IPFS: {e}")
                 return False
@@ -149,7 +159,9 @@ class Miner(BaseMinerNeuron):
             bt.logging.debug("Signature verified")
 
             bt.logging.debug("Checking for fuzzy duplicate...")
-            is_fuzzy_duplicate = await self.check_fuzzy_duplicate(synapse.document, synapse.CID)
+            is_fuzzy_duplicate = await self.check_fuzzy_duplicate(
+                synapse.document, synapse.CID
+            )
 
             if is_fuzzy_duplicate:
                 bt.logging.info("Found fuzzy duplicate, skipping request")

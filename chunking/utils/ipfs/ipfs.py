@@ -74,7 +74,6 @@ async def get_pinned_cids(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(endpoint)
-            print(f"Response: {response}, {response.text}")
             _verbose(f"Response: {response}")
             response.raise_for_status()
 

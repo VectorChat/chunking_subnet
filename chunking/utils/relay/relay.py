@@ -23,32 +23,33 @@ def sha256_hash(data: str) -> str:
     return hashlib.sha256(data.encode()).hexdigest()
 
 
+def get_embed_chunks(
+    document: str, embedding_model: str, target_token_amt: int
+) -> List[str]:
+    tokens = get_tokens_from_string(document, embedding_model)
+    token_limit = target_token_amt
+    embed_chunks = []
+    for i in range(0, len(tokens), token_limit):
+        chunk_tokens = tokens[i : i + token_limit]
+        chunk = get_string_from_tokens(chunk_tokens, embedding_model)
+        embed_chunks.append(chunk)
+    return embed_chunks
+
+
 async def make_embeddings(
     document: str,
     async_openai_client: AsyncOpenAI,
     embedding_model: str = "text-embedding-ada-002",
     target_token_amt: int = 5000,
     verbose=False,
-) -> str:
+) -> List[list[float]]:
     def _verbose(message: str):
         if verbose:
             bt.logging.debug(message)
 
     _verbose(f"Making embeddings for document of length {len(document)} chars")
 
-    tokens = get_tokens_from_string(document, embedding_model)
-    _verbose(f"Got {len(tokens)} tokens")
-
-    token_limit = target_token_amt
-
-    _verbose(f"Token limit: {token_limit}")
-
-    embed_chunks = []
-    for i in range(0, len(tokens), token_limit):
-        chunk_tokens = tokens[i : i + token_limit]
-        chunk = get_string_from_tokens(chunk_tokens, embedding_model)
-        _verbose(f"Chunk: {chunk[:100]}...")
-        embed_chunks.append(chunk)
+    embed_chunks = get_embed_chunks(document, embedding_model, target_token_amt)
 
     _verbose(
         f"Embed chunk sizes: {[num_tokens_from_string(chunk, embedding_model) for chunk in embed_chunks]}"
@@ -210,8 +211,6 @@ if __name__ == "__main__":
 
     client = AsyncOpenAI()
     cid = asyncio.run(
-        make_relay_payload(
-            document, client, wallet, args.embedding_model, verbose=True
-        )
+        make_relay_payload(document, client, wallet, args.embedding_model, verbose=True)
     )
     print(f"CID: {cid}")
