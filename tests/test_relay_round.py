@@ -9,11 +9,8 @@ from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import (
     Task,
     calculate_chunk_qty,
-    generate_doc_with_llm,
-    generate_synthetic_synapse,
 )
 import bittensor as bt
-
 from tests.utils.articles import get_articles
 
 
@@ -49,6 +46,7 @@ async def runner(args: argparse.Namespace):
 
     bt.logging.debug(f"Generated doc, {len(doc)} chars")
 
+    bt.logging.debug("Making relay payload")
     cid = await make_relay_payload(
         None, doc, aclient, "text-embedding-ada-002", vali_wallet, True
     )

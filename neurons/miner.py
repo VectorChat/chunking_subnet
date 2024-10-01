@@ -33,10 +33,10 @@ from substrateinterface import Keypair
 from bittensor.errors import SynapseDendriteNoneException
 from bittensor.constants import V_7_2_0
 
-from chunking.utils.ipfs import get_from_ipfs, get_pinned_cids
+from chunking.utils.ipfs.ipfs import get_from_ipfs, get_pinned_cids
 from chunking.utils.maths import calc_cosine_similarity
 from chunking.utils.signature import verify_signature
-from chunking.utils.relay.relay import RelayPayload, make_embeddings, sha256_hash
+from chunking.utils.relay.relay import RelayPayload, get_recent_relay_pins, make_embeddings, sha256_hash
 
 
 class Miner(BaseMinerNeuron):
@@ -49,8 +49,8 @@ class Miner(BaseMinerNeuron):
 
     async def check_fuzzy_duplicate(self, req_document: str) -> bool:
 
-        recent_pins = await get_pinned_cids()
-
+        recent_pins = await get_recent_relay_pins()
+        
         bt.logging.info(
             f"Checking for fuzzy duplicate in {len(recent_pins)} recent pins"
         )
@@ -61,12 +61,12 @@ class Miner(BaseMinerNeuron):
         )
 
         req_doc_hash = sha256_hash(req_document)
-        for cid, payload in recent_pins.items():
-            pin_doc_hash = payload.message.document_hash
+        for pin in recent_pins:
+            pin_doc_hash = pin.payload.message.document_hash
 
             if req_doc_hash == pin_doc_hash:
                 bt.logging.info(
-                    f"Found exact duplicate document with CID: {cid}, hash: {req_doc_hash}"
+                    f"Found exact duplicate document with CID: {pin.cid}, hash: {req_doc_hash}"
                 )
                 return True
 
@@ -78,7 +78,7 @@ class Miner(BaseMinerNeuron):
                 )
                 continue
 
-            pin_embeddings = payload.message.embeddings
+            pin_embeddings = pin.payload.message.embeddings
 
             min_len = min(len(req_embeddings), len(pin_embeddings))
 
@@ -90,7 +90,7 @@ class Miner(BaseMinerNeuron):
 
                 if cosine_similarity > embed_threshold:
                     bt.logging.info(
-                        f"Found fuzzy duplicate document with CID: {cid}, hash: {req_doc_hash}, cosine similarity: {cosine_similarity}"
+                        f"Found fuzzy duplicate document with CID: {pin.cid}, hash: {req_doc_hash}, cosine similarity: {cosine_similarity}"
                     )
                     return True
 

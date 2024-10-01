@@ -1,7 +1,7 @@
 import tiktoken
 
 
-def get_tokens_from_string(string: str, model: str) -> int:
+def get_tokens_from_string(string: str, model: str) -> list[int]:
     encoding = tiktoken.encoding_for_model(model)
     tokens = encoding.encode(string)
     return tokens
@@ -18,7 +18,7 @@ def num_tokens_from_string(string: str, model: str) -> int:
 
     Args:
         string (str): The string to calculate the number of tokens for.
-        encoding_name (str): The name of the encoding to use.
+        model (str): The model to use for encoding.
 
     Returns:
         int: The number of tokens in the string.
