@@ -219,6 +219,16 @@ async def make_relay_payload(
 
 
 async def get_relay_payload(cid: str, verbose=False) -> RelayPayload:
+    """
+    Gets content from IPFS and parses it as a `RelayPayload`.
+
+    Args:
+        cid (str): The CID of the relay payload.
+        verbose (bool): Whether to print debug information.
+
+    Returns:
+        RelayPayload: The relay payload.
+    """
     raw_content = await get_from_ipfs(cid, verbose=verbose)
     obj = json.loads(raw_content)
     payload = RelayPayload(**obj)
