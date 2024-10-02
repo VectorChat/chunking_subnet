@@ -213,17 +213,21 @@ async def get_from_ipfs(cid: str, api_url="http://localhost:5001", verbose=False
     endpoint = f"{api_url}/api/v0/cat"
     params = {"arg": cid}
 
-    if verbose:
-        bt.logging.info(f"Getting {cid} from IPFS at {api_url}")
+    def _verbose(msg):
+        if verbose:
+            bt.logging.debug(msg)
+
+    _verbose(f"Getting {cid} from IPFS at {api_url}")
 
     async with httpx.AsyncClient() as client:
+        _verbose(f"Sending request to {endpoint} with params {params}")
         response = await client.post(endpoint, params=params)
+        _verbose(f"Response: {response}")
         response.raise_for_status()
 
-    if verbose:
-        bt.logging.debug(f"Response: {response}")
-        bt.logging.debug(f"Response status: {response.status_code}")
-        bt.logging.debug(f"Response content: {response.content}")
+    _verbose(f"Response: {response}")
+    _verbose(f"Response status: {response.status_code}")
+    _verbose(f"Response content: {response.content}")
     raw_content = response.content.decode("utf-8")
 
     return raw_content

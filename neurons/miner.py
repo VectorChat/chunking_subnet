@@ -156,7 +156,7 @@ class Miner(BaseMinerNeuron):
 
             # Get the relay payload from IPFS.
             try:
-                relay_payload = await get_relay_payload(synapse.CID)
+                relay_payload = await get_relay_payload(synapse.CID, verbose=True)
             except Exception as e:
                 bt.logging.error(f"Error getting content from IPFS: {e}")
                 return False
