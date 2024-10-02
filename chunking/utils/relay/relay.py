@@ -203,7 +203,7 @@ async def make_relay_payload(
         _verbose(f"Wrote IPFS payload to {tmp_file}")
 
     cid = await add_to_ipfs_and_pin_to_cluster(
-        tmp_file, expiry_delta=timedelta(minutes=3)
+        tmp_file, expiry_delta=timedelta(minutes=20)
     )
 
     if not cid:

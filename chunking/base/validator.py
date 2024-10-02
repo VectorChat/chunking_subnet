@@ -305,8 +305,6 @@ class BaseValidatorNeuron(BaseNeuron):
             2.3 Save the current tournament state to disk.
             2.4 Sleep for a specified interval, repeat.
 
-
-
         Note:
             - The function leverages the global configurations set during the initialization of the miner.
             - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.

@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   ipfs:
-    container_name: ipfs
+    container_name: val-ipfs
     image: ipfs/kubo:release
     ports:
       - "4001:4001" # ipfs swarm
@@ -30,12 +30,13 @@ services:
       interval: 8s
 
   cluster:
+    container_name: val-cluster
     image: ipfs/ipfs-cluster:latest
     depends_on:
       ipfs:
         condition: service_healthy
     environment:
-      CLUSTER_PEERNAME: cluster
+      CLUSTER_PEERNAME: ${CLUSTER_PEERNAME:-val_cluster}
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
       # CLUSTER_CRDT_TRUSTEDPEERS: "*"
@@ -63,6 +64,7 @@ services:
       retries: 3
 
   listener:
+    container_name: val-listener
     build:
       context: ./relay/ts
     command: sh -c "npx tsx src/listener.ts ${LISTENER_ARGS}"
@@ -75,6 +77,7 @@ services:
     restart: unless-stopped
 
   inscriber:
+    container_name: val-inscriber
     build:
       context: ./relay/ts
     command: sh -c "npx tsx src/inscriber.ts ${INSCRIBER_ARGS}"
