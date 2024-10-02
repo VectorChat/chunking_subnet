@@ -1,5 +1,4 @@
 import argparse
-from ast import arg
 import asyncio
 from datetime import timedelta
 import json
@@ -17,7 +16,6 @@ from chunking.utils.tokens import (
     get_tokens_from_string,
     num_tokens_from_string,
 )
-from neurons.validator import Validator
 import hashlib
 import bittensor as bt
 import numpy as np
@@ -202,8 +200,10 @@ async def make_relay_payload(
         json.dump(payload_dict, f)
         _verbose(f"Wrote IPFS payload to {tmp_file}")
 
+    _verbose(f"Temp file size: {os.path.getsize(tmp_file)} bytes")
+
     cid = await add_to_ipfs_and_pin_to_cluster(
-        tmp_file, expiry_delta=timedelta(minutes=20)
+        tmp_file, expiry_delta=timedelta(minutes=3)
     )
 
     if not cid:
@@ -250,6 +250,7 @@ async def get_recent_relay_pins(
     Returns:
         List[IPFSRelayPin]: The recent relay pins.
     """
+
     def _verbose(message: str):
         if verbose:
             bt.logging.debug(message)

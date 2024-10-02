@@ -1,0 +1,135 @@
+# Setup
+
+The components for this relay mining update currently run independently of the validator and miner scripts. For validators there is [`compose-validator.yml`](../compose-validator.yml) and for miners there is [`compose-miner.yml`](../compose-miner.yml).
+
+## Both Validators and Miners
+
+First, make sure you have Docker installed and setup.
+
+You can run these commands on Unix-based systems if you don't have it installed already.
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Enable and start Docker service (Linux only)
+if [ "$(uname)" = "Linux" ]; then
+    sudo systemctl enable --now docker
+fi
+
+# Install Docker Compose v2
+mkdir -p ~/.docker/cli-plugins
+curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o ~/.docker/cli-plugins/docker-compose
+chmod +x ~/.docker/cli-plugins/docker-compose
+
+# Verify installations
+docker --version
+docker compose version
+```
+
+If you are on Windows, please follow [the official docs](https://docs.docker.com/desktop/install/windows-install/).
+
+Then, make sure the following is in your `.env` file:
+
+```
+...
+# common
+CLUSTER_SECRET=""
+IPFS_SWARM_KEY=""
+LEADER_IPFS_MULTIADDR=""
+LEADER_IPFS_CLUSTER_MULTIADDR=""
+LEADER_IPFS_CLUSTER_ID=""
+LISTENER_ARGS="--netuid 40 --min-stake 1000"
+BT_DIR="/root/.bittensor"
+
+# validator-only
+INSCRIBER_ARGS="--netuid 40 --bittensor-coldkey-name YOUR_COLDKEY --bittensor-hotkey-name YOUR_HOTKEY"
+...
+```
+
+[!NOTE]
+To use different environment variables for testnet/mainnet, you can use multiple environment files (i.e., `.env.testnet` and `.env.mainnet`) and specify the correct one in the `docker compose` command. For example: `docker compose -f compose-miner.yml --env-file .env.mainnet up --build -d`
+
+| Variable                        | Description                                                                                                     |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| CLUSTER_SECRET                  | The secret used to encrypt the IPFS Cluster.                                                                    |
+| IPFS_SWARM_KEY                  | The key used to encrypt the IPFS Swarm.                                                                         |
+| LEADER_IPFS_MULTIADDR           | The multiaddress of the IPFS leader.                                                                            |
+| LEADER_IPFS_CLUSTER_MULTIADDR   | The multiaddress of the IPFS Cluster leader.                                                                    |
+| LEADER_IPFS_CLUSTER_ID          | The ID of the IPFS Cluster leader.                                                                              |
+| LISTENER_ARGS                   | The arguments passed to the listener service.                                                                   |
+| INSCRIBER_ARGS (validator-only) | The arguments passed to the inscriber service. Make sure to fill out your correct bittensor coldkey and hotkey. |
+
+### Firewall Setup
+
+Make sure to expose the swarm ports for both IPFS and IPFS Cluster.
+
+| Service      | Port |
+| ------------ | ---- |
+| IPFS         | 4001 |
+| IPFS Cluster | 9096 |
+
+Here's a snippet to set that up if you use ufw:
+
+```bash
+# Allow IPFS Swarm port
+sudo ufw allow 4001/tcp
+
+# Allow IPFS Cluster Swarm port
+sudo ufw allow 9096/tcp
+
+# Enable the firewall if it's not already active
+sudo ufw enable
+
+Everything else can be walled off as normal (other than your axon port(s))
+```
+
+## Validator
+
+To run, use the following command:
+
+```bash
+docker compose -f compose-validator.yml up --build -d
+```
+
+To view logs, use:
+
+```bash
+docker compose -f compose-validator.yml logs -f -n=250
+```
+
+## Miner
+
+To run, use the following command:
+
+```bash
+docker compose -f compose-miner.yml up --build -d
+```
+
+To view logs, use:
+
+```bash
+docker compose -f compose-miner.yml logs -f -n=250
+```
+
+To stop, use:
+
+```bash
+docker compose -f compose-miner.yml down
+```
+
+## Useful Docker Commands
+
+```bash
+# check existing docker process
+docker ps
+
+# check logs of compose file
+docker compose -f FILE logs -f -n=NUMLINES
+
+# get into a container
+docker exec -it NAME sh
+
+# view live stats
+docker stats
+```
