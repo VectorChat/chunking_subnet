@@ -29,9 +29,9 @@ docker compose version
 
 If you are on Windows, please follow [the official docs](https://docs.docker.com/desktop/install/windows-install/).
 
-Then, make sure the following is in your `.env` file:
+For mainnet, make sure the following is in your `.env` file:
 
-```
+```txt
 ...
 # common
 CLUSTER_SECRET=""
@@ -47,8 +47,31 @@ INSCRIBER_ARGS="--netuid 40 --bittensor-coldkey-name YOUR_COLDKEY --bittensor-ho
 ...
 ```
 
-[!NOTE]
-To use different environment variables for testnet/mainnet, you can use multiple environment files (i.e., `.env.testnet` and `.env.mainnet`) and specify the correct one in the `docker compose` command. For example: `docker compose -f compose-miner.yml --env-file .env.mainnet up --build -d`
+For testnet, use a separate env file, something like `.env.testnet`.
+
+```txt
+...
+# testnet
+CLUSTER_SECRET=""
+IPFS_SWARM_KEY=""
+LEADER_IPFS_MULTIADDR=""
+LEADER_IPFS_CLUSTER_MULTIADDR=""
+LEADER_IPFS_CLUSTER_ID=""
+LISTENER_ARGS="--netuid 166 --min-stake 1000 --ws-url wss://test.finney.opentensor.ai:443/"
+BT_DIR="/root/.bittensor"
+
+# validator-only
+INSCRIBER_ARGS="--netuid 166 --bittensor-coldkey-name YOUR_COLDKEY --bittensor-hotkey-name YOUR_HOTKEY --ws-url wss://test.finney.opentensor.ai:443/"
+...
+```
+
+This can then be specified when running the docker compose file, like so:
+
+```bash
+docker compose -f compose-validator.yml --env-file .env.testnet up --build -d
+```
+
+Description of environment variables:
 
 | Variable                        | Description                                                                                                     |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -99,6 +122,9 @@ docker compose -f compose-validator.yml logs -f -n=250
 ```
 
 ## Miner
+
+> [!NOTE]
+> If you run multiple miners on the same machine, you only need to setup these services once. They can each use the same IPFS node and IPFS Cluster Follower node to validate and list pins.
 
 To run, use the following command:
 
