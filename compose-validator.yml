@@ -13,10 +13,11 @@ services:
       LEADER_IPFS_MULTIADDR: ${LEADER_IPFS_MULTIADDR}
       IPFS_SWARM_KEY_FILE: ${IPFS_SWARM_KEY_FILE:-/data/ipfs/swarm.key}
       IS_LEADER: ${IS_LEADER:-false}
+      SWARM_SECRET: ${SWARM_SECRET}
     volumes:
       - ipfs-data:/data/ipfs
       - ./ipfs-start.sh:/usr/local/bin/ipfs-start.sh
-      - ./swarm.key:/data/ipfs/swarm.key
+      # - ./swarm.key:/data/ipfs/swarm.key
     networks:
       - ipfs-network
     entrypoint:

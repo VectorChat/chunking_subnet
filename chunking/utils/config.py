@@ -24,7 +24,6 @@ from loguru import logger
 
 import chunking
 
-
 def check_config(cls, config: "bt.Config"):
     r"""Checks/validates the config namespace object."""
     bt.logging.check_config(config)

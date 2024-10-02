@@ -27,9 +27,20 @@ else
 
   # Set up the swarm key
   SWARM_KEY_FILE="$repo/swarm.key"
-#   SWARM_KEY_PERM=0400
+  SWARM_KEY_PERM=0400
 
-#   chmod $SWARM_KEY_PERM "$SWARM_KEY_FILE"
+  # Check if SWARM_SECRET is set
+  if [ -z "$SWARM_SECRET" ]; then
+    echo "Error: SWARM_SECRET environment variable is not set."
+    exit 1
+  fi
+
+  # Write SWARM_SECRET to swarm key file
+  echo "/key/swarm/psk/1.0.0/" > "$SWARM_KEY_FILE"
+  echo "/base16/" >> "$SWARM_KEY_FILE"
+  echo "$SWARM_SECRET" >> "$SWARM_KEY_FILE"
+
+  chmod $SWARM_KEY_PERM "$SWARM_KEY_FILE"
   echo "Swarm key set up at $SWARM_KEY_FILE"
 
   # Additional configuration for private network

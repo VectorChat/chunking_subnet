@@ -35,7 +35,6 @@ For mainnet, make sure the following is in your `.env` file:
 ...
 # common
 CLUSTER_SECRET=""
-IPFS_SWARM_KEY=""
 LEADER_IPFS_MULTIADDR=""
 LEADER_IPFS_CLUSTER_MULTIADDR=""
 LEADER_IPFS_CLUSTER_ID=""
@@ -53,7 +52,6 @@ For testnet, use a separate env file, something like `.env.testnet`.
 ...
 # testnet
 CLUSTER_SECRET=""
-IPFS_SWARM_KEY=""
 LEADER_IPFS_MULTIADDR=""
 LEADER_IPFS_CLUSTER_MULTIADDR=""
 LEADER_IPFS_CLUSTER_ID=""

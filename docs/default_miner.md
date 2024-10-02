@@ -29,4 +29,5 @@ To run the miner, issue the following command:
 ```bash
 bash run-miner.sh
 ```
+
 Make sure to have your environment variables properly set in your `.env` file.
