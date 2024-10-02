@@ -1,6 +1,6 @@
-# Architecture
+# Architecture for Lucid
 
-This relay mining mitigation architecture aims to be general and modular, and it runs as a separate component from the normal miner and validator processes. The goal of this relay mining solution is to provide a way for miners to see
+Lucid aims to be general and modular, and it runs as a separate component from the normal miner and validator processes. The goal of this relay mining solution is to provide a way for miners to see
 all recent validator requests in a tamper-proof and decentralized manner. It uses a combination of cryptography, IPFS, and the Bittensor network to achieve this.
 
 ## Overview
@@ -38,6 +38,7 @@ Similarly, a miner operator runs a few extra services, specified via [a docker c
 ![Relay Mining Architecture](../../assets/relay_arch.png)
 
 ### Example Flow
+
 1. The validator creates the special IPFS payload and adds it to IPFS. The IPFS payload has the following structure:
 
 ```
@@ -63,4 +64,3 @@ Similarly, a miner operator runs a few extra services, specified via [a docker c
 <li>The `inscriber` service is responsible for inscribing the validator's IPFS Cluster ID to the chain continually, respecting predefined rate limits of the extrinsic (currently every 100 blocks). This service ensures the validator stays trusted by other IPFS Cluster peers in the network.</li>
 <li>The `listener` service is required on the miner machine to ensure the trusted peers list stays up to date. The `listener` service subscribes to the same chain as the `inscriber` service, and the trusted peers list is updated accordingly.</li>
 </ol>
-

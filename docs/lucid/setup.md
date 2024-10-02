@@ -6,28 +6,13 @@ The components for this relay mining update currently run independently of the v
 
 First, make sure you have Docker installed and setup.
 
-You can run these commands on Unix-based systems if you don't have it installed already.
-
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com | sh
-
-# Enable and start Docker service (Linux only)
-if [ "$(uname)" = "Linux" ]; then
-    sudo systemctl enable --now docker
-fi
-
-# Install Docker Compose v2
-mkdir -p ~/.docker/cli-plugins
-curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o ~/.docker/cli-plugins/docker-compose
-chmod +x ~/.docker/cli-plugins/docker-compose
-
-# Verify installations
-docker --version
-docker compose version
-```
-
 If you are on Windows, please follow [the official docs](https://docs.docker.com/desktop/install/windows-install/).
+
+For Mac, please follow [these docs](https://docs.docker.com/desktop/install/mac-install/). 
+
+For Linux, depending on your distro, you can follow either the [official docs](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository) or [these docs](https://docs.sevenbridges.com/docs/install-docker-on-linux)
+
+You can also try typing `docker` into your terminal and it may recommend a package manager to install docker.
 
 For mainnet, make sure the following is in your `.env` file:
 
@@ -52,6 +37,7 @@ For testnet, use a separate env file, something like `.env.testnet`.
 ...
 # testnet
 CLUSTER_SECRET=""
+SWARM_SECRET=""
 LEADER_IPFS_MULTIADDR=""
 LEADER_IPFS_CLUSTER_MULTIADDR=""
 LEADER_IPFS_CLUSTER_ID=""
