@@ -3,7 +3,7 @@ version: "3.8"
 services:
   ipfs:
     container_name: val-ipfs
-    image: ipfs/kubo:release
+    image: ipfs/kubo:master-2024-09-29-a178307
     ports:
       - "4001:4001" # ipfs swarm
       - "127.0.0.1:5001:5001" # ipfs api
@@ -32,7 +32,7 @@ services:
 
   cluster:
     container_name: val-cluster
-    image: ipfs/ipfs-cluster:latest
+    image: ipfs/ipfs-cluster:master-2024-07-16-a5dab45
     depends_on:
       ipfs:
         condition: service_healthy
@@ -57,7 +57,6 @@ services:
     networks:
       - ipfs-network
     restart: unless-stopped
-
     healthcheck:
       test: ["CMD", "ipfs-cluster-ctl", "id"]
       interval: 8s

@@ -3,7 +3,7 @@ version: "3.8"
 services:
   ipfs:
     container_name: miner-ipfs
-    image: ipfs/kubo:release
+    image: ipfs/kubo:master-2024-09-29-a178307
     ports:
       - "4001:4001" # ipfs swarm 
       - "127.0.0.1:5001:5001" # ipfs api 
