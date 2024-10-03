@@ -34,5 +34,5 @@ Make sure to have your environment variables properly set in your `.env` file.
 
 To run the miner with relay mining protection (`lucid`), follow the setup instructions [here](./lucid/setup.md) for miners.
 
-> [!NOTE]
+> [!WARNING]
 > You will need to add `OPENAI_API_KEY` to your `.env` file if you allow for checking of fuzzy/semi duplicate requests.

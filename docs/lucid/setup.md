@@ -2,7 +2,7 @@
 
 ## Prerequsities
 
-Follow the [lucid setup guide](https://github.com/VectorChat/lucid/blob/main/docs/setup.md)
+- Follow the [lucid setup guide](https://github.com/VectorChat/lucid/blob/main/docs/setup.md)
 
 > [!NOTE]
 > The below steps assume you are in the `lucid` repo.
