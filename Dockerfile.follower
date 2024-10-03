@@ -1,4 +1,0 @@
-FROM ipfs/ipfs-cluster:master-2024-07-16-a5dab45
-
-# download jq
-RUN apk add --no-cache jq curl
