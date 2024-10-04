@@ -38,3 +38,5 @@ logs/
 
 *.pkl
 *.pickle
+
+tests/v1*
