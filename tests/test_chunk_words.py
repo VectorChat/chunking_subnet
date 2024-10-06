@@ -1,7 +1,7 @@
-from random import random
 from chunking.validator.reward import check_chunk_words_in_document
 from chunking.validator.task_api import generate_doc_normal, generate_synthetic_synapse
 from nltk.tokenize import sent_tokenize
+import random
 
 from tests.utils import base_chunker
 

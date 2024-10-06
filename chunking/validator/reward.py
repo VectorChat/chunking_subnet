@@ -23,20 +23,19 @@ from typing import List, Tuple
 from openai import OpenAI
 from chunking.protocol import chunkSynapse
 from random import sample
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
 import numpy as np
 
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
-
 from nltk.tokenize import TreebankWordTokenizer
 
 
 def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
-    word_tokenizer = TreebankWordTokenizer()
-    chunk_words = word_tokenizer.tokenize(chunk)
-    document_words = word_tokenizer.tokenize(document)
+    # word_tokenizer = TreebankWordTokenizer()
+    chunk_words = wordpunct_tokenize(chunk)
+    document_words = wordpunct_tokenize(document)
 
     chunk_words_str = " ".join(chunk_words)
     document_words_str = " ".join(document_words)
@@ -61,6 +60,7 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
 
             BLUE = "\033[94m"
             YELLOW = "\033[93m"
+            RED = "\033[91m"
             ENDC = "\033[0m"
 
             closest_match_end_index = closest_match_index + len(chunk_words)
@@ -73,17 +73,24 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
             closest_match_str_document = ""
             for i in range(len(chunk_words)):
                 if chunk_words[i] == closest_match_words[i]:
-                    chunk_str += " " + YELLOW + chunk_words[i] + ENDC
+                    chunk_str += " " + BLUE + chunk_words[i] + ENDC
                     closest_match_str_document += (
                         " " + BLUE + closest_match_words[i] + ENDC
                     )
                 else:
-                    chunk_str += " " + chunk_words[i]
-                    closest_match_str_document += " " + closest_match_words[i]
+                    chunk_str += " " + RED + chunk_words[i] + ENDC
+                    closest_match_str_document += (
+                        " " + YELLOW + closest_match_words[i] + ENDC
+                    )
 
+            print("=" * 100)
             print(
                 f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
             )
+            print("-" * 100)
+            print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
+            print(f"{BLUE} document words: {document_words} {ENDC}")
+            print("=" * 100)
         return False
 
 
@@ -155,7 +162,6 @@ def reward(
         return _get_early_return_stuff(
             f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}"
         )
-
 
     word_tokenizer = TreebankWordTokenizer()
 
