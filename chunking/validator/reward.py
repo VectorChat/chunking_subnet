@@ -16,18 +16,110 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import difflib
 from math import ceil, e
 from typing import List, Tuple
 
 from openai import OpenAI
 from chunking.protocol import chunkSynapse
 from random import sample
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
 import numpy as np
 
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
+from nltk.tokenize import TreebankWordTokenizer
+import regex as re
+
+
+def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
+    def _verbose(msg: str):
+        if verbose:
+            print(msg)
+
+    # word_tokenizer = TreebankWordTokenizer()
+    chunk_words = wordpunct_tokenize(chunk)
+    document_words = wordpunct_tokenize(document)
+
+    _verbose(f"created {len(chunk_words)} chunk words")
+    _verbose(f"created {len(document_words)} document words")
+
+    chunk_words_str = " ".join(chunk_words)
+    document_words_str = " ".join(document_words)
+
+    # Regex to match any punctuation
+    punctuation_regex = r'([.,!?"\'])'
+
+    # Add space before and after each punctuation mark
+    chunk_words_str = re.sub(punctuation_regex, r" \1 ", chunk_words_str)
+    document_words_str = re.sub(punctuation_regex, r" \1 ", document_words_str)
+
+    _verbose("removed punctuation")
+
+    # Remove extra spaces
+    chunk_words_str = re.sub(r"\s+", " ", chunk_words_str).strip()
+    document_words_str = re.sub(r"\s+", " ", document_words_str).strip()
+
+    _verbose("removed extra spaces")
+
+    if chunk_words_str in document_words_str:
+        _verbose("chunk words in document words")
+        return True
+    else:
+        _verbose("chunk words not in document words")
+
+        if verbose:
+            closest_match_index = 0
+            highest_matches_so_far = 0
+            for i in range(len(document_words) - len(chunk_words) + 1):
+                num_matches = 0
+                for j in range(len(chunk_words)):
+                    if document_words[i + j] == chunk_words[j]:
+                        num_matches += 1
+                    else:
+                        break
+                if num_matches > highest_matches_so_far:
+                    highest_matches_so_far = num_matches
+                    closest_match_index = i
+
+            BLUE = "\033[94m"
+            YELLOW = "\033[93m"
+            RED = "\033[91m"
+            ENDC = "\033[0m"
+
+            closest_match_end_index = closest_match_index + len(chunk_words)
+
+            closest_match_words = document_words[
+                closest_match_index:closest_match_end_index
+            ]
+
+            chunk_str = ""
+            closest_match_str_document = ""
+            for i in range(len(chunk_words)):
+                if chunk_words[i] == closest_match_words[i]:
+                    chunk_str += " " + BLUE + chunk_words[i] + ENDC
+                    closest_match_str_document += (
+                        " " + BLUE + closest_match_words[i] + ENDC
+                    )
+                else:
+                    chunk_str += " " + RED + chunk_words[i] + ENDC
+                    closest_match_str_document += (
+                        " " + YELLOW + closest_match_words[i] + ENDC
+                    )
+
+            print("=" * 100)
+            print(
+                f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
+            )
+            # print("-" * 100)
+            # print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
+            # print(f"{BLUE} document words: {document_words} {ENDC}")
+            # print("-" * 100)
+            # print(f"{YELLOW} chunk: {chunk} {ENDC}")
+            # print(f"{BLUE} document: {document} {ENDC}")
+            print("=" * 100)
+        return False
 
 
 def reward(
@@ -99,12 +191,14 @@ def reward(
             f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}"
         )
 
+    word_tokenizer = TreebankWordTokenizer()
+
     chunks = response.chunks
     intrachunk_similarities = []
     interchunk_similarities = []
     smallChunks = []
     size_penalty = 0
-    document_words = word_tokenize(document)
+    document_words = word_tokenizer.tokenize(document)
     combined_chunk_words = ""
 
     qty_penalty = 0
@@ -120,9 +214,10 @@ def reward(
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
-        chunk_words = " ".join(word_tokenize(chunks[i]))
-        combined_chunk_words += " " + chunk_words
-        if chunk_words not in " ".join(document_words):
+        chunk_words_str = " ".join(word_tokenizer.tokenize(chunks[i]))
+        combined_chunk_words += " " + chunk_words_str
+
+        if not check_chunk_words_in_document(chunks[i], document):
             return _get_early_return_stuff(
                 f"Chunk {i} does not contain all words from the document"
             )
