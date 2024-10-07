@@ -60,7 +60,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 pip3 install -e .
-python3 -c "import nltk; nltk.download('punkt')"
+python3 -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
 
 echo "
 NETUID=40
