@@ -30,6 +30,7 @@ from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
 from nltk.tokenize import TreebankWordTokenizer
+import regex as re
 
 
 def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
@@ -39,6 +40,18 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
 
     chunk_words_str = " ".join(chunk_words)
     document_words_str = " ".join(document_words)
+
+    # Regex to match any punctuation
+    punctuation_regex = r'([.,!?"\'])'
+
+    # Add space before and after each punctuation mark
+    chunk_words_str = re.sub(punctuation_regex, r' \1 ', chunk_words_str)
+    document_words_str = re.sub(punctuation_regex, r' \1 ', document_words_str)
+
+    # Remove extra spaces
+    chunk_words_str = re.sub(r'\s+', ' ', chunk_words_str).strip()
+    document_words_str = re.sub(r'\s+', ' ', document_words_str).strip()
+
 
     if chunk_words_str in document_words_str:
         return True
@@ -90,6 +103,9 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
             print("-" * 100)
             print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
             print(f"{BLUE} document words: {document_words} {ENDC}")
+            print("-" * 100)
+            print(f"{YELLOW} chunk: {chunk} {ENDC}")
+            print(f"{BLUE} document: {document} {ENDC}")
             print("=" * 100)
         return False
 
