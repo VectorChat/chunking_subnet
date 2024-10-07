@@ -8,6 +8,7 @@ from nltk.tokenize import sent_tokenize
 import random
 
 from tests.utils import get_articles, base_chunker
+from tests.utils.test_cases import read_test_cases
 
 
 def create_bad_chunk(chunk: str):
@@ -27,29 +28,58 @@ def test_chunk_words():
     )
     test_chunk = "Giants of the Ice Age (3 ed.)."
 
+    print(f"testing test_chunk: {test_chunk}")
+
     assert (
         check_chunk_words_in_document(test_chunk, test_document, verbose=True) == True
     )
 
-    test_doc, pageid = generate_doc_normal(None)
+    # print("generating test doc")
 
-    print(f"created test doc of length {len(test_doc)}, pageid = {pageid}")
+    # test_doc, pageid = generate_doc_normal(None)
 
-    test_chunks = base_chunker(test_doc, 4096)
+    # print(f"created test doc of length {len(test_doc)}, pageid = {pageid}")
 
-    print(f"created {len(test_chunks)} chunks")
+    # test_chunks = base_chunker(test_doc, 4096)
 
-    checks = [
-        check_chunk_words_in_document(chunk, test_doc, verbose=True)
-        for chunk in test_chunks
-    ]
+    # print(f"created {len(test_chunks)} chunks")
 
-    assert all(checks)
+    # checks = [
+    #     check_chunk_words_in_document(chunk, test_doc, verbose=True)
+    #     for chunk in test_chunks
+    # ]
 
-    # create bad chunks by removing word from random chunk
-    bad_chunks = [create_bad_chunk(chunk) for chunk in test_chunks[:10]]
+    # assert all(checks)
 
-    assert check_chunk_words_in_document(bad_chunks[0], test_doc, verbose=True) == False
+    # test with static test cases
+
+    for case in read_test_cases():
+        document = case
+
+        chunks = base_chunker(document, 4096)
+
+        checks = [
+            check_chunk_words_in_document(chunk, document, verbose=True)
+            for chunk in chunks
+        ]
+
+        assert all(checks)
+
+        sample_size = min(10, len(chunks))
+
+        # create bad chunks by removing word from random chunk
+        random_chunks = random.sample(chunks, sample_size)
+
+        bad_chunks = [create_bad_chunk(chunk) for chunk in random_chunks]
+
+        print(f"created {len(bad_chunks)} bad chunks")
+
+        checks = [
+            check_chunk_words_in_document(chunk, document, verbose=True)
+            for chunk in bad_chunks
+        ]
+
+        assert not any(checks)
 
     # test random articles
 
@@ -65,7 +95,9 @@ def test_chunk_words():
 
     for article in articles_to_test:
         print(f"testing article {article}")
-        document = get_wiki_content_for_page(article)
+        document, title = get_wiki_content_for_page(article)
+
+        print(f"title: {title}")
 
         chunks = base_chunker(document, 4096)
 
@@ -75,3 +107,8 @@ def test_chunk_words():
         ]
 
         assert all(checks)
+
+
+# if __name__ == "__main__":
+#     print("running tests")
+#     test_chunk_words()

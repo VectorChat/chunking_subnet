@@ -34,9 +34,16 @@ import regex as re
 
 
 def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
+    def _verbose(msg: str):
+        if verbose:
+            print(msg)
+
     # word_tokenizer = TreebankWordTokenizer()
     chunk_words = wordpunct_tokenize(chunk)
     document_words = wordpunct_tokenize(document)
+
+    _verbose(f"created {len(chunk_words)} chunk words")
+    _verbose(f"created {len(document_words)} document words")
 
     chunk_words_str = " ".join(chunk_words)
     document_words_str = " ".join(document_words)
@@ -45,17 +52,22 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
     punctuation_regex = r'([.,!?"\'])'
 
     # Add space before and after each punctuation mark
-    chunk_words_str = re.sub(punctuation_regex, r' \1 ', chunk_words_str)
-    document_words_str = re.sub(punctuation_regex, r' \1 ', document_words_str)
+    chunk_words_str = re.sub(punctuation_regex, r" \1 ", chunk_words_str)
+    document_words_str = re.sub(punctuation_regex, r" \1 ", document_words_str)
+
+    _verbose("removed punctuation")
 
     # Remove extra spaces
-    chunk_words_str = re.sub(r'\s+', ' ', chunk_words_str).strip()
-    document_words_str = re.sub(r'\s+', ' ', document_words_str).strip()
+    chunk_words_str = re.sub(r"\s+", " ", chunk_words_str).strip()
+    document_words_str = re.sub(r"\s+", " ", document_words_str).strip()
 
+    _verbose("removed extra spaces")
 
     if chunk_words_str in document_words_str:
+        _verbose("chunk words in document words")
         return True
     else:
+        _verbose("chunk words not in document words")
 
         if verbose:
             closest_match_index = 0
@@ -100,12 +112,12 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
             print(
                 f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
             )
-            print("-" * 100)
-            print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
-            print(f"{BLUE} document words: {document_words} {ENDC}")
-            print("-" * 100)
-            print(f"{YELLOW} chunk: {chunk} {ENDC}")
-            print(f"{BLUE} document: {document} {ENDC}")
+            # print("-" * 100)
+            # print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
+            # print(f"{BLUE} document words: {document_words} {ENDC}")
+            # print("-" * 100)
+            # print(f"{YELLOW} chunk: {chunk} {ENDC}")
+            # print(f"{BLUE} document: {document} {ENDC}")
             print("=" * 100)
         return False
 
