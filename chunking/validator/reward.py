@@ -302,7 +302,7 @@ def reward(
     all_text = " ".join([testChunk.text for testChunk in testChunks])
 
     # calculate the number of tokens in the text (for logging/accounting purposes)
-    num_tokens = num_tokens_from_string(all_text, "o200k_base")
+    num_tokens = num_tokens_from_string(all_text, "gpt-4o-mini")
 
     bt.logging.info(f"Using {num_tokens} tokens for test embeddings")
 

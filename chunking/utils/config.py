@@ -24,7 +24,6 @@ from loguru import logger
 
 import chunking
 
-
 def check_config(cls, config: "bt.Config"):
     r"""Checks/validates the config namespace object."""
     bt.logging.check_config(config)
@@ -87,12 +86,12 @@ def add_args(cls, parser):
         help="The default epoch length (how often we set weights, measured in 12 second blocks).",
         default=100,
     )
-    
+
     parser.add_argument(
         "--neuron.sync_metagraph_interval",
         type=int,
         help="The interval between metagraph syncs in blocks.",
-        default=50
+        default=50,
     )
 
     parser.add_argument(
@@ -109,7 +108,7 @@ def add_args(cls, parser):
         default=False,
     )
 
-    if neuron_type == "validator":        
+    if neuron_type == "validator":
 
         parser.add_argument(
             "--neuron.timeout",
@@ -124,12 +123,12 @@ def add_args(cls, parser):
             help="The number of concurrent forwards running at any time.",
             default=1,
         )
-        
+
         parser.add_argument(
             "--wandb.project_name",
             type=str,
             help="The name of the wandb project.",
-            default=chunking.PROJECT_NAME
+            default=chunking.PROJECT_NAME,
         )
 
         parser.add_argument(
@@ -143,7 +142,7 @@ def add_args(cls, parser):
             "--neuron.synthetic_query_interval_seconds",
             type=int,
             help="The interval between synthetic queries in seconds.",
-            default=20
+            default=20,
         )
 
         parser.add_argument(
@@ -189,7 +188,7 @@ def add_args(cls, parser):
             help="Set this flag to accept organic queries",
             default=False,
         )
-        
+
         parser.add_argument(
             "--neuron.skip_set_weights_extrinsic",
             action="store_true",
@@ -197,7 +196,7 @@ def add_args(cls, parser):
             default=False,
         )
 
-    #Miner
+    # Miner
     else:
         parser.add_argument(
             "--blacklist.force_validator_permit",
@@ -225,13 +224,20 @@ def add_args(cls, parser):
             action="store_true",
             help="If set, miners will accept queries without verifying. (Dangerous!)",
             default=False,
-        )            
-        
+        )
+
         parser.add_argument(
             "--neuron.synapse_verify_allowed_delta",
             type=int,
             help="The allowed delta for synapse verification in nanoseconds.",
-            default=10_000_000_000, # 10 seconds
+            default=10_000_000_000,  # 10 seconds
+        )
+
+        parser.add_argument(
+            "--neuron.relay_embed_threshold",
+            type=int,
+            help="The threshold of cosine similarity to use when comparing two request documents. If the similarity is greater than this threshold, we will consider this a fuzzy duplicate and not process the request.",
+            default=0.9,
         )
 
 
