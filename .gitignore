@@ -20,3 +20,8 @@ scripts/
 logs/
 *.txt
 !requirements.txt
+
+*.csv
+*.pkl
+*.png
+v9

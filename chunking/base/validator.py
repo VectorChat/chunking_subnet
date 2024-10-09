@@ -317,8 +317,8 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         # Check that validator is registered on the network.
-        self.sync()
-        self.sync_articles()
+        # self.sync()
+        # self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
 
         interval_seconds = self.config.neuron.synthetic_query_interval_seconds
@@ -327,6 +327,11 @@ class BaseValidatorNeuron(BaseNeuron):
         try:
             while True:
                 bt.logging.info(f"step({self.step}) block({self.block})")
+
+                # Sync metagraph and potentially set weights.
+                self.sync()
+                self.sync_articles()               
+
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
 
@@ -334,9 +339,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 if self.should_exit:
                     break
 
-                # Sync metagraph and potentially set weights.
-                self.sync()
-                self.sync_articles()
+                # Save the current tournament state to disk.
                 self.save_state()
 
                 bt.logging.debug(
@@ -511,6 +514,19 @@ class BaseValidatorNeuron(BaseNeuron):
             )
 
         return raw_weights
+    
+    def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
+        result, msg = self.subtensor.set_weights(
+            wallet=self.wallet,
+            netuid=self.config.netuid,
+            uids=uint_uids,
+            weights=uint_weights,
+            wait_for_finalization=False,
+            wait_for_inclusion=True,
+            version_key=self.spec_version,
+        )
+        return result, msg
+
 
     def set_weights(self: "BaseValidatorNeuron"):
         """
@@ -571,34 +587,15 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.warning("Skipping set_weights extrinsic call.")
             return
 
-        timeout_seconds = self.config.neuron.set_weights_timeout_seconds
-
-        # Set the weights on chain via our subtensor connection.
-        def set_weights_on_chain():
-            result, msg = self.subtensor.set_weights(
-                wallet=self.wallet,
-                netuid=self.config.netuid,
-                uids=uint_uids,
-                weights=uint_weights,
-                wait_for_finalization=True,
-                wait_for_inclusion=True,
-                version_key=self.spec_version,
-            )
-            return result, msg
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(set_weights_on_chain)
-            try:
-                result, msg = future.result(timeout=timeout_seconds)
-                if result is True:
-                    bt.logging.success("set_weights on chain successfully!")
-                else:
-                    bt.logging.error("set_weights failed", msg)
-            except concurrent.futures.TimeoutError:
-                bt.logging.error(
-                    f"set_weights operation timed out after {timeout_seconds} seconds"
-                )
-                return
+        try:
+            result, msg = self.set_weights_on_chain(uint_uids, uint_weights)
+            if result is True:
+                bt.logging.success(f"set_weights extrinsic submitted successfully!: {msg}")
+            else:
+                bt.logging.error(f"set_weights failed: {msg}")
+        except Exception as e:
+            bt.logging.error(f"Error setting weights: {e}")
+            traceback.print_exc()
 
     def resync_metagraph(self):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""

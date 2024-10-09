@@ -16,18 +16,151 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import difflib
 from math import ceil, e
 from typing import List, Tuple
 
 from openai import OpenAI
 from chunking.protocol import chunkSynapse
 from random import sample
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
 import numpy as np
 
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
+import regex as re
+
+PUNCTUATION_REGEX = r'([.,!?"\'])'
+
+
+def custom_word_tokenize(text: str) -> List[str]:
+    initial_words = wordpunct_tokenize(text)
+
+    final_words = []
+
+    for word in initial_words:
+        final_word = ""
+        for char in word:
+            if re.match(PUNCTUATION_REGEX, char):
+                final_word += " " + char + " "
+            else:
+                final_word += char
+
+        # remove extra spaces
+        final_word = re.sub(r"\s+", " ", final_word).strip()
+
+        final_words.append(final_word)
+
+    return final_words
+
+
+def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
+    def _verbose(msg: str):
+        if verbose:
+            print(msg)
+
+    # word_tokenizer = TreebankWordTokenizer()
+    chunk_words = wordpunct_tokenize(chunk)
+    document_words = wordpunct_tokenize(document)
+
+    _verbose(f"created {len(chunk_words)} chunk words")
+    _verbose(f"created {len(document_words)} document words")
+
+    chunk_words_str = " ".join(chunk_words)
+    document_words_str = " ".join(document_words)
+
+    # Regex to match any punctuation
+    punctuation_regex = r'([.,!?"\'])'
+
+    # Add space before and after each punctuation mark
+    chunk_words_str = re.sub(punctuation_regex, r" \1 ", chunk_words_str)
+    document_words_str = re.sub(punctuation_regex, r" \1 ", document_words_str)
+
+    _verbose("removed punctuation")
+
+    # Remove extra spaces
+    chunk_words_str = re.sub(r"\s+", " ", chunk_words_str).strip()
+    document_words_str = re.sub(r"\s+", " ", document_words_str).strip()
+
+    _verbose("removed extra spaces")
+
+    if chunk_words_str in document_words_str:
+        _verbose("chunk words in document words")
+        return True
+    else:
+        _verbose("chunk words not in document words")
+
+        if verbose:
+            closest_match_index = 0
+            highest_matches_so_far = 0
+            for i in range(len(document_words) - len(chunk_words) + 1):
+                num_matches = 0
+                for j in range(len(chunk_words)):
+                    if document_words[i + j] == chunk_words[j]:
+                        num_matches += 1
+                    else:
+                        break
+                if num_matches > highest_matches_so_far:
+                    highest_matches_so_far = num_matches
+                    closest_match_index = i
+
+            BLUE = "\033[94m"
+            YELLOW = "\033[93m"
+            RED = "\033[91m"
+            ENDC = "\033[0m"
+
+            closest_match_end_index = closest_match_index + len(chunk_words)
+
+            closest_match_words = document_words[
+                closest_match_index:closest_match_end_index
+            ]
+
+            chunk_str = ""
+            closest_match_str_document = ""
+            for i in range(len(chunk_words)):
+                if chunk_words[i] == closest_match_words[i]:
+                    chunk_str += " " + BLUE + chunk_words[i] + ENDC
+                    closest_match_str_document += (
+                        " " + BLUE + closest_match_words[i] + ENDC
+                    )
+                else:
+                    chunk_str += " " + RED + chunk_words[i] + ENDC
+                    closest_match_str_document += (
+                        " " + YELLOW + closest_match_words[i] + ENDC
+                    )
+
+            print("=" * 100)
+            print(
+                f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
+            )
+            # print("-" * 100)
+            # print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
+            # print(f"{BLUE} document words: {document_words} {ENDC}")
+            # print("-" * 100)
+            # print(f"{YELLOW} chunk: {chunk} {ENDC}")
+            # print(f"{BLUE} document: {document} {ENDC}")
+            print("=" * 100)
+        return False
+
+
+def check_document_words_in_chunks(
+    document: str, chunks: List[str], chunk_size: int, k=3
+):
+    document_words = custom_word_tokenize(document)
+    combined_chunk_words = " "
+    for chunk in chunks:
+        combined_chunk_words += " " + " ".join(custom_word_tokenize(chunk))
+
+    for i in range(0, len(document_words), k):
+        document_words_str = " ".join(document_words[i : i + k])
+        if (
+            len(document_words_str) < chunk_size
+            and document_words_str not in combined_chunk_words
+        ):
+            return False
+
+    return True
 
 
 def reward(
@@ -104,8 +237,6 @@ def reward(
     interchunk_similarities = []
     smallChunks = []
     size_penalty = 0
-    document_words = word_tokenize(document)
-    combined_chunk_words = ""
 
     qty_penalty = 0
 
@@ -120,9 +251,7 @@ def reward(
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
-        chunk_words = " ".join(word_tokenize(chunks[i]))
-        combined_chunk_words += " " + chunk_words
-        if chunk_words not in " ".join(document_words):
+        if not check_chunk_words_in_document(chunks[i], document):
             return _get_early_return_stuff(
                 f"Chunk {i} does not contain all words from the document"
             )
@@ -146,16 +275,12 @@ def reward(
         )
 
     # check that every set of 3 adjacent words from the document appears in the chunks
-    for i in range(0, len(document_words), 3):
-        if (
-            len(" ".join(document_words[i : i + 3])) < chunk_size
-            and " ".join(document_words[i : i + 3]) not in combined_chunk_words
-        ):
-            return _get_early_return_stuff(
-                f"Every set of 3 adjacent words from the document does not appear in the chunks"
-            )
+    if not check_document_words_in_chunks(document, chunks, chunk_size):
+        return _get_early_return_stuff(
+            f"Every set of 3 adjacent words from the document does not appear in the chunks"
+        )
 
-    _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
+    _verbose(f"Passed: Every set of 3 adjacent words from the document appears in the chunks")
 
     num_embeddings = (
         override_num_embeddings if override_num_embeddings else self.num_embeddings

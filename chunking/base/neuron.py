@@ -189,7 +189,7 @@ class BaseNeuron(ABC):
             return False
 
         # Don't set weights on initialization.
-        if self.step == 0:
+        if self.step < 2:
             return False
 
         if self.config.neuron.disable_set_weights:
