@@ -29,8 +29,30 @@ import numpy as np
 from chunking.validator.task_api import num_tokens_from_string
 from neurons.validator import Validator
 import bittensor as bt
-from nltk.tokenize import TreebankWordTokenizer
 import regex as re
+
+PUNCTUATION_REGEX = r'([.,!?"\'])'
+
+
+def custom_word_tokenize(text: str) -> List[str]:
+    initial_words = wordpunct_tokenize(text)
+
+    final_words = []
+
+    for word in initial_words:
+        final_word = ""
+        for char in word:
+            if re.match(PUNCTUATION_REGEX, char):
+                final_word += " " + char + " "
+            else:
+                final_word += char
+
+        # remove extra spaces
+        final_word = re.sub(r"\s+", " ", final_word).strip()
+
+        final_words.append(final_word)
+
+    return final_words
 
 
 def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
@@ -122,6 +144,25 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
         return False
 
 
+def check_document_words_in_chunks(
+    document: str, chunks: List[str], chunk_size: int, k=3
+):
+    document_words = custom_word_tokenize(document)
+    combined_chunk_words = " "
+    for chunk in chunks:
+        combined_chunk_words += " " + " ".join(custom_word_tokenize(chunk))
+
+    for i in range(0, len(document_words), k):
+        document_words_str = " ".join(document_words[i : i + k])
+        if (
+            len(document_words_str) < chunk_size
+            and document_words_str not in combined_chunk_words
+        ):
+            return False
+
+    return True
+
+
 def reward(
     self: Validator | None,
     document: str,
@@ -191,15 +232,11 @@ def reward(
             f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'}"
         )
 
-    word_tokenizer = TreebankWordTokenizer()
-
     chunks = response.chunks
     intrachunk_similarities = []
     interchunk_similarities = []
     smallChunks = []
     size_penalty = 0
-    document_words = word_tokenizer.tokenize(document)
-    combined_chunk_words = ""
 
     qty_penalty = 0
 
@@ -214,9 +251,6 @@ def reward(
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
-        chunk_words_str = " ".join(word_tokenizer.tokenize(chunks[i]))
-        combined_chunk_words += " " + chunk_words_str
-
         if not check_chunk_words_in_document(chunks[i], document):
             return _get_early_return_stuff(
                 f"Chunk {i} does not contain all words from the document"
@@ -241,16 +275,12 @@ def reward(
         )
 
     # check that every set of 3 adjacent words from the document appears in the chunks
-    for i in range(0, len(document_words), 3):
-        if (
-            len(" ".join(document_words[i : i + 3])) < chunk_size
-            and " ".join(document_words[i : i + 3]) not in combined_chunk_words
-        ):
-            return _get_early_return_stuff(
-                f"Every set of 3 adjacent words from the document does not appear in the chunks"
-            )
+    if not check_document_words_in_chunks(document, chunks, chunk_size):
+        return _get_early_return_stuff(
+            f"Every set of 3 adjacent words from the document does not appear in the chunks"
+        )
 
-    _verbose(f"Every set of 3 adjacent words from the document appears in the chunks")
+    _verbose(f"Passed: Every set of 3 adjacent words from the document appears in the chunks")
 
     num_embeddings = (
         override_num_embeddings if override_num_embeddings else self.num_embeddings

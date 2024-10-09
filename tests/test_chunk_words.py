@@ -1,4 +1,14 @@
-from chunking.validator.reward import check_chunk_words_in_document
+import logging
+from math import ceil
+import time
+
+from openai import OpenAI
+from chunking.protocol import chunkSynapse
+from chunking.validator.reward import (
+    check_chunk_words_in_document,
+    check_document_words_in_chunks,
+    reward,
+)
 from chunking.validator.task_api import (
     generate_doc_normal,
     generate_synthetic_synapse,
@@ -9,6 +19,8 @@ import random
 
 from tests.utils import get_articles, base_chunker
 from tests.utils.test_cases import read_test_cases
+
+logger = logging.getLogger(__name__)
 
 
 def create_bad_chunk(chunk: str):
@@ -28,35 +40,20 @@ def test_chunk_words():
     )
     test_chunk = "Giants of the Ice Age (3 ed.)."
 
-    print(f"testing test_chunk: {test_chunk}")
+    logger.info(f"testing test_chunk: {test_chunk}")
 
     assert (
         check_chunk_words_in_document(test_chunk, test_document, verbose=True) == True
     )
 
-    # print("generating test doc")
-
-    # test_doc, pageid = generate_doc_normal(None)
-
-    # print(f"created test doc of length {len(test_doc)}, pageid = {pageid}")
-
-    # test_chunks = base_chunker(test_doc, 4096)
-
-    # print(f"created {len(test_chunks)} chunks")
-
-    # checks = [
-    #     check_chunk_words_in_document(chunk, test_doc, verbose=True)
-    #     for chunk in test_chunks
-    # ]
-
-    # assert all(checks)
-
     # test with static test cases
 
+    chunk_size = 4096
     for case in read_test_cases():
+        logger.info("testing case")
         document = case
 
-        chunks = base_chunker(document, 4096)
+        chunks = base_chunker(document, chunk_size)
 
         checks = [
             check_chunk_words_in_document(chunk, document, verbose=True)
@@ -64,6 +61,8 @@ def test_chunk_words():
         ]
 
         assert all(checks)
+
+        assert check_document_words_in_chunks(document, chunks, chunk_size)
 
         sample_size = min(10, len(chunks))
 
@@ -72,7 +71,7 @@ def test_chunk_words():
 
         bad_chunks = [create_bad_chunk(chunk) for chunk in random_chunks]
 
-        print(f"created {len(bad_chunks)} bad chunks")
+        logger.info(f"created {len(bad_chunks)} bad chunks")
 
         checks = [
             check_chunk_words_in_document(chunk, document, verbose=True)
@@ -81,11 +80,20 @@ def test_chunk_words():
 
         assert not any(checks)
 
+        assert not check_document_words_in_chunks(document, bad_chunks, chunk_size)
+
     # test random articles
 
     articles = get_articles()
 
-    sample_size = 200
+    sample_size = 6500
+    first_n = 200
+
+    assert first_n < sample_size
+
+    client = OpenAI()
+
+    NUM_EMBEDDINGS = 2000
 
     random_articles = random.sample(articles, sample_size)
 
@@ -93,11 +101,55 @@ def test_chunk_words():
 
     articles_to_test = additional_pageids + random_articles
 
-    for article in articles_to_test:
-        print(f"testing article {article}")
+    logger.info(f"testing {len(articles_to_test)} articles")
+
+    # for first n, also run with reward fn
+    logger.info(f"testing {first_n} articles with reward fn")
+    for i in range(first_n):
+        logger.info(f"testing article {articles_to_test[i]}")
+        document, title = get_wiki_content_for_page(articles_to_test[i])
+
+        chunks = base_chunker(document, chunk_size)
+
+        checks = [
+            check_chunk_words_in_document(chunk, document, verbose=True)
+            for chunk in chunks
+        ]
+
+        assert all(checks)
+
+        assert check_document_words_in_chunks(document, chunks, chunk_size)
+
+        logger.info("passed chunk words check")
+
+        chunk_qty = ceil(ceil(len(document) / chunk_size) * 1.5)
+
+        synapse = chunkSynapse(
+            document=document,
+            chunk_size=chunk_size,
+            chunk_qty=chunk_qty,
+            chunks=chunks,
+            time_soft_max=15.0,
+        )
+
+        logger.info("rewarding chunks")
+        start_time = time.time()
+
+        reward_value, _ = reward(
+            None, document, chunk_size, chunk_qty, synapse, client, NUM_EMBEDDINGS, True
+        )
+
+        end_time = time.time()
+
+        logger.info(f"rewarded chunks in {end_time - start_time} seconds")
+
+        assert reward_value > 0
+
+    for i, article in enumerate(articles_to_test):
+        logger.info(f"testing article {i + 1}/{len(articles_to_test)}: {article}")
         document, title = get_wiki_content_for_page(article)
 
-        print(f"title: {title}")
+        logger.info(f"title: {title}")
 
         chunks = base_chunker(document, 4096)
 
@@ -107,6 +159,10 @@ def test_chunk_words():
         ]
 
         assert all(checks)
+
+        assert check_document_words_in_chunks(document, chunks, chunk_size)
+
+    logger.info(f"finished checking {len(articles_to_test)} articles")
 
 
 # if __name__ == "__main__":
