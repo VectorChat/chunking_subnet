@@ -7,7 +7,7 @@
 
 
 
-[Dashboard](https://subnet.chunking.com) • [VectorChat](https://vectorchat.ai) • [Chunking.com](https://chunking.com) • [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae)
+[Dashboard](https://subnet.chunking.com) • [VectorChat](https://vectorchat.ai) • [Chunking.com](https://chunking.com) • [Toffee](https://medium.com/@vectorchat/introducing-toffee-a-new-era-in-conversational-ai-cfd09c6648ae) • [Lucid](https://github.com/VectorChat/lucid)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 

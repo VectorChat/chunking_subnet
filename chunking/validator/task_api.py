@@ -290,6 +290,8 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20, client=None) -> s
 
     client = client if client is not None else validator.client
 
+    
+def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, override_client=None) -> str:
     pages = (
         choices(pageids, k=3)
         if pageids != None and len(pageids) == 3
@@ -307,10 +309,12 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20, client=None) -> s
     bt.logging.info("Generating first section of synthetic query")
     start = time.time()
 
+    client = override_client if override_client else validator.client
+
     synthetic_document = (
         client.chat.completions.create(
             model="gpt-4o-mini",
-            temperature=0.7,
+            temperature=temperature,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
@@ -342,11 +346,17 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20, client=None) -> s
 
     bt.logging.info("Generating rest of synthetic query")
 
-    for j in range(5):
+    end_index_choices = list(range(3, 7))
+
+    end_index = choice(end_index_choices)
+
+    bt.logging.info(f"Generating {end_index} more sections of synthetic query")
+
+    for j in range(end_index):
         next_synthesis = (
             client.chat.completions.create(
                 model="gpt-4o-mini",
-                temperature=0.7,
+                temperature=temperature,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {

@@ -40,3 +40,8 @@ logs/
 *.pickle
 
 tests/v1*
+
+*.csv
+*.pkl
+*.png
+v*/
