@@ -242,7 +242,7 @@ def get_wiki_content_for_page(pageid: int) -> str:
     return response['extract'], response['title']
 
     
-def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
+def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, override_client=None) -> str:
     pages = (
         choices(validator.articles, k=3)
         if pageids == None or len(pageids) < 3
@@ -260,10 +260,12 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
     bt.logging.info("Generating first section of synthetic query")
     start = time.time()
 
+    client = override_client if override_client else validator.client
+
     synthetic_document = (
-        validator.client.chat.completions.create(
+        client.chat.completions.create(
             model="gpt-4o-mini",
-            temperature=0.7,
+            temperature=temperature,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
@@ -293,11 +295,17 @@ def generate_doc_with_llm(validator, pageids=None, timeout=20) -> str:
 
     bt.logging.info("Generating rest of synthetic query")
 
-    for j in range(5):
+    end_index_choices = list(range(3, 7))
+
+    end_index = choice(end_index_choices)
+
+    bt.logging.info(f"Generating {end_index} more sections of synthetic query")
+
+    for j in range(end_index):
         next_synthesis = (
-            validator.client.chat.completions.create(
+            client.chat.completions.create(
                 model="gpt-4o-mini",
-                temperature=0.7,
+                temperature=temperature,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {
