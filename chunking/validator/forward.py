@@ -88,7 +88,6 @@ def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
 
     return create_groups(self.rankings, group_size)
 
-<<<<<<< HEAD
 def get_miner_groups_to_query(self: Validator, miner_uids: Optional[list[int]] = None) -> list[np.ndarray]:
     miner_groups, group_ranks, group_size = get_miner_groups(self)
 
@@ -137,8 +136,6 @@ async def run_tournament_round(self: Validator, input_synapse: chunkSynapse, min
 
 
     pass
-=======
->>>>>>> main
 
 async def forward(self: Validator):
     """

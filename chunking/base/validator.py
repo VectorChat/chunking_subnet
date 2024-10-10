@@ -38,7 +38,6 @@ from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
 
-import sympy as sp
 
 
 load_dotenv()
