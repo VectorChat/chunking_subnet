@@ -66,13 +66,6 @@ class BaseValidatorNeuron(BaseNeuron):
         if not self.config.wandb.wandb_off:
             # connect to wandb run
             self._setup_wandb()
-
-        self.app = FastAPI()
-        self.score_update_queue: asyncio.Queue[EndTournamentRoundInfo] = asyncio.Queue()
-        bt.logging.info("Initialized queue")
-        setup_routes(self)
-        bt.logging.info("Setup routes")
-
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
@@ -107,6 +100,12 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Create asyncio event loop to manage async tasks.
         self.loop = asyncio.get_event_loop()
+
+        self.app = FastAPI()
+        self.score_update_queue: asyncio.Queue[EndTournamentRoundInfo] = asyncio.Queue()
+        bt.logging.info("Initialized queue")
+        setup_routes(self)
+        bt.logging.info("Setup routes")
 
         # setup for running background thread
         self.should_exit: bool = False
