@@ -31,6 +31,7 @@ class ChunkRequest(BaseModel):
 class ChunkResult(BaseModel):
     chunks: List[str]
     miner_signature: str
+    uid: int
 
 
 class ChunkResponse(BaseModel):
@@ -61,13 +62,19 @@ def setup_routes(self):
                 if request.do_grading:
                     await self.queue_score_update(result)
 
-                for response in result.responses:
-                    chunk_results.append(
-                        ChunkResult(
-                            chunks=response.chunks,
-                            miner_signature=response.miner_signature,
+                miner_group_uids = result.miner_group_uids
+
+                for response, miner_group_uid in zip(
+                    result.responses, miner_group_uids
+                ):
+                    if response.chunks and response.miner_signature:
+                        chunk_results.append(
+                            ChunkResult(
+                                chunks=response.chunks,
+                                miner_signature=response.miner_signature,
+                                uid=miner_group_uid,
+                            )
                         )
-                    )
 
             if request.only_return_best:
                 best_per_group = [
@@ -82,11 +89,16 @@ def setup_routes(self):
 
                 best_result = usable_results[best_index]
 
-                best_response = best_result.responses[best_per_group[best_index]]
+                best_miner_index = best_per_group[best_index]
+
+                miner_group_uid = best_result.miner_group_uids[best_miner_index]
+
+                best_response = best_result.responses[best_miner_index]
                 chunk_results = [
                     ChunkResult(
                         chunks=best_response.chunks,
                         miner_signature=best_response.miner_signature,
+                        uid=miner_group_uid,
                     )
                 ]
 
