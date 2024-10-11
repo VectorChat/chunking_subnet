@@ -18,14 +18,15 @@
 
 import os
 import copy
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import numpy as np
 import asyncio
 import threading
 import bittensor as bt
 import time
 import requests
-import concurrent.futures
+
+import uvicorn
 import chunking
 import traceback
 
@@ -37,8 +38,10 @@ from math import floor
 from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
+import sympy as sp
 
-
+from chunking.validator.integrated_api import setup_routes
+from chunking.validator.types import EndTournamentRoundInfo
 
 load_dotenv()
 
@@ -58,8 +61,17 @@ class BaseValidatorNeuron(BaseNeuron):
     def __init__(self, config=None):
         super().__init__(config=self.config())
 
-        # connect to wandb run
-        self._setup_wandb()
+        bt.logging.info(f"wandb off: {self.config.wandb.wandb_off}")
+
+        if not self.config.wandb.wandb_off:
+            # connect to wandb run
+            self._setup_wandb()
+
+        self.app = FastAPI()
+        self.score_update_queue: asyncio.Queue[EndTournamentRoundInfo] = asyncio.Queue()
+        bt.logging.info("Initialized queue")
+        setup_routes(self)
+        bt.logging.info("Setup routes")
 
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
@@ -101,11 +113,6 @@ class BaseValidatorNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
         self.lock = asyncio.Lock()
-
-        self.app = FastAPI()
-        self.task_queue = asyncio.Queue()
-        self.setup_routes()
-
 
     def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
         """
@@ -285,6 +292,13 @@ class BaseValidatorNeuron(BaseNeuron):
             traceback.print_exc()
             pass
 
+    def start_api(self):
+        host = "0.0.0.0"
+        port = 8080
+        bt.logging.info(f"Starting Chunking API on {host}:{port}")
+        uvicorn.run(self.app, host=host, port=port)
+        bt.logging.success(f"Chunking API started on {host}:{port}")
+
     async def concurrent_forward(self):
         """
         Run multiple forwards in parallel
@@ -311,7 +325,6 @@ class BaseValidatorNeuron(BaseNeuron):
             2.4 Sleep for a specified interval, repeat.
 
 
-
         Note:
             - The function leverages the global configurations set during the initialization of the miner.
             - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
@@ -335,10 +348,13 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # Sync metagraph and potentially set weights.
                 self.sync()
-                self.sync_articles()               
+                self.sync_articles()
 
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
+
+                # Process any queued score updates.
+                self.loop.run_until_complete(self.process_score_updates())
 
                 # Check if we should exit.
                 if self.should_exit:
@@ -371,12 +387,13 @@ class BaseValidatorNeuron(BaseNeuron):
         This method facilitates the use of the validator in a 'with' statement.
         """
         if not self.is_running:
-            bt.logging.debug("Starting validator in background thread.")
+            bt.logging.info("Starting validator in background thread.")
             self.should_exit = False
             self.thread = threading.Thread(target=self.run, daemon=True)
             self.thread.start()
+            self.start_api()
             self.is_running = True
-            bt.logging.debug("Started")
+            bt.logging.success("Started")
 
     def stop_run_thread(self):
         """
@@ -434,11 +451,11 @@ class BaseValidatorNeuron(BaseNeuron):
             )
             scores = np.array(scores)
 
-        if not isinstance(rankings, np.ndarray):
-            bt.logging.warning(
-                f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array"
-            )
-            rankings = np.array(rankings)
+            if not isinstance(rankings, np.ndarray):
+                bt.logging.warning(
+                    f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array"
+                )
+                rankings = np.array(rankings)
 
         bt.logging.debug(f"scores len: {len(scores)}, rankings len: {len(rankings)}")
 
@@ -519,7 +536,7 @@ class BaseValidatorNeuron(BaseNeuron):
             )
 
         return raw_weights
-    
+
     def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
         result, msg = self.subtensor.set_weights(
             wallet=self.wallet,
@@ -531,7 +548,6 @@ class BaseValidatorNeuron(BaseNeuron):
             version_key=self.spec_version,
         )
         return result, msg
-
 
     def set_weights(self: "BaseValidatorNeuron"):
         """
@@ -586,7 +602,8 @@ class BaseValidatorNeuron(BaseNeuron):
         wandb_data = {"weights": {}}
         for uid, weight in zip(uint_uids, uint_weights):
             wandb_data["weights"][str(uid)] = weight
-        wandb.log(wandb_data)
+        if not self.config.wandb.wandb_off:
+            wandb.log(wandb_data)
 
         if self.config.neuron.skip_set_weights_extrinsic:
             bt.logging.warning("Skipping set_weights extrinsic call.")
@@ -595,7 +612,9 @@ class BaseValidatorNeuron(BaseNeuron):
         try:
             result, msg = self.set_weights_on_chain(uint_uids, uint_weights)
             if result is True:
-                bt.logging.success(f"set_weights extrinsic submitted successfully!: {msg}")
+                bt.logging.success(
+                    f"set_weights extrinsic submitted successfully!: {msg}"
+                )
             else:
                 bt.logging.error(f"set_weights failed: {msg}")
         except Exception as e:
@@ -641,13 +660,27 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-    def update_scores(
+    async def queue_score_update(
         self,
-        wandb_data: dict,
-        ranks: np.ndarray,
-        uids: List[int],
-        task_type: Literal["organic", "synthetic"],
-        alpha: float,
+        end_tournament_round_info: EndTournamentRoundInfo,
+    ):
+        try:
+            await self.score_update_queue.put(end_tournament_round_info)
+        except Exception as e:
+            bt.logging.error(f"Error queuing score update: {e}")
+            traceback.print_exc()
+
+    async def process_score_updates(self):
+        while not self.score_update_queue.empty():
+            end_tournament_round_info = await self.score_update_queue.get()
+            bt.logging.debug(
+                f"Processing score update for {end_tournament_round_info.miner_group_uids}, task type: {end_tournament_round_info.task_type}"
+            )
+            await self.update_scores(end_tournament_round_info)
+
+    async def update_scores(
+        self,
+        end_tournament_round_info: EndTournamentRoundInfo,
     ):
         """
         Updates `self.scores` and `self.rankings` for the miners that were part of a specific tournament round.
@@ -662,6 +695,13 @@ class BaseValidatorNeuron(BaseNeuron):
             task_type (Literal["organic", "synthetic"]): Type of task that the miners were part of.
             alpha (float): Exponential moving average factor.
         """
+
+        wandb_data = end_tournament_round_info.wandb_data
+        ranks = end_tournament_round_info.ranked_responses_global
+        uids = end_tournament_round_info.miner_group_uids
+        task_type = end_tournament_round_info.task_type
+        alpha = end_tournament_round_info.alpha
+
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
         if np.isnan(ranks).any():
@@ -675,24 +715,27 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        with self.lock:
-            bt.logging.debug(f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}")            
-            
-            for rank, uid in zip(ranks, uids_array):
-                if np.isinf(rank):
-                    continue
+        bt.logging.debug(
+            f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
+        )
 
-                # initialize score if it is np.inf
-                if np.isinf(self.scores[uid]):
-                    self.scores[uid] = alpha * rank + (1 - alpha) * floor(np.sum(np.isfinite(self.scores)) / 2)
-                elif self.scores[uid] < 0:
-                    self.scores[uid] = np.inf
-                else:            
-                    self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]                
+        for rank, uid in zip(ranks, uids_array):
+            if np.isinf(rank):
+                continue
 
-            bt.logging.debug(f"Updated moving avg scores: {self.scores}")                
-            
-            self.rankings = np.argsort(self.scores)
+            # initialize score if it is np.inf
+            if np.isinf(self.scores[uid]):
+                self.scores[uid] = alpha * rank + (1 - alpha) * floor(
+                    np.sum(np.isfinite(self.scores)) / 2
+                )
+            elif self.scores[uid] < 0:
+                self.scores[uid] = np.inf
+            else:
+                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]
+
+        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+
+        self.rankings = np.argsort(self.scores)
 
         # log scores and rankings and other data to wandb for synthetic queries
         if task_type == "synthetic":
@@ -709,7 +752,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
             # bt.logging.debug(f"Logging wandb_data: {wandb_data}")
             bt.logging.info("Logging wandb_data")
-            wandb.log(wandb_data)
+            if not self.config.wandb.wandb_off:
+                wandb.log(wandb_data)
 
         bt.logging.debug(f"Updated rankings: {self.rankings}")
 

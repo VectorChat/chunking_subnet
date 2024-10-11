@@ -1,5 +1,6 @@
+import random
 import time
-from typing import Optional, List, Tuple
+from typing import Literal, Optional, List, Tuple
 from venv import logger
 import bittensor as bt
 from openai import OpenAI
@@ -13,7 +14,8 @@ import os
 from random import choice, choices
 from math import ceil
 
-from neurons.validator import Validator
+from chunking.utils.tokens import num_tokens_from_string
+from chunking.validator.types import TaskType
 
 
 class Task:
@@ -24,7 +26,7 @@ class Task:
     def __init__(
         self,
         synapse: chunkSynapse,
-        task_type: str,
+        task_type: TaskType,
         task_id: int,
         miner_uids: Optional[List[int]] = None,
     ):
@@ -34,7 +36,22 @@ class Task:
         self.miner_uids = miner_uids
 
     @classmethod
-    def get_new_task(self, validator: Validator) -> Tuple["Task", int]:
+    def get_synthetic_task(self, validator) -> Tuple["Task", int]:
+        """
+        Get a synthetic task.
+
+        Args:
+            validator (Validator): The validator instance.
+
+        Returns:
+            Tuple[Task, int]: A tuple containing the task and the page ID (if applicable).
+        """
+
+        synapse, page = generate_synthetic_synapse(validator)
+        return (Task(synapse=synapse, task_type="synthetic", task_id=-1), page)
+
+    @classmethod
+    def get_new_task(self, validator) -> Tuple["Task", int]:
         """
         Get a new task based on the validator's config.
 
@@ -128,8 +145,7 @@ class Task:
                     f"Failed to get task from API host: '{API_host}'. Exited with exception\n{e}"
                 )
         bt.logging.debug("Generating synthetic query")
-        synapse, page = generate_synthetic_synapse(validator)
-        return (Task(synapse=synapse, task_type="synthetic", task_id=-1), page)
+        return self.get_synthetic_task(validator)
 
     @classmethod
     def return_response(cls, validator, response_data):
@@ -203,26 +219,10 @@ class Task:
             )
 
 
-def num_tokens_from_string(string: str, encoding_name: str) -> int:
-    """
-    Helper function to calculate the number of tokens in a string.
-
-    Args:
-        string (str): The string to calculate the number of tokens for.
-        encoding_name (str): The name of the encoding to use.
-
-    Returns:
-        int: The number of tokens in the string.
-    """
-    encoding = tiktoken.get_encoding(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-
 SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
 
-def get_wiki_content_for_page(pageid: int) -> str:
+def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
     """
     Get the content for a Wikipedia page by the page ID.
 
@@ -231,19 +231,24 @@ def get_wiki_content_for_page(pageid: int) -> str:
 
     Returns:
         str: The content of the Wikipedia page.
-    """ 
-    response = requests.get('https://en.wikipedia.org/w/api.php', params={
-        'action': 'query',
-        'format': 'json',
-        'pageids': pageid,
-        'prop': 'extracts',
-        'explaintext': True,
-        'exsectionformat': 'plain',
-    }).json()['query']['pages'][str(pageid)]
-    return response['extract'], response['title']
+    """
+    response = requests.get(
+        "https://en.wikipedia.org/w/api.php",
+        params={
+            "action": "query",
+            "format": "json",
+            "pageids": pageid,
+            "prop": "extracts",
+            "explaintext": True,
+            "exsectionformat": "plain",
+        },
+    ).json()["query"]["pages"][str(pageid)]
+    return response["extract"], response["title"]
 
-    
-def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, override_client=None) -> str:
+
+def generate_doc_with_llm(
+    validator, pageids=None, temperature=0.7, override_client=None
+) -> str:
     pages = (
         choices(validator.articles, k=3)
         if pageids == None or len(pageids) < 3
@@ -288,8 +293,10 @@ def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, o
         .choices[0]
         .message.content
     )
-    
-    bt.logging.info(f"Generated first section of synthetic query at {time.time() - start} seconds, length: {len(synthetic_document)} characters")
+
+    bt.logging.info(
+        f"Generated first section of synthetic query at {time.time() - start} seconds, length: {len(synthetic_document)} characters"
+    )
 
     synthetic_document = " ".join(synthetic_document.split())
     previous_synthesis = synthetic_document
@@ -318,10 +325,14 @@ def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, o
             .choices[0]
             .message.content
         )
-        bt.logging.info(f"Generated next section of synthetic query at {time.time() - start} seconds, length: {len(next_synthesis)} characters")
+        bt.logging.info(
+            f"Generated next section of synthetic query at {time.time() - start} seconds, length: {len(next_synthesis)} characters"
+        )
         next_synthesis = " ".join(next_synthesis.split())
         synthetic_document += " " + next_synthesis
-        bt.logging.info(f"Total length of synthetic query at {time.time() - start} seconds: {len(synthetic_document)} characters")
+        bt.logging.info(
+            f"Total length of synthetic query at {time.time() - start} seconds: {len(synthetic_document)} characters"
+        )
         previous_synthesis = next_synthesis
 
     num_chars = len(synthetic_document)
@@ -336,7 +347,7 @@ def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, o
     return synthetic_document
 
 
-def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, int]:
+def generate_doc_normal(validator, pageid=None) -> Tuple[str, int]:
     """
     Generate a document from Wikipedia.
 
@@ -351,29 +362,38 @@ def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, 
         Tuple[str, int]: A tuple containing the content of the Wikipedia page and the page ID.
     """
     content = ""
-    while len(content) < 10000 or len(content) > 100000:
-        page = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "list": "random",
-                "rnnamespace": 0,
-                "format": "json",
-            },
-        ).json()["query"]["random"][0]["id"]
+    random_page_id = random.sample(validator.articles, 1)[0]
+    # while len(content) < 10000 or len(content) > 100000:
+    # page = requests.get(
+    #     "https://en.wikipedia.org/w/api.php",
+    #     params={
+    #         "action": "query",
+    #         "list": "random",
+    #         "rnnamespace": 0,
+    #         "format": "json",
+    #     },
+    # ).json()["query"]["random"][0]["id"]
+    bt.logging.debug(f"random_page_id: {random_page_id}")
 
-        content = get_wiki_content_for_page(page)
-    return content, page
+    content, title = get_wiki_content_for_page(random_page_id)
+    bt.logging.debug(f"title: {title}")
+    return content, random_page_id
+
+
+def calculate_chunk_qty(document: str, chunk_size: int) -> int:
+    return ceil(ceil(len(document) / chunk_size) * 1.5)
 
 
 def generate_synthetic_synapse(validator, timeout=20) -> Tuple[chunkSynapse, int]:
 
     bt.logging.info("Generating synthetic query with llm")
-    document = generate_doc_with_llm(validator)
+    # document = generate_doc_with_llm(validator)
+    document, pageid = generate_doc_normal(validator)
+    bt.logging.debug(f"document: {len(document)} characters, pageid: {pageid}")
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
-    chunk_qty = ceil(ceil(len(document) / chunk_size) * 1.5)
+    chunk_qty = calculate_chunk_qty(document, chunk_size)
     synapse = chunkSynapse(
         document=document,
         time_soft_max=time_soft_max,

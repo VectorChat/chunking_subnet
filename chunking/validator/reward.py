@@ -26,10 +26,10 @@ from random import sample
 from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
 import numpy as np
 
-from chunking.validator.task_api import num_tokens_from_string
-from neurons.validator import Validator
+from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
 import regex as re
+
 
 PUNCTUATION_REGEX = r'([.,!?"\'])'
 
@@ -164,7 +164,7 @@ def check_document_words_in_chunks(
 
 
 def reward(
-    self: Validator | None,
+    self,
     document: str,
     chunk_size: int,
     chunk_qty: int,
@@ -280,7 +280,9 @@ def reward(
             f"Every set of 3 adjacent words from the document does not appear in the chunks"
         )
 
-    _verbose(f"Passed: Every set of 3 adjacent words from the document appears in the chunks")
+    _verbose(
+        f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
+    )
 
     num_embeddings = (
         override_num_embeddings if override_num_embeddings else self.num_embeddings
@@ -377,7 +379,7 @@ def get_rewards(
     chunk_size: int,
     chunk_qty: int,
     responses: List[chunkSynapse],
-) -> Tuple[np.ndarray, List[dict]]:
+) -> Tuple[np.ndarray[np.float64], List[dict]]:
     """
     Get the rewards for the given query and responses, returning the rewards and extra info (penalties, timing, etc.) for each response.
 
@@ -409,22 +411,22 @@ def get_rewards(
             )
 
             # store the reward for the response
-            rewards[i] = float(reward_value)
+            rewards[i] = np.float64(reward_value)
             extra_infos.append(extra_info)
         except Exception as e:
             # if there is an error, log it and set the reward to 0
             print(
                 f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
             )
-            rewards[i] = 0
+            rewards[i] = np.float64(0)
             extra_infos.append({})
 
     return rewards, extra_infos
 
 
 def rank_responses(
-    rewards: np.ndarray,
-) -> np.ndarray:
+    rewards: np.ndarray[np.float64],
+) -> np.ndarray[np.int32]:
     """
     Returns an array containing the ranks of the responses using their rewards. Higher reward is better.    Higher reward is better. Ties are broken by shorter process time.
 
@@ -443,9 +445,9 @@ def rank_responses(
 
         if rewards[next_best_index] == 0:
             # should not be ranked
-            response_ranks[next_best_index] = -1
+            response_ranks[next_best_index] = np.int32(-1)
         else:
-            response_ranks[next_best_index] = rank
+            response_ranks[next_best_index] = np.int32(rank)
             rank += 1
 
         rewards[next_best_index] = -np.inf
