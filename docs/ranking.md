@@ -1,7 +1,5 @@
 # Improved Ranking
 
-![Ranking Change System Comparison](../assets/improved_ranking/system_comparison.png)
-
 ## Issue 1
 
 Due to OpenAI embeddings being non-deterministic there is an non-significant number of rounds where many miners submit the same chunks, but receive slightly different scores. This is an issue because miners who did not technically lose can end up being penalized, hurting their standing in which groups they might overlap into.
@@ -71,6 +69,8 @@ The starting rank value of each miner group should be equal to the average of th
 ![New Group Ranking System](../assets/improved_ranking/new.png)
 
 Why? This makes it such that a miner is not penalized by being in 2 groups at once.
+
+![Ranking Change System Comparison](../assets/improved_ranking/system_comparison.png)
 
 ## Examples
 
