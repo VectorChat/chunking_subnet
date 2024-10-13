@@ -42,7 +42,7 @@ def create_groups(rankings: np.ndarray, group_size: int):
     group_size = 2
     rankings = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     miner_groups = [[0, 1], [2, 3, 4, 5], [6, 7, 8, 9, 10, 11]]
-    group_ranks = [range(0, 2), range(2, 6), range(6, 12)]
+    group_ranks = [range(0, 2), range(1, 5), range(3, 9)]
 
     Args:
         rankings (np.ndarray): Array of rankings for the miners.
@@ -133,7 +133,7 @@ async def forward(self: Validator):
     # get new task to query miners with
     # this gets either an organic query from the API or a synthetic query (currently wikipedia)
     try:
-       tuple = Task.get_new_task(validator=self)
+        tuple = Task.get_new_task(validator=self)
     except Exception as e:
         bt.logging.error(f"Error getting new task: {e}")
         bt.logging.error(traceback.format_exc())
