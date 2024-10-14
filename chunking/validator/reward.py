@@ -419,10 +419,10 @@ def get_rewards(
     chunks_hash_to_info = {}
 
     for response in responses:
-        if response.chunks:
+        if response is not None and response.chunks is not None:
             chunks_hash = get_chunks_hash(response.chunks)
 
-            bt.logging.debug(f"response chunks hash: {chunks_hash}")
+            # bt.logging.debug(f"response chunks hash: {chunks_hash}")
 
             try:
                 reward_value, extra_info = reward(
@@ -448,7 +448,11 @@ def get_rewards(
             }
 
     for i, response in enumerate(responses):
-        chunks_hash = get_chunks_hash(response.chunks)
+        chunks_hash = (
+            get_chunks_hash(response.chunks)
+            if response is not None and response.chunks is not None
+            else ""
+        )
 
         chunks_info = chunks_hash_to_info.get(chunks_hash)
 

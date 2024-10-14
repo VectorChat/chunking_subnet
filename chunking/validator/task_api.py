@@ -230,19 +230,24 @@ def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
 
     Returns:
         str: The content of the Wikipedia page.
-    """ 
-    response = requests.get('https://en.wikipedia.org/w/api.php', params={
-        'action': 'query',
-        'format': 'json',
-        'pageids': pageid,
-        'prop': 'extracts',
-        'explaintext': True,
-        'exsectionformat': 'plain',
-    }).json()['query']['pages'][str(pageid)]
-    return response['extract'], response['title']
+    """
+    response = requests.get(
+        "https://en.wikipedia.org/w/api.php",
+        params={
+            "action": "query",
+            "format": "json",
+            "pageids": pageid,
+            "prop": "extracts",
+            "explaintext": True,
+            "exsectionformat": "plain",
+        },
+    ).json()["query"]["pages"][str(pageid)]
+    return response["extract"], response["title"]
 
-    
-def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, override_client=None) -> str:
+
+def generate_doc_with_llm(
+    validator: Validator, pageids=None, temperature=0.7, override_client=None
+) -> str:
     pages = (
         choices(validator.articles, k=3)
         if pageids == None or len(pageids) < 3
@@ -287,8 +292,10 @@ def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, o
         .choices[0]
         .message.content
     )
-    
-    bt.logging.info(f"Generated first section of synthetic query at {time.time() - start} seconds, length: {len(synthetic_document)} characters")
+
+    bt.logging.info(
+        f"Generated first section of synthetic query at {time.time() - start} seconds, length: {len(synthetic_document)} characters"
+    )
 
     synthetic_document = " ".join(synthetic_document.split())
     previous_synthesis = synthetic_document
@@ -317,10 +324,14 @@ def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, o
             .choices[0]
             .message.content
         )
-        bt.logging.info(f"Generated next section of synthetic query at {time.time() - start} seconds, length: {len(next_synthesis)} characters")
+        bt.logging.info(
+            f"Generated next section of synthetic query at {time.time() - start} seconds, length: {len(next_synthesis)} characters"
+        )
         next_synthesis = " ".join(next_synthesis.split())
         synthetic_document += " " + next_synthesis
-        bt.logging.info(f"Total length of synthetic query at {time.time() - start} seconds: {len(synthetic_document)} characters")
+        bt.logging.info(
+            f"Total length of synthetic query at {time.time() - start} seconds: {len(synthetic_document)} characters"
+        )
         previous_synthesis = next_synthesis
 
     num_chars = len(synthetic_document)
@@ -361,7 +372,8 @@ def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, 
             },
         ).json()["query"]["random"][0]["id"]
 
-        content = get_wiki_content_for_page(page)
+        content, title = get_wiki_content_for_page(page)
+        bt.logging.info(f"Got document {title} with {len(content)} characters")
     return content, page
 
 
