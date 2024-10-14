@@ -39,6 +39,8 @@ from wandb.apis.public.runs import Runs, Run
 
 import sympy as sp
 
+from chunking.utils.score import get_rank_value_to_adjusted_alpha
+
 
 load_dotenv()
 
@@ -330,7 +332,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # Sync metagraph and potentially set weights.
                 self.sync()
-                self.sync_articles()               
+                self.sync_articles()
 
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
@@ -514,7 +516,7 @@ class BaseValidatorNeuron(BaseNeuron):
             )
 
         return raw_weights
-    
+
     def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
         result, msg = self.subtensor.set_weights(
             wallet=self.wallet,
@@ -526,7 +528,6 @@ class BaseValidatorNeuron(BaseNeuron):
             version_key=self.spec_version,
         )
         return result, msg
-
 
     def set_weights(self: "BaseValidatorNeuron"):
         """
@@ -590,7 +591,9 @@ class BaseValidatorNeuron(BaseNeuron):
         try:
             result, msg = self.set_weights_on_chain(uint_uids, uint_weights)
             if result is True:
-                bt.logging.success(f"set_weights extrinsic submitted successfully!: {msg}")
+                bt.logging.success(
+                    f"set_weights extrinsic submitted successfully!: {msg}"
+                )
             else:
                 bt.logging.error(f"set_weights failed: {msg}")
         except Exception as e:
@@ -639,7 +642,7 @@ class BaseValidatorNeuron(BaseNeuron):
     def update_scores(
         self,
         wandb_data: dict,
-        ranks: np.ndarray,
+        ranks: np.ndarray[np.float64],
         uids: List[int],
         task_type: Literal["organic", "synthetic"],
         alpha: float,
@@ -670,26 +673,42 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        bt.logging.debug(
-            f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
-        )
+        # bt.logging.debug(
+        #     f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
+        # )
+
+        bt.logging.debug(f"group alpha: {alpha}")
+
+        rank_value_to_adjusted_alpha = get_rank_value_to_adjusted_alpha(ranks, alpha)
 
         # update scores with rewards based on new rankings within miner group that was queried in the tournament round
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
 
+            adjusted_alpha = rank_value_to_adjusted_alpha[rank]
+
+            bt.logging.debug(
+                f"uid: {uid}, rank: {rank}, adjusted_alpha: {adjusted_alpha}"
+            )
+            score_str = f"score: {self.scores[uid]} -> "
+
             # initialize score if it is np.inf
             if np.isinf(self.scores[uid]):
-                self.scores[uid] = alpha * rank + (1 - alpha) * floor(
+                self.scores[uid] = adjusted_alpha * rank + (1 - adjusted_alpha) * floor(
                     np.sum(np.isfinite(self.scores)) / 2
                 )
             elif self.scores[uid] < 0:
                 self.scores[uid] = np.inf
             else:
-                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]
+                self.scores[uid] = (
+                    adjusted_alpha * rank + (1 - adjusted_alpha) * self.scores[uid]
+                )
 
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+            score_str += f"{self.scores[uid]}"
+            bt.logging.debug(score_str)
+
+        # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
         # update rankings based on new scores (moving avg rankings)
         self.rankings = np.argsort(self.scores)
@@ -711,7 +730,7 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.info("Logging wandb_data")
             wandb.log(wandb_data)
 
-        bt.logging.debug(f"Updated rankings: {self.rankings}")
+        # bt.logging.debug(f"Updated rankings: {self.rankings}")
 
     def save_state(self):
         """Saves the state of the validator to a file."""
