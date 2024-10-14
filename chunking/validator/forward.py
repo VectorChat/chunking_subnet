@@ -24,7 +24,7 @@ from math import floor
 import numpy as np
 from chunking.protocol import chunkSynapse
 from chunking.utils import uids
-from chunking.validator.reward import get_rewards, rank_responses
+from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
 from chunking.validator.task_api import Task
 from neurons.validator import Validator
 import json
@@ -54,15 +54,24 @@ def create_groups(rankings: np.ndarray, group_size: int):
             - group_ranks (list[range]): List of ranges for each miner group.
     """
     group_ranks = []
-    miner_groups: list[np.array] = []
+    miner_groups = []
 
     start = 0
     step = group_size // 2
+    i = 0
 
     # create group of miners and ranks, increasing the group size by step each time
     while start < len(rankings) - step * 2:
-        group_ranks.append(range(start, start + step * 2))
-        miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
+
+        ranks_in_group = range(start, start + step * 2)
+        # bt.logging.debug(f"ranks_in_group: {ranks_in_group}")
+        group_ranks.append(ranks_in_group)
+        miner_groups.append(np.array(rankings[ranks_in_group], dtype=int))
+
+        # bt.logging.debug(
+        #     f"start: {start}, step: {step}, added ranks: {group_ranks[-1]}, miners: {miner_groups[-1]}"
+        # )
+
         start += step
         step += 1
 
@@ -77,15 +86,78 @@ def create_groups(rankings: np.ndarray, group_size: int):
         else:
             miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
 
-    return (miner_groups, group_ranks, group_size)
+    bt.logging.debug(f"group_ranks: {group_ranks}")
+    bt.logging.debug(f"miner_groups: {miner_groups}")
+
+    group_rank_values = []
+
+    for i in range(len(miner_groups)):
+        # bt.logging.debug(f"i: {i}, group_rank_values: {group_rank_values}")
+        if i == 0:
+            rank_values_for_group = [0, 1]
+        elif i == 1:
+            rank_values_for_group = [0.5, 1.5, 2.5, 3.5]
+        else:
+            second_most_recent_group_rank_values = group_rank_values[-2]
+            last_rank_of_second_most_recent_group = (
+                second_most_recent_group_rank_values[-1]
+            )
+            last_group_rank_values = group_rank_values[-1]
+            overlap_index = len(last_group_rank_values) - i
+            last_group_overlap_rank_value = last_group_rank_values[overlap_index]
+
+            group_size = len(miner_groups[i])
+            # bt.logging.debug(f"group_size: {group_size}")
+
+            rank_start = (
+                last_group_overlap_rank_value + last_rank_of_second_most_recent_group
+            ) / 2
+            rank_values_for_group = []
+            for i in range(group_size):
+                rank_values_for_group.append(rank_start + i)
+
+        group_rank_values.append(np.array(rank_values_for_group, dtype=np.float64))
+
+    return (miner_groups, group_ranks, group_rank_values)
 
 
-def get_miner_groups(self: Validator) -> tuple[np.ndarray, np.ndarray, int]:
+def get_miner_groups(
+    self: Validator,
+) -> tuple[list[np.ndarray[int]], list[range], list[np.ndarray[float]]]:
     bt.logging.debug(f"rankings: {self.rankings}, sample_size: {self.sample_size}")
     group_size = min(len(self.rankings), self.sample_size)
     bt.logging.debug(f"group_size {group_size}")
 
     return create_groups(self.rankings, group_size)
+
+def get_alpha(self: Validator, num_miner_groups: int, miner_group_index: int, override_min_moving_average_alpha: float | None = None):
+    """
+    "tiered" alpha, where the alpha is higher for miner groups that have a lower rank (higher number)
+    Ex:
+        the first miner group as the "highest rank" and therefore the lowest alpha value
+        the last miner group as the "lowest rank" and therefore the highest alpha 
+
+    This means that the scores are updated more slowly at higher ranks, because these miners should only be punished
+    if they _consistently_ produce low quality responses. At lower ranks, the alpha value is higher, this allows for
+    higher variability in the scores at lower ranks, allowing new miners with high quality responses to rise the ranks
+    more quickly.
+
+    Args:
+        num_miner_groups (int): The number of miner groups.
+        miner_group_index (int): The index of the miner group.
+        override_min_moving_average_alpha (float | None): The alpha to use if the override is provided.
+
+    Returns:
+        float: The alpha value.
+    """
+    min_moving_average_alpha = override_min_moving_average_alpha if override_min_moving_average_alpha else self.config.neuron.min_moving_average_alpha
+    alpha_adjustment = (1 - min_moving_average_alpha) / (
+        num_miner_groups - 1
+    )
+    alpha = min_moving_average_alpha + alpha_adjustment * miner_group_index
+
+    return alpha
+
 
 
 async def forward(self: Validator):
@@ -124,11 +196,11 @@ async def forward(self: Validator):
     hotkey = self.wallet.get_hotkey()
 
     # get miner groups and with their ranks for the tournament round
-    miner_groups, group_ranks, group_size = get_miner_groups(self)
+    miner_groups, group_ranks, group_rank_values = get_miner_groups(self)
 
     bt.logging.debug(f"Miner groups: {miner_groups}")
     bt.logging.debug(f"Group ranks: {group_ranks}")
-    bt.logging.debug(f"Group size: {group_size}")
+    bt.logging.debug(f"Group rank values: {group_rank_values}")
 
     # get new task to query miners with
     # this gets either an organic query from the API or a synthetic query (currently wikipedia)
@@ -315,20 +387,14 @@ async def forward(self: Validator):
     for rank, uid in zip(ranked_responses, miner_group_uids):
         wandb_data["group"]["local_rankings"][str(uid)] = rank
 
-    # inf means the response should not be ranked
-    ranked_responses_global = np.full_like(ranked_responses, np.inf)
+    group_rank_values = group_rank_values[miner_group]
 
-    # Offset ranks by the group offset to get 'global' ranks
-    group_offset = group_ranks[miner_group][0]
-
-    # loop through the ranked responses and assign a global rank to each response
-
-    for i, rank in enumerate(ranked_responses):
-        if rank != -1:
-            ranked_responses_global[i] = ranked_responses[i] + group_offset
-        elif not np.isinf(self.scores[miner_group_uids[i]]):
-            # give response worst rank in the group
-            ranked_responses_global[i] = group_offset + np.sum(np.abs(ranked_responses))
+    ranked_responses_global = rank_responses_global(
+        self,
+        group_rank_values,
+        ranked_responses,
+        miner_group_uids,
+    )
 
     # log the global rankings (rankings in global context of miners within this group) for each response for wandb logging
     for rank, uid in zip(ranked_responses_global, miner_group_uids):
@@ -376,19 +442,8 @@ async def forward(self: Validator):
         except Exception as e:
             bt.logging.error(f"Error returning organic query response: {e}")
 
-    # "tiered" alpha, where the alpha is higher for miner groups that have a lower rank (higher number)
-    # Ex:
-    #   the first miner group as the "highest rank" and therefore the lowest alpha value
-    #   the last miner group as the "lowest rank" and therefore the highest alpha value
-    #
-    # This means that the scores are updated more slowly at higher ranks, because these miners should only be punished
-    # if they _consistently_ produce low quality responses. At lower ranks, the alpha value is higher, this allows for
-    # higher variability in the scores at lower ranks, allowing new miners with high quality responses to rise the ranks
-    # more quickly.
-    alpha_adjustment = (1 - self.config.neuron.min_moving_average_alpha) / (
-        len(miner_groups) - 1
-    )
-    alpha = self.config.neuron.min_moving_average_alpha + alpha_adjustment * miner_group
+    # get the alpha for the miner group
+    alpha = get_alpha(self, len(miner_groups), miner_group)
 
     # update the scores (moving average of rankings) for each miner, and set the new global ranking for all miners
     self.update_scores(

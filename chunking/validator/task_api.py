@@ -221,7 +221,7 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
 SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
 
-def get_wiki_content_for_page(pageid: int) -> str:
+def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
     """
     Get the content for a Wikipedia page by the page ID.
 
