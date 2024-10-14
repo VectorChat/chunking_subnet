@@ -57,7 +57,7 @@ Group 1 is better because it has miners that are lower ranked and group 2 is wor
 
 ### Issue 2 Solution
 
-The starting rank value of each miner group should be equal to the average of the rank value of the overlapping index and first index of the better miner group, all other ranks increment by 1 starting from this derived rank:
+The starting rank value of each miner group should be equal to the average of (1) the rank value of the overlapping index in the adjacent better group and (2) the last index of the second adjacent better miner group, all other ranks increment by 1 starting from this derived rank:
 
 <!-- ```txt
 0 1
@@ -68,10 +68,14 @@ The starting rank value of each miner group should be equal to the average of th
 
 ![New Group Ranking System](../assets/improved_ranking/new.png)
 
-Why? This makes it such that a miner is not penalized by being in 2 groups at once.
+Why? This makes it such that a miner is not penalized by being in 2 groups at once. Below is a picture that explains more about the reasoning behind the new ranking system in a visual way:
 
-![Ranking Change System Comparison](../assets/improved_ranking/system_comparison.png)
+<div style="text-align: center;">
+    <img src="../assets/improved_ranking/system_comparison.png" alt="Ranking Change System Comparison" style="width: 50%; height: auto;">
+</div>
 
 ## Examples
 
-![Worked out examples](../assets/improved_ranking/examples.png)
+<div style="text-align: center;">
+    <img src="../assets/improved_ranking/examples.png" alt="Worked out examples" style="width: 50%; height: auto;">
+</div>
