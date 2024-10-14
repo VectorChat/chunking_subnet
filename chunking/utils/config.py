@@ -197,6 +197,12 @@ def add_args(cls, parser):
             default=False,
         )
 
+        parser.add_argument(
+            "--neuron.use_wiki_gen",
+            action="store_true",
+            help="Only to be used for debugging, gets documents from wikipedia instead of generating from LLM",
+        )
+
     # Miner
     else:
         parser.add_argument(

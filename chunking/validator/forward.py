@@ -130,12 +130,18 @@ def get_miner_groups(
 
     return create_groups(self.rankings, group_size)
 
-def get_alpha(self: Validator, num_miner_groups: int, miner_group_index: int, override_min_moving_average_alpha: float | None = None):
+
+def get_alpha(
+    self: Validator,
+    num_miner_groups: int,
+    miner_group_index: int,
+    override_min_moving_average_alpha: float | None = None,
+):
     """
     "tiered" alpha, where the alpha is higher for miner groups that have a lower rank (higher number)
     Ex:
         the first miner group as the "highest rank" and therefore the lowest alpha value
-        the last miner group as the "lowest rank" and therefore the highest alpha 
+        the last miner group as the "lowest rank" and therefore the highest alpha
 
     This means that the scores are updated more slowly at higher ranks, because these miners should only be punished
     if they _consistently_ produce low quality responses. At lower ranks, the alpha value is higher, this allows for
@@ -150,14 +156,15 @@ def get_alpha(self: Validator, num_miner_groups: int, miner_group_index: int, ov
     Returns:
         float: The alpha value.
     """
-    min_moving_average_alpha = override_min_moving_average_alpha if override_min_moving_average_alpha else self.config.neuron.min_moving_average_alpha
-    alpha_adjustment = (1 - min_moving_average_alpha) / (
-        num_miner_groups - 1
+    min_moving_average_alpha = (
+        override_min_moving_average_alpha
+        if override_min_moving_average_alpha
+        else self.config.neuron.min_moving_average_alpha
     )
+    alpha_adjustment = (1 - min_moving_average_alpha) / (num_miner_groups - 1)
     alpha = min_moving_average_alpha + alpha_adjustment * miner_group_index
 
     return alpha
-
 
 
 async def forward(self: Validator):
@@ -198,9 +205,9 @@ async def forward(self: Validator):
     # get miner groups and with their ranks for the tournament round
     miner_groups, group_ranks, group_rank_values = get_miner_groups(self)
 
-    bt.logging.debug(f"Miner groups: {miner_groups}")
-    bt.logging.debug(f"Group ranks: {group_ranks}")
-    bt.logging.debug(f"Group rank values: {group_rank_values}")
+    # bt.logging.debug(f"Miner groups: {miner_groups}")
+    # bt.logging.debug(f"Group ranks: {group_ranks}")
+    # bt.logging.debug(f"Group rank values: {group_rank_values}")
 
     # get new task to query miners with
     # this gets either an organic query from the API or a synthetic query (currently wikipedia)
@@ -242,6 +249,9 @@ async def forward(self: Validator):
     bt.logging.debug(
         f"Quering miner group: {miner_group}, with uids: {miner_group_uids}, timeout: {task.synapse.timeout}"
     )
+
+    bt.logging.debug(f"group ranks: {group_ranks[miner_group]}")
+    bt.logging.debug(f"group rank values: {group_rank_values[miner_group]}")
 
     # get the axons (miners) that are part of the miner group that is queried
     axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]
@@ -376,7 +386,7 @@ async def forward(self: Validator):
         "rewards": rewards.tolist(),
     }
 
-    bt.logging.debug(f"log_data: {log_data}")
+    # bt.logging.debug(f"log_data: {log_data}")
 
     # Task.upload_logs(self, log_data)
 

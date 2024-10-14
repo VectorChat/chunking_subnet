@@ -380,7 +380,10 @@ def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, 
 def generate_synthetic_synapse(validator, timeout=20) -> Tuple[chunkSynapse, int]:
 
     bt.logging.info("Generating synthetic query with llm")
-    document = generate_doc_with_llm(validator)
+    if validator.config.neuron.use_wiki_gen:
+        document, pageid = generate_doc_normal(validator)
+    else:
+        document = generate_doc_with_llm(validator)
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096

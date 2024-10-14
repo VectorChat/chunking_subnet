@@ -673,9 +673,11 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        bt.logging.debug(
-            f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
-        )
+        # bt.logging.debug(
+        #     f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
+        # )
+
+        bt.logging.debug(f"group alpha: {alpha}")
 
         rank_value_to_adjusted_alpha = get_rank_value_to_adjusted_alpha(ranks, alpha)
 
@@ -686,6 +688,11 @@ class BaseValidatorNeuron(BaseNeuron):
 
             adjusted_alpha = rank_value_to_adjusted_alpha[rank]
 
+            bt.logging.debug(
+                f"uid: {uid}, rank: {rank}, adjusted_alpha: {adjusted_alpha}"
+            )
+            score_str = f"score: {self.scores[uid]} -> "
+
             # initialize score if it is np.inf
             if np.isinf(self.scores[uid]):
                 self.scores[uid] = adjusted_alpha * rank + (1 - adjusted_alpha) * floor(
@@ -694,9 +701,14 @@ class BaseValidatorNeuron(BaseNeuron):
             elif self.scores[uid] < 0:
                 self.scores[uid] = np.inf
             else:
-                self.scores[uid] = adjusted_alpha * rank + (1 - adjusted_alpha) * self.scores[uid]
+                self.scores[uid] = (
+                    adjusted_alpha * rank + (1 - adjusted_alpha) * self.scores[uid]
+                )
 
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+            score_str += f"{self.scores[uid]}"
+            bt.logging.debug(score_str)
+
+        # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
         # update rankings based on new scores (moving avg rankings)
         self.rankings = np.argsort(self.scores)
@@ -718,7 +730,7 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.info("Logging wandb_data")
             wandb.log(wandb_data)
 
-        bt.logging.debug(f"Updated rankings: {self.rankings}")
+        # bt.logging.debug(f"Updated rankings: {self.rankings}")
 
     def save_state(self):
         """Saves the state of the validator to a file."""
