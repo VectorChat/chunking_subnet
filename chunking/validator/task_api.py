@@ -246,7 +246,7 @@ class Task:
 SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
 
-def get_wiki_content_for_page(pageid: int) -> str:
+def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
     """
     Get the content for a Wikipedia page by the page ID.
 
@@ -270,28 +270,21 @@ def get_wiki_content_for_page(pageid: int) -> str:
     return response["extract"], response["title"]
 
 
-def generate_doc_with_llm(validator, pageids=None, timeout=20, client=None) -> str:
+def generate_doc_with_llm(
+    validator: Validator, pageids=None, temperature=0.7, override_client=None
+) -> str:
     """
-    Generate a document from Wikipedia using an LLM.
-
-    This function fetches three Wikipedia pages, synthesizes their content, and generates a new article using an LLM.
+    Generate a synthetic document based on three articles from wikipedia.
 
     Args:
         validator (Validator): The validator instance.
-        pageids (List[int] | None): A list of page IDs to fetch content from.
-        timeout (int): The timeout for the LLM generation.
-        client (AsyncOpenAI | None): The OpenAI client to use.
+        pageids (list[int]): The list of page IDs to use for the synthetic query (if no validator is provided, this is required).
+        temperature (float): The temperature to use for the LLM.
+        override_client (OpenAI): The OpenAI client to use for the LLM (if no validator is provided, this is required).
 
     Returns:
-        str: The generated document.
+        str: The synthetic document.
     """
-    if pageids and len(pageids) != 3:
-        raise ValueError("pageids must be a list of 3 pageids")
-
-    client = client if client is not None else validator.client
-
-    
-def generate_doc_with_llm(validator: Validator, pageids=None, temperature=0.7, override_client=None) -> str:
     pages = (
         choices(pageids, k=3)
         if pageids != None and len(pageids) == 3
@@ -416,7 +409,8 @@ def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, 
             },
         ).json()["query"]["random"][0]["id"]
 
-        content = get_wiki_content_for_page(page)
+        content, title = get_wiki_content_for_page(page)
+        bt.logging.info(f"Got document {title} with {len(content)} characters")
     return content, page
 
 def calculate_chunk_qty(document: str, chunk_size: int) -> int:
@@ -425,8 +419,10 @@ def calculate_chunk_qty(document: str, chunk_size: int) -> int:
 def generate_synthetic_synapse(validator, timeout=20, pageids=None) -> Tuple[chunkSynapse, int]:
 
     bt.logging.info("Generating synthetic query with llm")
-    # document = generate_doc_with_llm(validator, pageids)
-    document, pageid = generate_doc_normal(validator)
+    if validator.config.neuron.use_wiki_gen:
+        document, pageid = generate_doc_normal(validator)
+    else:
+        document = generate_doc_with_llm(validator)
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096

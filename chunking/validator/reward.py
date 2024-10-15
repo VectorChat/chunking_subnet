@@ -17,10 +17,12 @@
 # DEALINGS IN THE SOFTWARE.
 
 import difflib
+import hashlib
 from math import ceil, e
 from typing import List, Tuple
 
 from openai import OpenAI
+from sympy import O
 from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
@@ -55,6 +57,21 @@ def custom_word_tokenize(text: str) -> List[str]:
     return final_words
 
 
+def get_words_string(words: List[str]) -> str:
+    words_string = " "
+    for word in words:
+        words_string += " " + word
+
+    # add spaces around punctuation
+    punctuation_regex = r'([.,!?"\'])'
+    words_string = re.sub(punctuation_regex, r" \1 ", words_string)
+
+    # remove extra spaces
+    words_string = re.sub(r"\s+", " ", words_string).strip()
+
+    return words_string
+
+
 def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
     def _verbose(msg: str):
         if verbose:
@@ -67,23 +84,8 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
     _verbose(f"created {len(chunk_words)} chunk words")
     _verbose(f"created {len(document_words)} document words")
 
-    chunk_words_str = " ".join(chunk_words)
-    document_words_str = " ".join(document_words)
-
-    # Regex to match any punctuation
-    punctuation_regex = r'([.,!?"\'])'
-
-    # Add space before and after each punctuation mark
-    chunk_words_str = re.sub(punctuation_regex, r" \1 ", chunk_words_str)
-    document_words_str = re.sub(punctuation_regex, r" \1 ", document_words_str)
-
-    _verbose("removed punctuation")
-
-    # Remove extra spaces
-    chunk_words_str = re.sub(r"\s+", " ", chunk_words_str).strip()
-    document_words_str = re.sub(r"\s+", " ", document_words_str).strip()
-
-    _verbose("removed extra spaces")
+    chunk_words_str = get_words_string(chunk_words)
+    document_words_str = get_words_string(document_words)
 
     if chunk_words_str in document_words_str:
         _verbose("chunk words in document words")
@@ -280,7 +282,9 @@ def reward(
             f"Every set of 3 adjacent words from the document does not appear in the chunks"
         )
 
-    _verbose(f"Passed: Every set of 3 adjacent words from the document appears in the chunks")
+    _verbose(
+        f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
+    )
 
     num_embeddings = (
         override_num_embeddings if override_num_embeddings else self.num_embeddings
@@ -371,12 +375,29 @@ def reward(
     return reward, extra_info_dict
 
 
+def get_chunk_hash(chunk: str) -> str:
+    return hashlib.sha256(chunk.encode()).hexdigest()
+
+
+def get_chunks_hash(chunks: List[str]) -> str:
+    if len(chunks) == 0:
+        return ""
+
+    final_hash = get_chunk_hash(chunks[0])
+    for chunk in chunks[1:]:
+        final_hash += get_chunk_hash(chunk)
+
+    return final_hash
+
+
 def get_rewards(
     self,
     document: str,
     chunk_size: int,
     chunk_qty: int,
     responses: List[chunkSynapse],
+    override_client: OpenAI | None = None,
+    override_num_embeddings: int | None = None,
 ) -> Tuple[np.ndarray, List[dict]]:
     """
     Get the rewards for the given query and responses, returning the rewards and extra info (penalties, timing, etc.) for each response.
@@ -395,27 +416,50 @@ def get_rewards(
     rewards = np.zeros(len(responses))
     extra_infos = []
 
-    for i, response in enumerate(responses):
-        try:
-            # skip responses that have no chunks
-            if not response.chunks or len(response.chunks) == 0:
-                raise Exception(
-                    f"No chunks found in response {response.name}, axon {response.axon.hotkey[:10]}"
+    chunks_hash_to_info = {}
+
+    for response in responses:
+        if response is not None and response.chunks is not None:
+            chunks_hash = get_chunks_hash(response.chunks)
+
+            # bt.logging.debug(f"response chunks hash: {chunks_hash}")
+
+            try:
+                reward_value, extra_info = reward(
+                    self,
+                    document,
+                    chunk_size,
+                    chunk_qty,
+                    response,
+                    override_client=override_client,
+                    override_num_embeddings=override_num_embeddings,
                 )
+            except Exception as e:
+                print(
+                    f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
+                )
+                reward_value = 0
+                extra_info = {}
 
-            # get the reward for the response
-            reward_value, extra_info = reward(
-                self, document, chunk_size, chunk_qty, response
-            )
+            chunks_hash_to_info[chunks_hash] = {
+                "chunks": response.chunks,
+                "reward": reward_value,
+                "extra_info": extra_info,
+            }
 
-            # store the reward for the response
-            rewards[i] = float(reward_value)
-            extra_infos.append(extra_info)
-        except Exception as e:
-            # if there is an error, log it and set the reward to 0
-            print(
-                f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
-            )
+    for i, response in enumerate(responses):
+        chunks_hash = (
+            get_chunks_hash(response.chunks)
+            if response is not None and response.chunks is not None
+            else ""
+        )
+
+        chunks_info = chunks_hash_to_info.get(chunks_hash)
+
+        if chunks_info:
+            rewards[i] = float(chunks_info["reward"])
+            extra_infos.append(chunks_info["extra_info"])
+        else:
             rewards[i] = 0
             extra_infos.append({})
 
@@ -435,21 +479,54 @@ def rank_responses(
     - np.ndarray: Array of ranks for each response.
     """
 
-    response_ranks = np.zeros_like(rewards)
-
-    rank = 0
-    for _ in range(len(rewards)):
-        next_best_index = rewards.argmax()
-
-        if rewards[next_best_index] == 0:
-            # should not be ranked
-            response_ranks[next_best_index] = -1
+    reward_to_count = {}
+    for reward in rewards:
+        if reward in reward_to_count:
+            reward_to_count[reward] += 1
         else:
-            response_ranks[next_best_index] = rank
-            rank += 1
+            reward_to_count[reward] = 1
 
-        rewards[next_best_index] = -np.inf
-    return response_ranks
+    reward_to_rank = {}
+    rank = 0
+    for reward in sorted(reward_to_count.keys(), reverse=True):
+        reward_to_rank[reward] = rank
+        rank += 1
+
+    response_ranks = np.zeros_like(rewards)
+    for i, reward in enumerate(rewards):
+        if reward == 0:
+            response_ranks[i] = -1
+        else:
+            response_ranks[i] = reward_to_rank[reward]
+
+    return np.array(response_ranks)
+
+
+def rank_responses_global(
+    self: Validator,
+    group_rank_values: np.ndarray[np.float64],
+    ranked_responses: np.ndarray[int],
+    miner_group_uids: np.ndarray[int],
+    override_scores: np.ndarray[float] | None = None,
+) -> np.ndarray[int]:
+    # inf means the response should not be ranked
+    ranked_responses_global = np.full_like(ranked_responses, np.inf)
+
+    scores = override_scores if override_scores is not None else self.scores
+
+    ranked_responses = ranked_responses.astype(int)
+
+    # loop through the ranked responses and assign a global rank to each response
+    for i, rank in enumerate(ranked_responses):
+        if rank != -1:
+            bt.logging.debug(f"rank: {rank}, group_rank_values: {group_rank_values}")
+            rank_value = group_rank_values[rank]
+            ranked_responses_global[i] = rank_value
+        elif not np.isinf(scores[miner_group_uids[i]]):
+            # give response worst rank in the group
+            ranked_responses_global[i] = group_rank_values[-1]
+
+    return ranked_responses_global
 
 
 class smallChunk:

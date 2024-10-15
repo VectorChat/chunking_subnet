@@ -34,14 +34,9 @@ logs/
 
 *.csv
 *.png
-!assets/*.png
+!assets/**/*.png
 
 *.pkl
 *.pickle
 
 tests/v1*
-
-*.csv
-*.pkl
-*.png
-v*/
