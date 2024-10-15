@@ -490,7 +490,7 @@ def rank_responses(
     rank = 0
     for reward in sorted(reward_to_count.keys(), reverse=True):
         reward_to_rank[reward] = rank
-        rank += 1
+        rank += reward_to_count[reward]
 
     response_ranks = np.zeros_like(rewards)
     for i, reward in enumerate(rewards):

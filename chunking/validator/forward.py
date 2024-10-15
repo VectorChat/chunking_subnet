@@ -161,7 +161,7 @@ def get_alpha(
         if override_min_moving_average_alpha
         else self.config.neuron.min_moving_average_alpha
     )
-    alpha_adjustment = (1 - min_moving_average_alpha) / (num_miner_groups - 1)
+    alpha_adjustment = (1 - min_moving_average_alpha) / max((num_miner_groups - 1), 1)
     alpha = min_moving_average_alpha + alpha_adjustment * miner_group_index
 
     return alpha

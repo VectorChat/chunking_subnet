@@ -247,7 +247,7 @@ def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
 
 def generate_doc_with_llm(
     validator: Validator, pageids=None, temperature=0.7, override_client=None
-) -> str:
+) -> Tuple[str, int]:
     pages = (
         choices(validator.articles, k=3)
         if pageids == None or len(pageids) < 3
@@ -343,7 +343,7 @@ def generate_doc_with_llm(
     bt.logging.info(f"Generated synthetic query with {num_tokens} tokens")
 
     bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
-    return synthetic_document
+    return synthetic_document, -1
 
 
 def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, int]:
@@ -383,7 +383,7 @@ def generate_synthetic_synapse(validator, timeout=20) -> Tuple[chunkSynapse, int
     if validator.config.neuron.use_wiki_gen:
         document, pageid = generate_doc_normal(validator)
     else:
-        document = generate_doc_with_llm(validator)
+        document, pageid = generate_doc_with_llm(validator)
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
@@ -395,4 +395,4 @@ def generate_synthetic_synapse(validator, timeout=20) -> Tuple[chunkSynapse, int
         chunk_qty=chunk_qty,
         timeout=timeout,
     )
-    return synapse, -1
+    return synapse, pageid
