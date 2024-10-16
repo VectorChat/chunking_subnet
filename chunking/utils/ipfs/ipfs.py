@@ -124,7 +124,7 @@ async def get_pinned_cids(
             _verbose(f"Response: {response}")
             response.raise_for_status()
 
-        res_text_as_json_array = f"[{",".join(response.text.splitlines())}]"
+        res_text_as_json_array = f"[{','.join(response.text.splitlines())}]"
         pins = json.loads(res_text_as_json_array)
 
         _verbose(f"{endpoint} response:\n\n{response}\n\n")

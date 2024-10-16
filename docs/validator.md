@@ -55,7 +55,7 @@ network_spec:
 
 ## Installation/Setup
 
-This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
+This repository requires python 3.10 or higher. The following command will install the necessary dependencies and clone the repository:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
