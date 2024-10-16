@@ -383,9 +383,9 @@ def get_chunks_hash(chunks: List[str]) -> str:
     if len(chunks) == 0:
         return ""
 
-    final_hash = get_chunk_hash(chunks[0])
+    final_hash = get_chunk_hash(re.sub(r"\s+", " ", chunks[0]).strip())
     for chunk in chunks[1:]:
-        final_hash += get_chunk_hash(chunk)
+        final_hash += get_chunk_hash(re.sub(r"\s+", " ", chunk).strip())
 
     return final_hash
 
@@ -417,11 +417,10 @@ def get_rewards(
     extra_infos = []
 
     chunks_hash_to_info = {}
-
+    hashes = []
     for response in responses:
-        if response is not None and response.chunks is not None:
-            chunks_hash = get_chunks_hash(response.chunks)
-
+        chunks_hash = get_chunks_hash(response.chunks)
+        if chunks_hash not in hashes and response is not None:
             # bt.logging.debug(f"response chunks hash: {chunks_hash}")
 
             try:
@@ -446,13 +445,10 @@ def get_rewards(
                 "reward": reward_value,
                 "extra_info": extra_info,
             }
+        hashes.append(chunks_hash)
 
     for i, response in enumerate(responses):
-        chunks_hash = (
-            get_chunks_hash(response.chunks)
-            if response is not None and response.chunks is not None
-            else ""
-        )
+        chunks_hash = hashes[i]
 
         chunks_info = chunks_hash_to_info.get(chunks_hash)
 
