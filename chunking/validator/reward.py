@@ -306,7 +306,7 @@ def reward(
     all_text = " ".join([testChunk.text for testChunk in testChunks])
 
     # calculate the number of tokens in the text (for logging/accounting purposes)
-    num_tokens = num_tokens_from_string(all_text, "o200k_base")
+    num_tokens = num_tokens_from_string(all_text, "gpt-4o-mini")
 
     bt.logging.info(f"Using {num_tokens} tokens for test embeddings")
 
@@ -379,13 +379,16 @@ def get_chunk_hash(chunk: str) -> str:
     return hashlib.sha256(chunk.encode()).hexdigest()
 
 
-def get_chunks_hash(chunks: List[str]) -> str:
+def get_chunks_hash(chunks: List[str] | None) -> str:
+    if chunks is None:
+        return ""
+
     if len(chunks) == 0:
         return ""
 
-    final_hash = get_chunk_hash(chunks[0])
+    final_hash = get_chunk_hash(re.sub(r"\s+", " ", chunks[0]).strip())
     for chunk in chunks[1:]:
-        final_hash += get_chunk_hash(chunk)
+        final_hash += get_chunk_hash(re.sub(r"\s+", " ", chunk).strip())
 
     return final_hash
 
@@ -417,13 +420,10 @@ def get_rewards(
     extra_infos = []
 
     chunks_hash_to_info = {}
-
+    hashes = []
     for response in responses:
-        if response is not None and response.chunks is not None:
-            chunks_hash = get_chunks_hash(response.chunks)
-
-            # bt.logging.debug(f"response chunks hash: {chunks_hash}")
-
+        chunks_hash = get_chunks_hash(response.chunks) if response is not None else ""
+        if chunks_hash not in hashes and response is not None:
             try:
                 reward_value, extra_info = reward(
                     self,
@@ -435,24 +435,20 @@ def get_rewards(
                     override_num_embeddings=override_num_embeddings,
                 )
             except Exception as e:
-                print(
+                bt.logging.error(
                     f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
                 )
                 reward_value = 0
                 extra_info = {}
 
             chunks_hash_to_info[chunks_hash] = {
-                "chunks": response.chunks,
                 "reward": reward_value,
                 "extra_info": extra_info,
             }
+        hashes.append(chunks_hash)
 
     for i, response in enumerate(responses):
-        chunks_hash = (
-            get_chunks_hash(response.chunks)
-            if response is not None and response.chunks is not None
-            else ""
-        )
+        chunks_hash = hashes[i]
 
         chunks_info = chunks_hash_to_info.get(chunks_hash)
 
@@ -490,7 +486,7 @@ def rank_responses(
     rank = 0
     for reward in sorted(reward_to_count.keys(), reverse=True):
         reward_to_rank[reward] = rank
-        rank += 1
+        rank += reward_to_count[reward]
 
     response_ranks = np.zeros_like(rewards)
     for i, reward in enumerate(rewards):

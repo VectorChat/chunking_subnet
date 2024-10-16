@@ -240,6 +240,27 @@ def add_args(cls, parser):
             default=10_000_000_000,  # 10 seconds
         )
 
+        parser.add_argument(
+            "--neuron.relay_embed_threshold",
+            type=int,
+            help="The threshold of cosine similarity to use when comparing two request documents. If the similarity is greater than this threshold, we will consider this a fuzzy duplicate and not process the request.",
+            default=0.9,
+        )
+
+        parser.add_argument(
+            "--neuron.no_check_ipfs",
+            action="store_true",
+            help="If set, does not run IPFS/relay mining related checks.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--neuron.no_check_duplicate_ipfs",
+            action="store_true",
+            help="If set, does not check for exact or fuzzy duplicate requests in IPFS.",
+            default=False,
+        )
+
 
 def config(cls):
     """
