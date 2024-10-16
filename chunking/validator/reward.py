@@ -379,7 +379,10 @@ def get_chunk_hash(chunk: str) -> str:
     return hashlib.sha256(chunk.encode()).hexdigest()
 
 
-def get_chunks_hash(chunks: List[str]) -> str:
+def get_chunks_hash(chunks: List[str] | None) -> str:
+    if chunks is None:
+        return ""
+
     if len(chunks) == 0:
         return ""
 
@@ -419,10 +422,8 @@ def get_rewards(
     chunks_hash_to_info = {}
     hashes = []
     for response in responses:
-        chunks_hash = get_chunks_hash(response.chunks)
+        chunks_hash = get_chunks_hash(response.chunks) if response is not None else ""
         if chunks_hash not in hashes and response is not None:
-            # bt.logging.debug(f"response chunks hash: {chunks_hash}")
-
             try:
                 reward_value, extra_info = reward(
                     self,
@@ -434,14 +435,13 @@ def get_rewards(
                     override_num_embeddings=override_num_embeddings,
                 )
             except Exception as e:
-                print(
+                bt.logging.error(
                     f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
                 )
                 reward_value = 0
                 extra_info = {}
 
             chunks_hash_to_info[chunks_hash] = {
-                "chunks": response.chunks,
                 "reward": reward_value,
                 "extra_info": extra_info,
             }
