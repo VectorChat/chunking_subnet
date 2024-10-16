@@ -28,7 +28,7 @@ from chunking.validator import forward
 
 # import base validator class which takes care of most of the boilerplate
 from chunking.base.validator import BaseValidatorNeuron
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 class Validator(BaseValidatorNeuron):
 
@@ -51,6 +51,8 @@ class Validator(BaseValidatorNeuron):
             os.environ['CHUNKING_API_HOST'] = 'https://chunking.com/web3/api/'
             
         self.client: OpenAI = OpenAI()
+        self.aclient = AsyncOpenAI()
+        self.embedding_model = "text-embedding-ada-002"
         self.num_embeddings = int(self.config.num_embeddings)
         self.sample_size = int(self.config.neuron.sample_size)
 
