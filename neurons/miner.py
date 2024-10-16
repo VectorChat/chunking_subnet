@@ -18,6 +18,7 @@
 
 
 import time
+import traceback
 from typing import Dict, List, Tuple
 
 import bittensor as bt
@@ -337,8 +338,10 @@ class Miner(BaseMinerNeuron):
                     )
                     return synapse
             except Exception as e:
-                bt.logging.error(f"Error checking synapse, returning chunks just in case: {e}")
-
+                bt.logging.error(
+                    f"An unexpected error occurred checking synapse, returning chunks just in case: {e}"
+                )
+                traceback.print_exc()
 
         chunks = self.chunk_document(
             synapse.document, synapse.chunk_size, synapse.chunk_qty
