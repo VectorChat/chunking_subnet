@@ -91,7 +91,7 @@ async def runner(args: argparse.Namespace):
         )
     else:
         metagraph = bt.metagraph(netuid=1, network=chain_endpoint)
-        uid = 16
+        uid = args.uid
         axon = metagraph.axons[uid]
 
     axons = [axon]
@@ -125,5 +125,6 @@ if __name__ == "__main__":
     argparser.add_argument("--use_local_axon", action="store_true")
     argparser.add_argument("--no_cid", action="store_true")
     argparser.add_argument("--fake_cid", action="store_true")
+    argparser.add_argument("--uid", type=int, default=16)
     args = argparser.parse_args()
     test_relay_round(args)

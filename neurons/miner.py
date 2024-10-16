@@ -18,6 +18,7 @@
 
 
 import time
+import traceback
 from typing import Dict, List, Tuple
 
 import bittensor as bt
@@ -55,7 +56,51 @@ class Miner(BaseMinerNeuron):
         self.recent_queries = []
         self.aclient = AsyncOpenAI()
 
-    async def check_duplicate(self, req_document: str, req_cid: str) -> bool:
+    def get_similarities(
+        self,
+        req_embeddings: list[list[float]],
+        pin_embeddings: list[list[float]],
+    ) -> list[float]:
+        """
+        Get the similarities between the request document and the pin document.
+        """
+        min_len = min(len(req_embeddings), len(pin_embeddings))
+        similarities = []
+
+        for i in range(min_len):
+            req_embedding = req_embeddings[i]
+            pin_embedding = pin_embeddings[i]
+
+            cosine_similarity = calc_cosine_similarity(req_embedding, pin_embedding)
+            similarities.append(cosine_similarity)
+
+        return similarities
+
+    def check_fuzzy_duplicate(
+        self,
+        embed_threshold: float,
+        req_embeddings: list[list[float]],
+        pin_embeddings: list[list[float]],
+    ) -> bool:
+        similarities = self.get_similarities(req_embeddings, pin_embeddings)
+
+        bt.logging.debug(f"Similarities: {similarities}")
+
+        for similarity in similarities:
+            if similarity > embed_threshold:
+                bt.logging.info(
+                    f"Found fuzzy duplicate with similarity: {similarity}, threshold: {embed_threshold}, similarities: {similarities}"
+                )
+                return True
+
+        return False
+
+    async def check_duplicate(
+        self,
+        req_document: str,
+        provided_req_embeddings: list[list[float]],
+        req_cid: str,
+    ) -> bool:
         """
         Checks for exact and 'fuzzy' duplicates of the incoming document.
 
@@ -85,6 +130,31 @@ class Miner(BaseMinerNeuron):
         )
 
         req_doc_hash = sha256_hash(req_document)
+
+        try:
+            req_embeddings = await make_embeddings(req_document, self.aclient)
+            bt.logging.debug(f"Made embeddings for request document")
+        except Exception as e:
+            bt.logging.error(
+                f"Error making embeddings while checking for fuzzy duplicate: {e}"
+            )
+            return False
+
+        # check that the provided request document embeddings are valid (> 0.99 similarity to the request document)
+        similarities = self.get_similarities(req_embeddings, provided_req_embeddings)
+
+        for similarity in similarities:
+            if similarity < 0.99:
+                bt.logging.error(
+                    f"Provided request document embeddings are not valid, considering request as malicious, similarity: {similarity}, similarities: {similarities}"
+                )
+                # consider the request as malicious and return True
+                return True
+
+        bt.logging.debug(
+            f"Provided request document embeddings are valid, similarities: {similarities}"
+        )
+
         for pin in recent_pins:
             if pin.cid == req_cid:
                 # Skip the incoming document itself.
@@ -98,33 +168,16 @@ class Miner(BaseMinerNeuron):
                 )
                 return True
 
-            try:
-                req_embeddings = await make_embeddings(req_document, self.aclient)
-            except Exception as e:
-                bt.logging.error(
-                    f"Error making embeddings while checking for fuzzy duplicate: {e}"
-                )
-                continue
-
             pin_embeddings = pin.payload.message.embeddings
 
-            min_len = min(len(req_embeddings), len(pin_embeddings))
-
-            similarities = []
-
-            for i in range(min_len):
-                req_embedding = req_embeddings[i]
-                pin_embedding = pin_embeddings[i]
-
-                cosine_similarity = calc_cosine_similarity(req_embedding, pin_embedding)
-                similarities.append(cosine_similarity)
-                if cosine_similarity > embed_threshold:
-                    bt.logging.info(
-                        f"Found fuzzy duplicate document with CID: {pin.cid}, hash: {req_doc_hash}, cosine similarity: {cosine_similarity}, current similarities: {similarities}, threshold: {embed_threshold}"
-                    )
-                    return True
-
-            bt.logging.debug(f"Similarities: {similarities}")
+            is_fuzzy_duplicate = self.check_fuzzy_duplicate(
+                embed_threshold, req_embeddings, pin_embeddings
+            )
+            if is_fuzzy_duplicate:
+                bt.logging.info(
+                    f"Found fuzzy duplicate document with CID: {pin.cid}, hash: {req_doc_hash}, threshold: {embed_threshold}"
+                )
+                return True
 
         bt.logging.info(
             f"No fuzzy duplicate found for request document with hash: {req_doc_hash}"
@@ -138,8 +191,9 @@ class Miner(BaseMinerNeuron):
         Checks:
         1) Check if the CID is pinned in IPFS.
         2) Check if the relay payload is authentic.
-            - Check if the payload body is valid json.
-            - Check if the signature is valid.
+            - check if the provided document hash is correct.
+            - check if the payload body is valid json.
+            - check if the signature is valid.
         3) Check for exact and fuzzy duplicates (semantically similar but with small or obscure changes).
 
         Args:
@@ -159,6 +213,13 @@ class Miner(BaseMinerNeuron):
                 relay_payload = await get_relay_payload(synapse.CID, verbose=True)
             except Exception as e:
                 bt.logging.error(f"Error getting content from IPFS: {e}")
+                return False
+
+            # check that document hash matches the given document
+            if relay_payload.message.document_hash != sha256_hash(synapse.document):
+                bt.logging.error(
+                    f"Bad document hash, received {relay_payload.message.document_hash}, expected {sha256_hash(synapse.document)}"
+                )
                 return False
 
             # Get the message from the relay payload.
@@ -195,14 +256,17 @@ class Miner(BaseMinerNeuron):
 
             bt.logging.debug("Signature verified")
 
-            bt.logging.debug("Checking for exact and fuzzy duplicates...")
-            is_duplicate = await self.check_duplicate(synapse.document, synapse.CID)
+            if not self.config.neuron.no_check_duplicate_ipfs:
+                bt.logging.debug("Checking for exact and fuzzy duplicates...")
+                is_duplicate = await self.check_duplicate(
+                    synapse.document, relay_payload.message.embeddings, synapse.CID
+                )
 
-            if is_duplicate:
-                bt.logging.info("Found duplicate, skipping request")
-                return False
+                if is_duplicate:
+                    bt.logging.info("Found duplicate, skipping request")
+                    return False
 
-            bt.logging.debug("No duplicates found")
+                bt.logging.debug("No duplicates found")
 
             return True
         except Exception as e:
@@ -265,12 +329,19 @@ class Miner(BaseMinerNeuron):
             f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}"
         )
 
-        # Check if the synapse is being used for relay mining.
-        if not await self.check_synapse(synapse):
-            bt.logging.error(
-                f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}"
-            )
-            return synapse
+        if not self.config.neuron.no_check_ipfs:
+            # Check if the synapse is being used for relay mining.
+            try:
+                if not await self.check_synapse(synapse):
+                    bt.logging.error(
+                        f"synapse failed check, skipping request from hotkey {synapse.dendrite.hotkey}"
+                    )
+                    return synapse
+            except Exception as e:
+                bt.logging.error(
+                    f"An unexpected error occurred checking synapse, returning chunks just in case: {e}"
+                )
+                traceback.print_exc()
 
         chunks = self.chunk_document(
             synapse.document, synapse.chunk_size, synapse.chunk_qty
