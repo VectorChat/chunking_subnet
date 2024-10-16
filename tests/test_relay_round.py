@@ -55,12 +55,17 @@ async def runner(args: argparse.Namespace):
 
     bt.logging.debug(f"Generated doc, {title}, {len(doc)} chars")
 
-    bt.logging.debug("Making relay payload")
-    cid = await make_relay_payload(
-        doc, aclient, vali_wallet, "text-embedding-ada-002", True
-    )
+    if args.no_cid:
+        cid = None
+    elif args.fake_cid:
+        cid = "FAKECID"
+    else:
+        bt.logging.debug("Making relay payload")
+        cid = await make_relay_payload(
+            doc, aclient, vali_wallet, "text-embedding-ada-002", True
+        )
 
-    bt.logging.debug(f"Made relay payload: {cid}")
+    bt.logging.debug(f"Using CID: {cid}")
 
     chunk_size = 4096
     timeout = 20
@@ -73,6 +78,8 @@ async def runner(args: argparse.Namespace):
         time_soft_max=timeout * 0.75,
         CID=cid,
     )
+
+    print(f"Made synapse, keys: {synapse.__dict__.keys()}")
 
     if args.use_local_axon:
         axon_wallet = bt.wallet(name=axon_wallet, hotkey=axon_hotkey)
@@ -116,5 +123,7 @@ if __name__ == "__main__":
     argparser.add_argument("--axon_ip", type=str, default="127.0.0.1")
     argparser.add_argument("--axon_port", type=int, default=8092)
     argparser.add_argument("--use_local_axon", action="store_true")
+    argparser.add_argument("--no_cid", action="store_true")
+    argparser.add_argument("--fake_cid", action="store_true")
     args = argparser.parse_args()
     test_relay_round(args)
