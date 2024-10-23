@@ -395,7 +395,9 @@ class BaseValidatorNeuron(BaseNeuron):
             self.should_exit = False
             self.thread = threading.Thread(target=self.run, daemon=True)
             self.thread.start()
-            self.start_api()
+            if self.config.neuron.run_task_api:
+                bt.logging.info("Starting integrated task API in background thread.")
+                self.start_api()
             self.is_running = True
             bt.logging.success("Started")
 
@@ -689,8 +691,8 @@ class BaseValidatorNeuron(BaseNeuron):
         """
         Updates `self.scores` and `self.rankings` for the miners that were part of a specific tournament round.
 
-        `self.scores` is the exponential moving average rank of the miners.
-        `self.rankings` is the sorted list of uids based on the scores (rank moving average).
+        `self.scores` is the exponential moving average rank of the miners. Index is uid, value is score.
+        `self.rankings` is the sorted list of uids based on the scores (rank moving average). Index is miner's global ranking in tournament, value is uid.
 
         Args:
             wandb_data (dict): Dictionary to store data for wandb logging.

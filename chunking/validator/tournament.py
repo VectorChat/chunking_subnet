@@ -194,11 +194,13 @@ async def query_miner_groups(
     self,
     input_synapse: chunkSynapse,
     num_miner_groups_to_query: int = 1,
-    choose_miner_uid: int | None = None,
+    choose_miner_index: int | None = None,
     choose_miner_group_index: int | None = None,
     return_group_indices: bool = False,
 ) -> list[list[chunkSynapse]] | list[tuple[list[chunkSynapse], list[int]]]:
     miner_groups, _, _ = get_miner_groups(self)
+
+    choose_miner_uid = int(self.rankings[choose_miner_index]) if choose_miner_index else None
 
     miner_group_indices = get_miner_groups_to_query(
         miner_groups,
@@ -275,7 +277,7 @@ async def score_miner_group_responses(
 async def run_tournament_round(
     self,
     input_synapse: chunkSynapse,
-    choose_miner_uid: int | None = None,
+    choose_miner_index: int | None = None,
     choose_miner_group_index: int | None = None,
 ) -> list[EndTournamentRoundInfo | None]:
     """
@@ -286,7 +288,7 @@ async def run_tournament_round(
         self,
         input_synapse,
         num_miner_groups_to_query=1,
-        choose_miner_uid=choose_miner_uid,
+        choose_miner_index=choose_miner_index,
         choose_miner_group_index=choose_miner_group_index,
         return_group_indices=True,
     )

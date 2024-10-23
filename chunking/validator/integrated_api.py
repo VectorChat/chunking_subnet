@@ -1,11 +1,11 @@
 from typing import List, Optional
 from fastapi import Body, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import bittensor as bt
 import traceback
 from chunking.protocol import chunkSynapse
 from chunking.utils.relay.relay import make_relay_payload
-from chunking.validator.tournament import run_tournament_round
+from chunking.validator.tournament import get_miner_groups, run_tournament_round
 
 
 class ChunkRequest(BaseModel):
@@ -18,8 +18,9 @@ class ChunkRequest(BaseModel):
     timeout: Optional[float] = Body(
         default=60, description="Timeout for the chunking task"
     )
-    miner_uid: Optional[int] = Body(
-        default=None, description="Specific miner UID to query"
+    miner_index: Optional[int] = Body(
+        default=None,
+        description="Specific miner index to query (index is miner's global ranking in tournament)",
     )
     miner_group_index: Optional[int] = Body(
         default=None, description="Specific miner group index to query"
@@ -28,7 +29,7 @@ class ChunkRequest(BaseModel):
         default=True,
         description="Whether chunks should count towards scores in the tournament",
     )
-    
+
 
 class ChunkResult(BaseModel):
     chunks: List[str]
@@ -41,7 +42,38 @@ class ChunkResponse(BaseModel):
     results: List[ChunkResult]
 
 
+class RankingsResponse(BaseModel):
+    rankings: List[int] = Field(...,
+        description="List of miner rankings by global tournament rank. Index is miner's global ranking, value is uid."
+    )
+    by_uid: List[int] = Field(...,
+        description="List of miner uids by global tournament rank. Index is miner UID, value is miner's global ranking."
+    )
+
+class GroupsResponse(BaseModel):
+    groups: List[List[int]] = Field(..., description="List of miner groups. Index is group index, value is miner UIDs in the group.")
+    by_uid: List[List[int]] = Field(..., description="List of miner UIDs by group. Index is miner UID, value is group indices that the miner belongs to.")
+
 def setup_routes(self):
+
+    @self.app.get("/rankings")
+    async def rankings() -> RankingsResponse:
+        rankings = self.rankings.tolist()
+        by_uid_mapping = {uid: rank for rank, uid in enumerate(self.rankings)}
+        by_uid = [by_uid_mapping[uid] for uid in range(len(self.rankings))]
+        return RankingsResponse(rankings=rankings, by_uid=by_uid)
+
+    @self.app.get("/groups")
+    async def groups() -> GroupsResponse:
+        groups, _, _ = get_miner_groups(self)
+        by_uid_mapping = {}
+        for group_index, miner_group_uids in enumerate(groups):
+            for uid in miner_group_uids:
+                if uid not in by_uid_mapping:
+                    by_uid_mapping[uid] = []
+                by_uid_mapping[uid].append(group_index)
+        return GroupsResponse(groups=groups, by_uid=by_uid_mapping)
+
     @self.app.post("/chunk")
     async def chunk(request: ChunkRequest) -> ChunkResponse:
         try:

@@ -209,6 +209,12 @@ def add_args(cls, parser):
             help="Only to be used for debugging, gets documents from wikipedia instead of generating from LLM",
         )
 
+        parser.add_argument(
+            "--neuron.run_task_api",
+            action="store_true",
+            help="If set, runs the integrated API for that can be queried by external clients.",
+        )
+
     # Miner
     else:
         parser.add_argument(
