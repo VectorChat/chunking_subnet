@@ -70,16 +70,22 @@ def get_miner_groups_to_query(
     self,
     miner_groups: list[np.ndarray[np.int32]],
     group_ranks: list[range],
-    filter_miner_uids: Optional[list[int]] = None,
+    miner_uid: int | None = None,
+    miner_group_index: int | None = None,
 ) -> tuple[list[np.ndarray[np.int32]], list[range]]:
 
-    if filter_miner_uids is not None:
+    if miner_group_index is not None:
+        assert (
+            miner_group_index >= 0 and miner_group_index < len(miner_groups)
+        ), f"miner_group_index out of bounds: index {miner_group_index} not in range(0, {len(miner_groups)})"
+        miner_groups_to_query = [miner_groups[miner_group_index]]
+        miner_groups_group_ranks = [group_ranks[miner_group_index]]
+    elif miner_uid is not None:
         groups = set()
-        for uid in filter_miner_uids:
-            for group_index in range(len(miner_groups)):
-                if uid in miner_groups[group_index]:
-                    groups.add(group_index)
-                    break
+        for group_index in range(len(miner_groups)):
+            if miner_uid in miner_groups[group_index]:
+                groups.add(group_index)
+                break
 
         miner_groups_to_query = [miner_groups[group] for group in groups]
         miner_groups_group_ranks = [group_ranks[group] for group in groups]
@@ -172,7 +178,8 @@ async def query_miner_group(
 async def run_tournament_round(
     self,
     input_synapse: chunkSynapse,
-    miner_uids: Optional[list[int]] = None,
+    miner_uid: int | None = None,
+    miner_group_index: int | None = None,
 ) -> list[EndTournamentRoundInfo | None]:
     """
     Run a tournament round for the validator's tournament.
@@ -181,7 +188,7 @@ async def run_tournament_round(
     miner_groups, group_ranks, group_size = get_miner_groups(self)
 
     miner_groups_to_query, miner_groups_group_ranks = get_miner_groups_to_query(
-        self, miner_groups, group_ranks, miner_uids
+        self, miner_groups, group_ranks, miner_uid, miner_group_index
     )
 
     coros = []

@@ -57,6 +57,7 @@ def setup_routes(self):
             usable_results = [result for result in results if result is not None]
 
             # TODO: make background task if possible
+            # 
             chunk_results: List[ChunkResult] = []
             for result in usable_results:
                 if request.do_grading:
@@ -75,34 +76,6 @@ def setup_routes(self):
                                 uid=miner_group_uid,
                             )
                         )
-
-            if request.only_return_best:
-                best_per_group = [
-                    np.argmin(result.ranked_responses_global)
-                    for result in usable_results
-                ]
-                best_reward_per_group = [
-                    usable_results[i].rewards[best_i]
-                    for i, best_i in enumerate(best_per_group)
-                ]
-                best_index = np.argmax(best_reward_per_group)
-
-                best_result = usable_results[best_index]
-
-                best_miner_index = best_per_group[best_index]
-
-                miner_group_uid = best_result.miner_group_uids[best_miner_index]
-
-                best_response = best_result.responses[best_miner_index]
-                chunk_results = [
-                    ChunkResult(
-                        chunks=best_response.chunks,
-                        miner_signature=best_response.miner_signature,
-                        uid=miner_group_uid,
-                    )
-                ]
-
-                return ChunkResponse(results=chunk_results)
 
             return ChunkResponse(results=chunk_results)
         except Exception as e:
