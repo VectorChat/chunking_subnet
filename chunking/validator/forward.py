@@ -25,9 +25,11 @@ from chunking.validator.reward import get_rewards, rank_responses
 from chunking.validator.task_api import Task, TaskType
 from chunking.validator.tournament import (
     get_miner_groups,
-    get_ranked_responses_in_global_context,
-    get_tiered_alpha,
 )
+from chunking.utils import uids
+from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
+from chunking.validator.task_api import Task
+from neurons.validator import Validator
 import json
 import gzip
 import base64
@@ -35,7 +37,8 @@ from tabulate import tabulate
 from chunking.validator.types import EndTournamentRoundInfo
 
 
-async def forward(self):
+
+async def forward(self: Validator):
     """
     The forward function is called by the validator every time step.
 
@@ -49,7 +52,6 @@ async def forward(self):
         self (:obj:`bittensor.neuron.Neuron`): The neuron object which contains all the necessary state for the validator.
         synapse: The chunkSynapse containing the organic query
     """
-
     # initial structure for wandb logging
     wandb_data = {
         "modality": "text",
@@ -71,22 +73,22 @@ async def forward(self):
     hotkey = self.wallet.get_hotkey()
 
     # get miner groups and with their ranks for the tournament round
-    miner_groups, group_ranks, group_size = get_miner_groups(self)
+    miner_groups, group_ranks, group_rank_values = get_miner_groups(self)
 
-    bt.logging.debug(f"Miner groups: {miner_groups}")
-    bt.logging.debug(f"Group ranks: {group_ranks}")
-    bt.logging.debug(f"Group size: {group_size}")
+    # bt.logging.debug(f"Miner groups: {miner_groups}")
+    # bt.logging.debug(f"Group ranks: {group_ranks}")
+    # bt.logging.debug(f"Group rank values: {group_rank_values}")
 
     # get new task to query miners with
     try:
-        task, pageid = Task.get_synthetic_task(validator=self)
+        task = await Task.get_new_task(validator=self)
     except Exception as e:
         bt.logging.error(f"Error getting new synthetic task: {e}")
         bt.logging.error(traceback.format_exc())
         return
 
     # log pageid of wikipedia article used for synthetic query
-    wandb_data["pageid"] = pageid
+    wandb_data["pageid"] = task.page_id or -1
 
     miner_group = choice(range(len(miner_groups)))
 
@@ -100,6 +102,9 @@ async def forward(self):
     bt.logging.debug(
         f"Quering miner group: {miner_group}, with uids: {miner_group_uids}, timeout: {task.synapse.timeout}"
     )
+
+    bt.logging.debug(f"group ranks: {group_ranks[miner_group]}")
+    bt.logging.debug(f"group rank values: {group_rank_values[miner_group]}")
 
     # get the axons (miners) that are part of the miner group that is queried
     axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]
@@ -232,11 +237,13 @@ async def forward(self):
     for rank, uid in zip(ranked_responses, miner_group_uids):
         wandb_data["group"]["local_rankings"][str(uid)] = rank
 
-    bt.logging.debug(f"Group ranks: {group_ranks[miner_group]}")
-    bt.logging.debug(f"Ranked responses: {ranked_responses}")
+    group_rank_values = group_rank_values[miner_group]
 
-    ranked_responses_global = get_ranked_responses_in_global_context(
-        self, miner_group_uids, list(group_ranks[miner_group]), ranked_responses
+    ranked_responses_global = rank_responses_global(
+        self,
+        group_rank_values,
+        ranked_responses,
+        miner_group_uids,
     )
 
     # log the global rankings (rankings in global context of miners within this group) for each response for wandb logging

@@ -55,11 +55,14 @@ network_spec:
 
 ## Installation/Setup
 
-This repository requires python 3.8 or higher. The following command will install the necessary dependencies and clone the repository:
+This repository requires python 3.10 or higher. The following command will install the necessary dependencies and clone the repository:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/VectorChat/chunking_subnet/main/setup.sh | bash
 ```
+
+Then, setup _Lucid_, our relay mining prevention mechanism, by following the instructions [here](./lucid/setup.md). _Lucid_ is required for running a validator and runs
+as a separate group of services.
 
 To run the validator issue the following command after setting your OpenAI API key in the environment variable (brackets indicate optional arguments):
 

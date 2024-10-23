@@ -201,7 +201,12 @@ def add_args(cls, parser):
             "--wandb.wandb_off",
             action="store_true",
             help="Turn off wandb logging.",
-            default=False,
+        )
+
+        parser.add_argument(
+            "--neuron.use_wiki_gen",
+            action="store_true",
+            help="Only to be used for debugging, gets documents from wikipedia instead of generating from LLM",
         )
 
     # Miner
@@ -239,6 +244,27 @@ def add_args(cls, parser):
             type=int,
             help="The allowed delta for synapse verification in nanoseconds.",
             default=10_000_000_000,  # 10 seconds
+        )
+
+        parser.add_argument(
+            "--neuron.relay_embed_threshold",
+            type=int,
+            help="The threshold of cosine similarity to use when comparing two request documents. If the similarity is greater than this threshold, we will consider this a fuzzy duplicate and not process the request.",
+            default=0.9,
+        )
+
+        parser.add_argument(
+            "--neuron.no_check_ipfs",
+            action="store_true",
+            help="If set, does not run IPFS/relay mining related checks.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--neuron.no_check_duplicate_ipfs",
+            action="store_true",
+            help="If set, does not check for exact or fuzzy duplicate requests in IPFS.",
+            default=False,
         )
 
 

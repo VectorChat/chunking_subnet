@@ -7,10 +7,10 @@ from chunking.protocol import chunkSynapse
 
 TaskType = Literal["organic", "synthetic"]
 
-
 class EndTournamentRoundInfo(BaseModel):
     ranked_responses_global: NDArray[Shape["*"], float]
     miner_group_uids: NDArray[Shape["*"], int]
+    miner_group_index: int
     task_type: TaskType
     alpha: float
     responses: list[chunkSynapse]

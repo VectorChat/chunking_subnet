@@ -42,6 +42,8 @@ import sympy as sp
 
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
+from chunking.utils.score import get_rank_value_to_adjusted_alpha
+
 
 load_dotenv()
 
@@ -309,28 +311,31 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def run(self):
         """
-        Main loop for the validator.
+                Main loop for the validator.
 
-        This function performs the following primary tasks:
-        1. Make sure the validator is registered on the network and sync the metagraph.
-        2. Start main validator loop.
-            2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
-            it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
-            Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
-            moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
-            weight each miner receives. The round info and updated scores/rankings are logged to wandb.
-            2.2 Sync the metagraph and set weights if necessary.
-            2.3 Save the current tournament state to disk.
-            2.4 Sleep for a specified interval, repeat.
+                This function performs the following primary tasks:
+                1. Make sure the validator is registered on the network and sync the metagraph.
+                2. Start main validator loop.
+                    2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
+                    it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
+                    Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
+                    moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
+                    weight each miner receives. The round info and updated scores/rankings are logged to wandb.
+                    2.2 Sync the metagraph and set weights if necessary.
+                    2.3 Save the current tournament state to disk.
+                    2.4 Sleep for a specified interval, repeat.
 
+        <<<<<<< HEAD
 
-        Note:
-            - The function leverages the global configurations set during the initialization of the miner.
-            - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
+        =======
+        >>>>>>> main
+                Note:
+                    - The function leverages the global configurations set during the initialization of the miner.
+                    - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
 
-        Raises:
-            KeyboardInterrupt: If the miner is stopped by a manual interruption.
-            Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
+                Raises:
+                    KeyboardInterrupt: If the miner is stopped by a manual interruption.
+                    Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
         """
 
         # Check that validator is registered on the network.
@@ -714,25 +719,41 @@ class BaseValidatorNeuron(BaseNeuron):
             uids_array = np.array(uids)
 
         # Update scores with rewards produced by this step.
-        bt.logging.debug(
-            f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
-        )
+        # bt.logging.debug(
+        #     f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
+        # )
+
+        bt.logging.debug(f"group alpha: {alpha}")
+
+        rank_value_to_adjusted_alpha = get_rank_value_to_adjusted_alpha(ranks, alpha)
 
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
 
+            adjusted_alpha = rank_value_to_adjusted_alpha[rank]
+
+            bt.logging.debug(
+                f"uid: {uid}, rank: {rank}, adjusted_alpha: {adjusted_alpha}"
+            )
+            score_str = f"score: {self.scores[uid]} -> "
+
             # initialize score if it is np.inf
             if np.isinf(self.scores[uid]):
-                self.scores[uid] = alpha * rank + (1 - alpha) * floor(
+                self.scores[uid] = adjusted_alpha * rank + (1 - adjusted_alpha) * floor(
                     np.sum(np.isfinite(self.scores)) / 2
                 )
             elif self.scores[uid] < 0:
                 self.scores[uid] = np.inf
             else:
-                self.scores[uid] = alpha * rank + (1 - alpha) * self.scores[uid]
+                self.scores[uid] = (
+                    adjusted_alpha * rank + (1 - adjusted_alpha) * self.scores[uid]
+                )
 
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+            score_str += f"{self.scores[uid]}"
+            bt.logging.debug(score_str)
+
+        # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
         self.rankings = np.argsort(self.scores)
 
@@ -754,7 +775,7 @@ class BaseValidatorNeuron(BaseNeuron):
             if not self.config.wandb.wandb_off:
                 wandb.log(wandb_data)
 
-        bt.logging.debug(f"Updated rankings: {self.rankings}")
+        # bt.logging.debug(f"Updated rankings: {self.rankings}")
 
     def save_state(self):
         """Saves the state of the validator to a file."""
