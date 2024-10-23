@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from functools import partial
 import os
 import copy
 from fastapi import FastAPI, HTTPException
@@ -294,11 +295,10 @@ class BaseValidatorNeuron(BaseNeuron):
             pass
 
     def start_api(self):
-        host = "0.0.0.0"
-        port = 8080
-        bt.logging.info(f"Starting Chunking API on {host}:{port}")
-        uvicorn.run(self.app, host=host, port=port)
-        bt.logging.success(f"Chunking API started on {host}:{port}")
+        config = uvicorn.Config(app=self.app, host="0.0.0.0", port=8080, loop="asyncio")
+        self.api_server = uvicorn.Server(config)
+
+        self.loop.create_task(self.api_server.serve())
 
     async def concurrent_forward(self):
         """
@@ -367,12 +367,12 @@ class BaseValidatorNeuron(BaseNeuron):
                 # Save the current tournament state to disk.
                 self.save_state()
 
-                bt.logging.debug(
-                    f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
-                )
+                # bt.logging.debug(
+                #     f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
+                # )
                 self.step += 1
 
-                time.sleep(interval_seconds)
+                # time.sleep(interval_seconds)
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
@@ -816,6 +816,20 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(
             f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles"
         )
+
+    async def query_axons(
+        self, axons: list[bt.axon], synapse: bt.Synapse, timeout: float
+    ):
+        loop = self.loop
+        func = partial(
+            self.dendrite.query,
+            axons=axons,
+            timeout=timeout,
+            synapse=synapse,
+            deserialize=False,
+        )
+        responses: list[bt.Synapse] = await loop.run_in_executor(None, func)
+        return responses
 
     def sync_articles(self):
         try:

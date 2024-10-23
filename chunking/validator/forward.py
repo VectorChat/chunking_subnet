@@ -22,11 +22,11 @@ from random import choice
 import numpy as np
 from chunking.protocol import chunkSynapse
 from chunking.validator.reward import get_rewards, rank_responses
-from chunking.validator.task_api import Task, TaskType
+from chunking.validator.task_api import Task
 from chunking.validator.tournament import (
+    get_alpha,
     get_miner_groups,
 )
-from chunking.utils import uids
 from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
 from chunking.validator.task_api import Task
 from neurons.validator import Validator
@@ -35,7 +35,6 @@ import gzip
 import base64
 from tabulate import tabulate
 from chunking.validator.types import EndTournamentRoundInfo
-
 
 
 async def forward(self: Validator):
@@ -113,11 +112,10 @@ async def forward(self: Validator):
 
     # The dendrite client queries the network.
     try:
-        responses: list[chunkSynapse] = self.dendrite.query(
+        responses: list[chunkSynapse] = await self.query_axons(
             axons=axons,
-            timeout=task.synapse.timeout,
             synapse=task.synapse,
-            deserialize=False,
+            timeout=task.synapse.timeout,
         )
     except Exception as e:
         bt.logging.error(f"Error querying the network: {e}")
@@ -253,7 +251,7 @@ async def forward(self: Validator):
     bt.logging.info(f"Ranked responses: {ranked_responses}")
     bt.logging.info(f"Global ranked responses: {ranked_responses_global}")
 
-    alpha = get_tiered_alpha(self, miner_group, miner_groups)
+    alpha = get_alpha(self, len(miner_groups), miner_group)
 
     end_tournament_round_info = EndTournamentRoundInfo(
         alpha=alpha,
@@ -263,6 +261,7 @@ async def forward(self: Validator):
         responses=responses,
         rewards=rewards,
         wandb_data=wandb_data,
+        miner_group_index=miner_group,
     )
 
     await self.queue_score_update(end_tournament_round_info)

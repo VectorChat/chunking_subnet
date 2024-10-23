@@ -8,7 +8,6 @@ from chunking.protocol import chunkSynapse
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import (
     Task,
-    calculate_chunk_qty,
     generate_doc_normal,
     get_wiki_content_for_page,
 )

@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 import bittensor as bt
 import traceback
 from chunking.protocol import chunkSynapse
+from chunking.utils.chunks import calculate_chunk_qty
+from chunking.utils.integrated_api import api_log
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.tournament import get_miner_groups, run_tournament_round
 
@@ -12,11 +14,15 @@ class ChunkRequest(BaseModel):
     document: str
     chunk_size: int
     chunk_qty: Optional[int] = Body(
-        default=None,
-        description="Max number of chunks to create, `ceil(ceil(len(document) / chunk_size) * 1.5)",
+        None,
+        description="Max number of chunks to create, defaults to `ceil(ceil(len(document) / chunk_size) * 1.5)`",
     )
     timeout: Optional[float] = Body(
         default=60, description="Timeout for the chunking task"
+    )
+    time_soft_max_multiplier: Optional[float] = Body(
+        default=0.75,
+        description="Soft max multiplier for the chunking task, defaults to 0.75 times timeout",
     )
     miner_index: Optional[int] = Body(
         default=None,
@@ -43,16 +49,26 @@ class ChunkResponse(BaseModel):
 
 
 class RankingsResponse(BaseModel):
-    rankings: List[int] = Field(...,
-        description="List of miner rankings by global tournament rank. Index is miner's global ranking, value is uid."
+    rankings: List[int] = Field(
+        ...,
+        description="List of miner rankings by global tournament rank. Index is miner's global ranking, value is uid.",
     )
-    by_uid: List[int] = Field(...,
-        description="List of miner uids by global tournament rank. Index is miner UID, value is miner's global ranking."
+    by_uid: List[int] = Field(
+        ...,
+        description="List of miner uids by global tournament rank. Index is miner UID, value is miner's global ranking.",
     )
 
+
 class GroupsResponse(BaseModel):
-    groups: List[List[int]] = Field(..., description="List of miner groups. Index is group index, value is miner UIDs in the group.")
-    by_uid: List[List[int]] = Field(..., description="List of miner UIDs by group. Index is miner UID, value is group indices that the miner belongs to.")
+    groups: List[List[int]] = Field(
+        ...,
+        description="List of miner groups. Index is group index, value is miner UIDs in the group.",
+    )
+    by_uid: List[List[int]] = Field(
+        ...,
+        description="List of miner UIDs by group. Index is miner UID, value is group indices that the miner belongs to.",
+    )
+
 
 def setup_routes(self):
 
@@ -61,6 +77,8 @@ def setup_routes(self):
         rankings = self.rankings.tolist()
         by_uid_mapping = {uid: rank for rank, uid in enumerate(self.rankings)}
         by_uid = [by_uid_mapping[uid] for uid in range(len(self.rankings))]
+        api_log(f"Rankings: {rankings}")
+        api_log(f"By UID: {by_uid}")
         return RankingsResponse(rankings=rankings, by_uid=by_uid)
 
     @self.app.get("/groups")
@@ -69,30 +87,44 @@ def setup_routes(self):
         by_uid_mapping = {}
         for group_index, miner_group_uids in enumerate(groups):
             for uid in miner_group_uids:
-                if uid not in by_uid_mapping:
-                    by_uid_mapping[uid] = []
-                by_uid_mapping[uid].append(group_index)
-        return GroupsResponse(groups=groups, by_uid=by_uid_mapping)
+                uid_int = uid.item()
+                if uid_int not in by_uid_mapping:
+                    by_uid_mapping[uid_int] = []
+                by_uid_mapping[uid_int].append(group_index)
+        by_uid = [by_uid_mapping[uid] for uid in range(len(self.rankings))]
+        api_log(f"Groups: {groups}")
+        api_log(f"By UID: {by_uid}")
+        return GroupsResponse(groups=groups, by_uid=by_uid)
 
     @self.app.post("/chunk")
     async def chunk(request: ChunkRequest) -> ChunkResponse:
         try:
+
+            chunk_qty = request.chunk_qty or calculate_chunk_qty(
+                request.document, request.chunk_size
+            )
+
             input_synapse = chunkSynapse(
                 document=request.document,
                 chunk_size=request.chunk_size,
-                chunk_qty=request.chunk_qty,
+                chunk_qty=chunk_qty,
                 timeout=request.timeout,
-                time_soft_max=request.timeout * 0.75,
+                time_soft_max=request.timeout * request.time_soft_max_multiplier,
             )
 
-            CID = await make_relay_payload(
-                input_synapse.document, self.aclient, self.wallet
-            )
+            try:
+                CID = await make_relay_payload(
+                    input_synapse.document, self.aclient, self.wallet
+                )
+            except Exception as e:
+                api_log(f"Error making relay payload: {e}")
+                traceback.print_exc()
+                CID = None
 
             input_synapse.CID = CID
 
             results = await run_tournament_round(
-                self, input_synapse, request.miner_uid, request.miner_group_index
+                self, input_synapse, request.miner_index, request.miner_group_index
             )
 
             usable_results = [result for result in results if result is not None]
