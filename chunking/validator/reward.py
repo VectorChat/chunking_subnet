@@ -134,12 +134,6 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
             print(
                 f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
             )
-            # print("-" * 100)
-            # print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
-            # print(f"{BLUE} document words: {document_words} {ENDC}")
-            # print("-" * 100)
-            # print(f"{YELLOW} chunk: {chunk} {ENDC}")
-            # print(f"{BLUE} document: {document} {ENDC}")
             print("=" * 100)
         return False
 
