@@ -5,10 +5,10 @@ from re import A
 
 from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
+from chunking.utils.chunks import calculate_chunk_qty
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import (
     Task,
-    calculate_chunk_qty,
     generate_doc_normal,
     get_wiki_content_for_page,
 )

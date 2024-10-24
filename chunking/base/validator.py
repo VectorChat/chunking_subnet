@@ -16,15 +16,18 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from functools import partial
 import os
 import copy
+from fastapi import FastAPI, HTTPException
 import numpy as np
 import asyncio
 import threading
 import bittensor as bt
 import time
 import requests
-import concurrent.futures
+
+import uvicorn
 import chunking
 import traceback
 
@@ -36,9 +39,10 @@ from math import floor
 from chunking.base.neuron import BaseNeuron
 import wandb
 from wandb.apis.public.runs import Runs, Run
-
 import sympy as sp
 
+from chunking.validator.integrated_api import setup_routes
+from chunking.validator.types import EndTournamentRoundInfo
 from chunking.utils.score import get_rank_value_to_adjusted_alpha
 
 
@@ -60,9 +64,11 @@ class BaseValidatorNeuron(BaseNeuron):
     def __init__(self, config=None):
         super().__init__(config=self.config())
 
-        # connect to wandb run
-        self._setup_wandb()
+        bt.logging.info(f"wandb off: {self.config.wandb.wandb_off}")
 
+        if not self.config.wandb.wandb_off:
+            # connect to wandb run
+            self._setup_wandb()
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
@@ -97,6 +103,12 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Create asyncio event loop to manage async tasks.
         self.loop = asyncio.get_event_loop()
+
+        self.app = FastAPI()
+        self.score_update_queue: asyncio.Queue[EndTournamentRoundInfo] = asyncio.Queue()
+        bt.logging.info("Initialized queue")
+        setup_routes(self)
+        bt.logging.info("Setup routes")
 
         # setup for running background thread
         self.should_exit: bool = False
@@ -282,6 +294,17 @@ class BaseValidatorNeuron(BaseNeuron):
             traceback.print_exc()
             pass
 
+    def start_api(self):
+        config = uvicorn.Config(
+            app=self.app,
+            host=self.config.task_api.host,
+            port=self.config.task_api.port,
+            loop="asyncio",
+        )
+        self.api_server = uvicorn.Server(config)
+
+        self.loop.create_task(self.api_server.serve())
+
     async def concurrent_forward(self):
         """
         Run multiple forwards in parallel
@@ -293,35 +316,37 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def run(self):
         """
-        Main loop for the validator.
+                Main loop for the validator.
 
-        This function performs the following primary tasks:
-        1. Make sure the validator is registered on the network and sync the metagraph.
-        2. Start main validator loop.
-            2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
-            it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
-            Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
-            moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
-            weight each miner receives. The round info and updated scores/rankings are logged to wandb.
-            2.2 Sync the metagraph and set weights if necessary.
-            2.3 Save the current tournament state to disk.
-            2.4 Sleep for a specified interval, repeat.
+                This function performs the following primary tasks:
+                1. Make sure the validator is registered on the network and sync the metagraph.
+                2. Start main validator loop.
+                    2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
+                    it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
+                    Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
+                    moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
+                    weight each miner receives. The round info and updated scores/rankings are logged to wandb.
+                    2.2 Sync the metagraph and set weights if necessary.
+                    2.3 Save the current tournament state to disk.
+                    2.4 Sleep for a specified interval, repeat.
 
-        Note:
-            - The function leverages the global configurations set during the initialization of the miner.
-            - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
+        <<<<<<< HEAD
 
-        Raises:
-            KeyboardInterrupt: If the miner is stopped by a manual interruption.
-            Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
+        =======
+        >>>>>>> main
+                Note:
+                    - The function leverages the global configurations set during the initialization of the miner.
+                    - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
+
+                Raises:
+                    KeyboardInterrupt: If the miner is stopped by a manual interruption.
+                    Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
         """
 
         # Check that validator is registered on the network.
         # self.sync()
         # self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
-
-        interval_seconds = self.config.neuron.synthetic_query_interval_seconds
 
         # This loop maintains the validator's operations until intentionally stopped.
         try:
@@ -335,6 +360,9 @@ class BaseValidatorNeuron(BaseNeuron):
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
 
+                # Process any queued score updates.
+                self.loop.run_until_complete(self.process_score_updates())
+
                 # Check if we should exit.
                 if self.should_exit:
                     break
@@ -342,12 +370,12 @@ class BaseValidatorNeuron(BaseNeuron):
                 # Save the current tournament state to disk.
                 self.save_state()
 
-                bt.logging.debug(
-                    f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
-                )
+                # bt.logging.debug(
+                #     f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
+                # )
                 self.step += 1
 
-                time.sleep(interval_seconds)
+                # time.sleep(interval_seconds)
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
@@ -366,12 +394,15 @@ class BaseValidatorNeuron(BaseNeuron):
         This method facilitates the use of the validator in a 'with' statement.
         """
         if not self.is_running:
-            bt.logging.debug("Starting validator in background thread.")
+            bt.logging.info("Starting validator in background thread.")
             self.should_exit = False
             self.thread = threading.Thread(target=self.run, daemon=True)
             self.thread.start()
+            if self.config.enable_task_api:
+                bt.logging.info("Starting integrated task API in background thread.")
+                self.start_api()
             self.is_running = True
-            bt.logging.debug("Started")
+            bt.logging.success("Started")
 
     def stop_run_thread(self):
         """
@@ -429,11 +460,11 @@ class BaseValidatorNeuron(BaseNeuron):
             )
             scores = np.array(scores)
 
-        if not isinstance(rankings, np.ndarray):
-            bt.logging.warning(
-                f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array"
-            )
-            rankings = np.array(rankings)
+            if not isinstance(rankings, np.ndarray):
+                bt.logging.warning(
+                    f"rankings is not a numpy array, found {type(rankings)}, converting to numpy array"
+                )
+                rankings = np.array(rankings)
 
         bt.logging.debug(f"scores len: {len(scores)}, rankings len: {len(rankings)}")
 
@@ -580,7 +611,8 @@ class BaseValidatorNeuron(BaseNeuron):
         wandb_data = {"weights": {}}
         for uid, weight in zip(uint_uids, uint_weights):
             wandb_data["weights"][str(uid)] = weight
-        wandb.log(wandb_data)
+        if not self.config.wandb.wandb_off:
+            wandb.log(wandb_data)
 
         if self.config.neuron.skip_set_weights_extrinsic:
             bt.logging.warning("Skipping set_weights extrinsic call.")
@@ -637,19 +669,36 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-    def update_scores(
+    async def queue_score_update(
         self,
-        wandb_data: dict,
-        ranks: np.ndarray[np.float64],
-        uids: List[int],
-        task_type: Literal["organic", "synthetic"],
-        alpha: float,
+        end_tournament_round_info: EndTournamentRoundInfo,
+    ):
+        try:
+            bt.logging.debug(
+                f"Queueing score update for {end_tournament_round_info.miner_group_uids}"
+            )
+            await self.score_update_queue.put(end_tournament_round_info)
+        except Exception as e:
+            bt.logging.error(f"Error queuing score update: {e}")
+            traceback.print_exc()
+
+    async def process_score_updates(self):
+        while not self.score_update_queue.empty():
+            end_tournament_round_info = await self.score_update_queue.get()
+            bt.logging.debug(
+                f"Processing score update for {end_tournament_round_info.miner_group_uids}, task type: {end_tournament_round_info.task_type}"
+            )
+            await self.update_scores(end_tournament_round_info)
+
+    async def update_scores(
+        self,
+        end_tournament_round_info: EndTournamentRoundInfo,
     ):
         """
         Updates `self.scores` and `self.rankings` for the miners that were part of a specific tournament round.
 
-        `self.scores` is the exponential moving average rank of the miners.
-        `self.rankings` is the sorted list of uids based on the scores (rank moving average).
+        `self.scores` is the exponential moving average rank of the miners. Index is uid, value is score.
+        `self.rankings` is the sorted list of uids based on the scores (rank moving average). Index is miner's global ranking in tournament, value is uid.
 
         Args:
             wandb_data (dict): Dictionary to store data for wandb logging.
@@ -658,6 +707,13 @@ class BaseValidatorNeuron(BaseNeuron):
             task_type (Literal["organic", "synthetic"]): Type of task that the miners were part of.
             alpha (float): Exponential moving average factor.
         """
+
+        wandb_data = end_tournament_round_info.wandb_data
+        ranks = end_tournament_round_info.ranked_responses_global
+        uids = end_tournament_round_info.miner_group_uids
+        task_type = end_tournament_round_info.task_type
+        alpha = end_tournament_round_info.alpha
+
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
         if np.isnan(ranks).any():
@@ -679,7 +735,6 @@ class BaseValidatorNeuron(BaseNeuron):
 
         rank_value_to_adjusted_alpha = get_rank_value_to_adjusted_alpha(ranks, alpha)
 
-        # update scores with rewards based on new rankings within miner group that was queried in the tournament round
         for rank, uid in zip(ranks, uids_array):
             if np.isinf(rank):
                 continue
@@ -708,7 +763,6 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
-        # update rankings based on new scores (moving avg rankings)
         self.rankings = np.argsort(self.scores)
 
         # log scores and rankings and other data to wandb for synthetic queries
@@ -726,7 +780,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
             # bt.logging.debug(f"Logging wandb_data: {wandb_data}")
             bt.logging.info("Logging wandb_data")
-            wandb.log(wandb_data)
+            if not self.config.wandb.wandb_off:
+                wandb.log(wandb_data)
 
         # bt.logging.debug(f"Updated rankings: {self.rankings}")
 
@@ -767,6 +822,20 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(
             f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles"
         )
+
+    async def query_axons(
+        self, axons: list[bt.axon], synapse: bt.Synapse, timeout: float
+    ):
+        loop = self.loop
+        func = partial(
+            self.dendrite.query,
+            axons=axons,
+            timeout=timeout,
+            synapse=synapse,
+            deserialize=False,
+        )
+        responses: list[bt.Synapse] = await loop.run_in_executor(None, func)
+        return responses
 
     def sync_articles(self):
         try:

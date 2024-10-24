@@ -1,3 +1,4 @@
+import asyncio
 from copy import deepcopy
 from math import ceil
 import random
@@ -14,14 +15,14 @@ from tests.utils.articles import get_articles
 from tests.utils.chunker import base_chunker
 
 
-def test_tiebreak():
+async def run_test():
     bt.debug()
 
     articles = get_articles()
 
     test_pageid = random.choice(articles)
 
-    test_doc, title = get_wiki_content_for_page(test_pageid)
+    test_doc, title = await get_wiki_content_for_page(test_pageid)
 
     chunk_size = 4096
     chunk_qty = calculate_chunk_qty(test_doc, chunk_size)
@@ -141,7 +142,7 @@ def test_tiebreak():
     assert rewards[1] == rewards[2]
     assert rewards[1] != rewards[0]
     assert rewards[1] != rewards[3]
-    
+
     # 2 sep groups tie
 
     chunk_results = []
@@ -166,10 +167,13 @@ def test_tiebreak():
     )
 
     assert len(set(rewards.tolist())) == 4
-   
+
     assert rewards[1] == rewards[2]
     assert rewards[3] == rewards[4]
     assert rewards[1] != rewards[0]
     assert rewards[3] != rewards[0]
     assert rewards[1] != rewards[3]
-    
+
+
+def test_tiebreak():
+    asyncio.run(run_test())

@@ -16,22 +16,20 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import difflib
 import hashlib
 from math import ceil, e
 from typing import List, Tuple
 
 from openai import OpenAI
-from sympy import O
 from chunking.protocol import chunkSynapse
 from random import sample
-from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
+from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 import numpy as np
 
-from chunking.validator.task_api import num_tokens_from_string
-from neurons.validator import Validator
+from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
 import regex as re
+
 
 PUNCTUATION_REGEX = r'([.,!?"\'])'
 
@@ -77,9 +75,8 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
         if verbose:
             print(msg)
 
-    # word_tokenizer = TreebankWordTokenizer()
-    chunk_words = wordpunct_tokenize(chunk)
-    document_words = wordpunct_tokenize(document)
+    chunk_words = custom_word_tokenize(chunk)
+    document_words = custom_word_tokenize(document)
 
     _verbose(f"created {len(chunk_words)} chunk words")
     _verbose(f"created {len(document_words)} document words")
@@ -136,12 +133,6 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
             print(
                 f"Unable to find exact match for chunk words:\n\nClosest match:\n{chunk_str}\n\nDocument:\n{closest_match_str_document}"
             )
-            # print("-" * 100)
-            # print(f"{YELLOW} chunk words: {chunk_words} {ENDC}")
-            # print(f"{BLUE} document words: {document_words} {ENDC}")
-            # print("-" * 100)
-            # print(f"{YELLOW} chunk: {chunk} {ENDC}")
-            # print(f"{BLUE} document: {document} {ENDC}")
             print("=" * 100)
         return False
 
@@ -166,7 +157,7 @@ def check_document_words_in_chunks(
 
 
 def reward(
-    self: Validator | None,
+    self,
     document: str,
     chunk_size: int,
     chunk_qty: int,
@@ -463,8 +454,8 @@ def get_rewards(
 
 
 def rank_responses(
-    rewards: np.ndarray,
-) -> np.ndarray:
+    rewards: np.ndarray[np.float64],
+) -> np.ndarray[np.int32]:
     """
     Returns an array containing the ranks of the responses using their rewards. Higher reward is better.    Higher reward is better. Ties are broken by shorter process time.
 
@@ -499,7 +490,7 @@ def rank_responses(
 
 
 def rank_responses_global(
-    self: Validator,
+    self,
     group_rank_values: np.ndarray[np.float64],
     ranked_responses: np.ndarray[int],
     miner_group_uids: np.ndarray[int],

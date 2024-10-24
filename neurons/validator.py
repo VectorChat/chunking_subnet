@@ -19,11 +19,9 @@
 
 import os
 import time
-from typing import Tuple
 
 import bittensor as bt
 
-import chunking
 from chunking.validator import forward
 
 # import base validator class which takes care of most of the boilerplate

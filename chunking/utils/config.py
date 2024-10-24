@@ -140,13 +140,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--neuron.synthetic_query_interval_seconds",
-            type=int,
-            help="The interval between synthetic queries in seconds.",
-            default=20,
-        )
-
-        parser.add_argument(
             "--neuron.disable_set_weights",
             action="store_true",
             help="Disables setting weights.",
@@ -171,13 +164,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--neuron.vpermit_tao_limit",
-            type=int,
-            help="The maximum number of TAO allowed to query a validator with a vpermit.",
-            default=4096,
-        )
-
-        parser.add_argument(
             "--num_embeddings",
             type=int,
             help="Number of embeddings to generate and compare.",
@@ -198,9 +184,35 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
+            "--wandb.wandb_off",
+            action="store_true",
+            help="Turn off wandb logging.",
+        )
+
+        parser.add_argument(
             "--neuron.use_wiki_gen",
             action="store_true",
             help="Only to be used for debugging, gets documents from wikipedia instead of generating from LLM",
+        )
+
+        parser.add_argument(
+            "--enable_task_api",
+            action="store_true",
+            help="If set, runs the integrated API for that can be queried by external clients.",
+        )
+
+        parser.add_argument(
+            "--task_api.host",
+            type=str,
+            help="The host for the task API.",
+            default="0.0.0.0",
+        )
+
+        parser.add_argument(
+            "--task_api.port",
+            type=int,
+            help="The port for the task API.",
+            default=8080,
         )
 
     # Miner

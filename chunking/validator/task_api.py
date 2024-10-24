@@ -1,7 +1,10 @@
+import random
 import time
-from typing import Optional, List, Tuple
+from typing import Literal, Optional, List, Tuple
 from venv import logger
+import aiohttp
 import bittensor as bt
+from openai import AsyncOpenAI, OpenAI
 import tiktoken
 from chunking.protocol import chunkSynapse, chunkSynapseType
 import requests
@@ -12,7 +15,9 @@ import os
 from random import choice, choices
 from math import ceil
 
+from chunking.utils.chunks import calculate_chunk_qty
 from chunking.utils.tokens import num_tokens_from_string
+from chunking.validator.types import TaskType
 from chunking.utils.relay.relay import make_relay_payload
 from neurons.validator import Validator
 
@@ -25,7 +30,7 @@ class Task:
     def __init__(
         self,
         synapse: chunkSynapse,
-        task_type: chunkSynapseType,
+        task_type: TaskType,
         task_id: int,
         page_id: int = -1,
         miner_uids: Optional[List[int]] = None,
@@ -120,7 +125,7 @@ class Task:
             return None
 
     @classmethod
-    def get_synthetic_task(cls, validator: Validator) -> "Task":
+    async def get_synthetic_task(cls, validator: Validator) -> "Task":
         """
         Get a synthetic task from the API host.
 
@@ -131,7 +136,7 @@ class Task:
             Task: The synthetic task
         """
         bt.logging.debug("Generating synthetic query")
-        synapse, page = generate_synthetic_synapse(validator)
+        synapse, page = await generate_synthetic_synapse(validator)
         return Task(synapse=synapse, task_type="synthetic", task_id=-1, page_id=page)
 
     @classmethod
@@ -158,7 +163,7 @@ class Task:
             task = None
 
         if task is None:
-            task = self.get_synthetic_task(validator)
+            task = await self.get_synthetic_task(validator)
 
         bt.logging.debug(f"Created task: {task}")
 
@@ -252,32 +257,38 @@ class Task:
 SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
 
-def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
+async def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
     """
-    Get the content for a Wikipedia page by the page ID.
+    Get the content for a Wikipedia page by the page ID asynchronously.
 
     Args:
         pageid (int): The ID of the Wikipedia page to get the content for.
 
     Returns:
-        str: The content of the Wikipedia page.
+        Tuple[str, str]: The content and title of the Wikipedia page.
     """
-    response = requests.get(
-        "https://en.wikipedia.org/w/api.php",
-        params={
-            "action": "query",
-            "format": "json",
-            "pageids": pageid,
-            "prop": "extracts",
-            "explaintext": True,
-            "exsectionformat": "plain",
-        },
-    ).json()["query"]["pages"][str(pageid)]
-    return response["extract"], response["title"]
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "format": "json",
+                "pageids": pageid,
+                "prop": "extracts",
+                "explaintext": "true",
+                "exsectionformat": "plain",
+            },
+        ) as response:
+            data = await response.json()
+            page = data["query"]["pages"][str(pageid)]
+            return page["extract"], page["title"]
 
 
-def generate_doc_with_llm(
-    validator: Validator, pageids=None, temperature=0.7, override_client=None
+async def generate_doc_with_llm(
+    validator: Validator,
+    pageids=None,
+    temperature=0.7,
+    override_client: AsyncOpenAI | None = None,
 ) -> Tuple[str, int]:
     """
     Generate a synthetic document based on three articles from wikipedia.
@@ -299,7 +310,7 @@ def generate_doc_with_llm(
     source_articles = []
     article_names = []
     for page in pages:
-        contents, name = get_wiki_content_for_page(page)
+        contents, name = await get_wiki_content_for_page(page)
         source_articles.append(contents)
         article_names.append(name)
 
@@ -308,17 +319,18 @@ def generate_doc_with_llm(
     bt.logging.info("Generating first section of synthetic query")
     start = time.time()
 
-    client = override_client if override_client else validator.client
+    aclient = override_client if override_client else validator.aclient
 
     synthetic_document = (
-        client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"""
+        (
+            await aclient.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"""
                 Use the following three articles to write the first third of an article. The article will be between 5,000 and 10,000 words long. Do not include section titles. Write to your token limit.
                 Article 1:
                 {source_articles[0]}
@@ -329,8 +341,9 @@ def generate_doc_with_llm(
                 Article 3:
                 {source_articles[2]}
                 """,
-                },
-            ],
+                    },
+                ],
+            )
         )
         .choices[0]
         .message.content
@@ -353,16 +366,18 @@ def generate_doc_with_llm(
 
     for j in range(end_index):
         next_synthesis = (
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=temperature,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
-                    },
-                ],
+            (
+                await aclient.chat.completions.create(
+                    model="gpt-4o-mini",
+                    temperature=temperature,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {
+                            "role": "user",
+                            "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
+                        },
+                    ],
+                )
             )
             .choices[0]
             .message.content
@@ -389,7 +404,7 @@ def generate_doc_with_llm(
     return synthetic_document, -1
 
 
-def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, int]:
+async def generate_doc_normal(validator, pageid=None) -> Tuple[str, int]:
     """
     Generate a document from Wikipedia.
 
@@ -404,44 +419,43 @@ def generate_doc_normal(validator: Validator | None, pageid=None) -> Tuple[str, 
         Tuple[str, int]: A tuple containing the content of the Wikipedia page and the page ID.
     """
     content = ""
-    while len(content) < 10000 or len(content) > 100000:
-        page = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "list": "random",
-                "rnnamespace": 0,
-                "format": "json",
-            },
-        ).json()["query"]["random"][0]["id"]
+    random_page_id = (
+        random.sample(validator.articles, 1)[0] if validator is not None else pageid
+    )
+    # while len(content) < 10000 or len(content) > 100000:
+    # page = requests.get(
+    #     "https://en.wikipedia.org/w/api.php",
+    #     params={
+    #         "action": "query",
+    #         "list": "random",
+    #         "rnnamespace": 0,
+    #         "format": "json",
+    #     },
+    # ).json()["query"]["random"][0]["id"]
+    bt.logging.debug(f"random_page_id: {random_page_id}")
 
-        content, title = get_wiki_content_for_page(page)
-        bt.logging.info(f"Got document {title} with {len(content)} characters")
-    return content, page
+    content, title = await get_wiki_content_for_page(random_page_id)
+    bt.logging.info(f"Got document {title} with {len(content)} characters")
+    return content, random_page_id
 
 
-def calculate_chunk_qty(document: str, chunk_size: int) -> int:
-    return ceil(ceil(len(document) / chunk_size) * 1.5)
-
-
-def generate_synthetic_synapse(
+async def generate_synthetic_synapse(
     validator, timeout=20, pageids=None
 ) -> Tuple[chunkSynapse, int]:
 
     bt.logging.info("Generating synthetic query with llm")
     if validator.config.neuron.use_wiki_gen:
-        document, pageid = generate_doc_normal(validator)
+        document, pageid = await generate_doc_normal(validator)
     else:
-        document, pageid = generate_doc_with_llm(validator)
+        document, pageid = await generate_doc_with_llm(validator)
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
-    chunk_qty = calculate_chunk_qty(document, chunk_size)
     synapse = chunkSynapse(
         document=document,
         time_soft_max=time_soft_max,
         chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
+        chunk_qty=calculate_chunk_qty(document, chunk_size),
         timeout=timeout,
     )
     return synapse, pageid
