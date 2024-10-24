@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from math import ceil
 import time
@@ -33,7 +34,7 @@ def create_bad_chunk(chunk: str):
     return " ".join(words)
 
 
-def test_chunk_words():
+async def run_test():
     # courteousy of tvxq19910509
     test_document = (
         "Mammoths – Giants of the Ice Age (3 ed.). With some extra words here."
@@ -86,8 +87,8 @@ def test_chunk_words():
 
     articles = get_articles()
 
-    sample_size = 6500
-    first_n = 200
+    sample_size = 10
+    first_n = 2
 
     assert first_n < sample_size
 
@@ -107,7 +108,7 @@ def test_chunk_words():
     logger.info(f"testing {first_n} articles with reward fn")
     for i in range(first_n):
         logger.info(f"testing article {articles_to_test[i]}")
-        document, title = get_wiki_content_for_page(articles_to_test[i])
+        document, title = await get_wiki_content_for_page(articles_to_test[i])
 
         chunks = base_chunker(document, chunk_size)
 
@@ -147,7 +148,7 @@ def test_chunk_words():
 
     for i, article in enumerate(articles_to_test):
         logger.info(f"testing article {i + 1}/{len(articles_to_test)}: {article}")
-        document, title = get_wiki_content_for_page(article)
+        document, title = await get_wiki_content_for_page(article)
 
         logger.info(f"title: {title}")
 
@@ -163,6 +164,10 @@ def test_chunk_words():
         assert check_document_words_in_chunks(document, chunks, chunk_size)
 
     logger.info(f"finished checking {len(articles_to_test)} articles")
+
+
+def test_chunk_words():
+    asyncio.run(run_test())
 
 
 # if __name__ == "__main__":

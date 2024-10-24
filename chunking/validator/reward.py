@@ -75,9 +75,8 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
         if verbose:
             print(msg)
 
-    # word_tokenizer = TreebankWordTokenizer()
-    chunk_words = wordpunct_tokenize(chunk)
-    document_words = wordpunct_tokenize(document)
+    chunk_words = custom_word_tokenize(chunk)
+    document_words = custom_word_tokenize(document)
 
     _verbose(f"created {len(chunk_words)} chunk words")
     _verbose(f"created {len(document_words)} document words")

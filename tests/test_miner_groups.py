@@ -1,5 +1,6 @@
-import chunking
 import numpy as np
+
+from chunking.validator.tournament import create_groups
 
 
 def create_rankings_array(length: int):
@@ -91,9 +92,7 @@ def test_miner_groups_creation():
     group_size = 2
     k = 4
 
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     # assert len(miner_groups) == 1
     # assert len(group_ranks) == 1
@@ -104,9 +103,7 @@ def test_miner_groups_creation():
     # assert all_groups_less_than_group_size(miner_groups, group_size + 3)
 
     rankings = create_rankings_array(194)
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     print(miner_groups)
     print(f"last group size {len(list(miner_groups[-1]))}")
@@ -119,9 +116,7 @@ def test_miner_groups_creation():
     # assert all_groups_less_than_group_size(miner_groups, group_size + 3)
 
     rankings = create_rankings_array(100)
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     assert no_uid_shows_up_more_than_k_times(miner_groups, k)
     assert all_uids_exist(miner_groups, rankings)
@@ -132,9 +127,7 @@ def test_miner_groups_creation():
     rankings = create_rankings_array(256)
     # group_size = 13
 
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     assert get_last_uid(miner_groups) == 255
     assert get_first_uid(miner_groups) == 0
@@ -145,9 +138,7 @@ def test_miner_groups_creation():
     rankings = create_rankings_array(193)
     # group_size = 25
 
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     assert get_last_uid(miner_groups) == 192
     assert get_first_uid(miner_groups) == 0
@@ -158,17 +149,13 @@ def test_miner_groups_creation():
     rankings = create_rankings_array(10)
     # group_size = 3
 
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     assert get_last_uid(miner_groups) == 9
     assert get_first_uid(miner_groups) == 0
 
     # group_size = 20
-    miner_groups, group_ranks, group_rank_values = chunking.validator.create_groups(
-        rankings, group_size
-    )
+    miner_groups, group_ranks, group_rank_values = create_groups(rankings, group_size)
 
     assert get_last_uid(miner_groups) == 9
     assert get_first_uid(miner_groups) == 0

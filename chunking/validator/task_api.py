@@ -322,14 +322,15 @@ async def generate_doc_with_llm(
     aclient = override_client if override_client else validator.aclient
 
     synthetic_document = (
-        (await aclient.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"""
+        (
+            await aclient.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"""
                 Use the following three articles to write the first third of an article. The article will be between 5,000 and 10,000 words long. Do not include section titles. Write to your token limit.
                 Article 1:
                 {source_articles[0]}
@@ -340,9 +341,10 @@ async def generate_doc_with_llm(
                 Article 3:
                 {source_articles[2]}
                 """,
-                },
-            ],
-        ))
+                    },
+                ],
+            )
+        )
         .choices[0]
         .message.content
     )
@@ -364,17 +366,19 @@ async def generate_doc_with_llm(
 
     for j in range(end_index):
         next_synthesis = (
-            (await aclient.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=temperature,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
-                    },
-                ],
-            ))
+            (
+                await aclient.chat.completions.create(
+                    model="gpt-4o-mini",
+                    temperature=temperature,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {
+                            "role": "user",
+                            "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
+                        },
+                    ],
+                )
+            )
             .choices[0]
             .message.content
         )
@@ -415,7 +419,9 @@ async def generate_doc_normal(validator, pageid=None) -> Tuple[str, int]:
         Tuple[str, int]: A tuple containing the content of the Wikipedia page and the page ID.
     """
     content = ""
-    random_page_id = random.sample(validator.articles, 1)[0]
+    random_page_id = (
+        random.sample(validator.articles, 1)[0] if validator is not None else pageid
+    )
     # while len(content) < 10000 or len(content) > 100000:
     # page = requests.get(
     #     "https://en.wikipedia.org/w/api.php",
