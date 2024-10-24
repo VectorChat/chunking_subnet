@@ -21,11 +21,11 @@ class ChunkRequest(BaseModel):
         description="Max number of chunks to create, defaults to `ceil(ceil(len(document) / chunk_size) * 1.5)`",
     )
     timeout: Optional[float] = Body(
-        default=60, description="Timeout for the chunking task"
+        default=60, description="Hard timeout for the chunking task"
     )
     time_soft_max_multiplier: Optional[float] = Body(
         default=0.75,
-        description="Soft max multiplier for the chunking task, defaults to 0.75 times timeout",
+        description="Soft max multiplier for the chunking task, defaults to 0.75 times timeout. Time after timeout * time_soft_max_multiplier is considered as a time penalty for the miner.",
     )
     miner_index: Optional[int] = Body(
         default=None,
