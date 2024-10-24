@@ -322,7 +322,7 @@ async def generate_doc_with_llm(
     aclient = override_client if override_client else validator.aclient
 
     synthetic_document = (
-        await aclient.chat.completions.create(
+        (await aclient.chat.completions.create(
             model="gpt-4o-mini",
             temperature=temperature,
             messages=[
@@ -342,7 +342,7 @@ async def generate_doc_with_llm(
                 """,
                 },
             ],
-        )
+        ))
         .choices[0]
         .message.content
     )
@@ -364,7 +364,7 @@ async def generate_doc_with_llm(
 
     for j in range(end_index):
         next_synthesis = (
-            await aclient.chat.completions.create(
+            (await aclient.chat.completions.create(
                 model="gpt-4o-mini",
                 temperature=temperature,
                 messages=[
@@ -374,7 +374,7 @@ async def generate_doc_with_llm(
                         "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
                     },
                 ],
-            )
+            ))
             .choices[0]
             .message.content
         )

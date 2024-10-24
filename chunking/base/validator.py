@@ -671,6 +671,9 @@ class BaseValidatorNeuron(BaseNeuron):
         end_tournament_round_info: EndTournamentRoundInfo,
     ):
         try:
+            bt.logging.debug(
+                f"Queueing score update for {end_tournament_round_info.miner_group_uids}"
+            )
             await self.score_update_queue.put(end_tournament_round_info)
         except Exception as e:
             bt.logging.error(f"Error queuing score update: {e}")

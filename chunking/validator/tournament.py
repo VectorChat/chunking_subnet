@@ -112,7 +112,6 @@ def get_miner_groups(
 def get_miner_groups_to_query(
     miner_groups: list[np.ndarray[np.int32]],
     num_miner_groups_to_query: int,
-    choose_miner_uid: int | None = None,
     choose_miner_group_index: int | None = None,
 ) -> list[int]:
 
@@ -121,15 +120,6 @@ def get_miner_groups_to_query(
             miner_groups
         ), f"choose_miner_group_index out of bounds: index {choose_miner_group_index} not in range(0, {len(miner_groups)})"
         return [choose_miner_group_index]
-    elif choose_miner_uid is not None:
-        groups = set()
-        for group_index in range(len(miner_groups)):
-            if choose_miner_uid in miner_groups[group_index]:
-                groups.add(group_index)
-                break
-
-        return list(groups)
-
     # else return random group
     miner_group_indices = random.sample(
         range(len(miner_groups)), num_miner_groups_to_query
@@ -183,6 +173,7 @@ async def query_miner_group(
         f"Querying miner group ({miner_group_index}): {miner_group_uids}, timeout: {input_synapse.timeout}"
     )
     axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]
+    api_log(f"axons: {axons}")
     responses: list[chunkSynapse] = await self.query_axons(
         axons=axons,
         synapse=input_synapse,
@@ -199,20 +190,14 @@ async def query_miner_groups(
     self,
     input_synapse: chunkSynapse,
     num_miner_groups_to_query: int = 1,
-    choose_miner_index: int | None = None,
     choose_miner_group_index: int | None = None,
     return_group_indices: bool = False,
 ) -> list[list[chunkSynapse]] | tuple[list[list[chunkSynapse]], list[int]]:
     miner_groups, _, _ = get_miner_groups(self)
 
-    choose_miner_uid = (
-        int(self.rankings[choose_miner_index]) if choose_miner_index else None
-    )
-
     miner_group_indices = get_miner_groups_to_query(
         miner_groups,
         num_miner_groups_to_query,
-        choose_miner_uid,
         choose_miner_group_index,
     )
 
@@ -290,7 +275,6 @@ async def score_miner_group_responses(
 async def run_tournament_round(
     self,
     input_synapse: chunkSynapse,
-    choose_miner_index: int | None = None,
     choose_miner_group_index: int | None = None,
 ) -> list[EndTournamentRoundInfo | None]:
     """
@@ -301,12 +285,13 @@ async def run_tournament_round(
         self,
         input_synapse,
         num_miner_groups_to_query=1,
-        choose_miner_index=choose_miner_index,
         choose_miner_group_index=choose_miner_group_index,
         return_group_indices=True,
     )
 
-    api_log(f"Got {len(group_responses)} group responses from groups: {miner_group_indices}")
+    api_log(
+        f"Got {len(group_responses)} group responses from groups: {miner_group_indices}"
+    )
 
     miner_groups, _, group_rank_values = get_miner_groups(self)
 

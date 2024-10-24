@@ -8,6 +8,7 @@ from chunking.utils.chunks import calculate_chunk_qty
 from chunking.utils.integrated_api import api_log
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.tournament import get_miner_groups, run_tournament_round
+from chunking.validator.types import EndTournamentRoundInfo
 
 
 class ChunkRequest(BaseModel):
@@ -41,7 +42,7 @@ class ChunkResult(BaseModel):
     chunks: List[str]
     miner_signature: str
     uid: int
-    miner_group_index: int
+    miner_group_index: Optional[int] = None
 
 
 class ChunkResponse(BaseModel):
@@ -123,11 +124,43 @@ def setup_routes(self):
 
             input_synapse.CID = CID
 
+            if request.miner_index is not None:
+                miner_uid = int(self.rankings[request.miner_index])
+
+                api_log(f"Querying miner {miner_uid}")
+
+                responses: list[chunkSynapse] = await self.query_axons(
+                    axons=[self.metagraph.axons[miner_uid]],
+                    synapse=input_synapse,
+                    timeout=input_synapse.timeout,
+                )
+
+                chunk_results: List[ChunkResult] = []
+
+                for response in responses:
+                    if response.chunks and response.miner_signature:
+                        api_log(
+                            f"Got {len(response.chunks)} chunks from miner {miner_uid}"
+                        )
+                        chunk_results.append(
+                            ChunkResult(
+                                chunks=response.chunks,
+                                miner_signature=response.miner_signature,
+                                uid=miner_uid,
+                            )
+                        )
+                    else:
+                        api_log(f"No response from miner {miner_uid}")
+
+                return ChunkResponse(results=chunk_results)
+
             results = await run_tournament_round(
-                self, input_synapse, request.miner_index, request.miner_group_index
+                self, input_synapse, request.miner_group_index
             )
 
             usable_results = [result for result in results if result is not None]
+
+            api_log(f"Got {len(usable_results)} usable results")
 
             # TODO: make background task if possible
             #
@@ -142,6 +175,9 @@ def setup_routes(self):
                     result.responses, miner_group_uids
                 ):
                     if response.chunks and response.miner_signature:
+                        api_log(
+                            f"Got {len(response.chunks)} chunks from miner {miner_group_uid} in group {result.miner_group_index}"
+                        )
                         chunk_results.append(
                             ChunkResult(
                                 chunks=response.chunks,
