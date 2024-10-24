@@ -12,8 +12,10 @@ from chunking.validator.types import EndTournamentRoundInfo
 
 
 class ChunkRequest(BaseModel):
-    document: str
-    chunk_size: int
+    document: str = Body(..., description="The document to chunk")
+    chunk_size: int = Body(
+        ..., description="The maximum size of each chunk in characters"
+    )
     chunk_qty: Optional[int] = Body(
         None,
         description="Max number of chunks to create, defaults to `ceil(ceil(len(document) / chunk_size) * 1.5)`",
@@ -39,14 +41,23 @@ class ChunkRequest(BaseModel):
 
 
 class ChunkResult(BaseModel):
-    chunks: List[str]
-    miner_signature: str
-    uid: int
-    miner_group_index: Optional[int] = None
+    chunks: List[str] = Field(
+        ..., description="List of chunks resulting from the chunking task"
+    )
+    miner_signature: str = Field(
+        ..., description="The signature of the miner that generated the chunks"
+    )
+    uid: int = Field(..., description="The UID of the miner that generated the chunks")
+    miner_group_index: Optional[int] = Field(
+        default=None,
+        description="The index of the miner group that generated the chunks",
+    )
 
 
 class ChunkResponse(BaseModel):
-    results: List[ChunkResult]
+    results: List[ChunkResult] = Field(
+        ..., description="List of chunk results from the chunking task"
+    )
 
 
 class RankingsResponse(BaseModel):

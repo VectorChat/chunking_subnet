@@ -210,9 +210,23 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--neuron.run_task_api",
+            "--enable_task_api",
             action="store_true",
             help="If set, runs the integrated API for that can be queried by external clients.",
+        )
+
+        parser.add_argument(
+            "--task_api.host",
+            type=str,
+            help="The host for the task API.",
+            default="0.0.0.0",
+        )
+
+        parser.add_argument(
+            "--task_api.port",
+            type=int,
+            help="The port for the task API.",
+            default=8080,
         )
 
     # Miner

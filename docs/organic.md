@@ -4,39 +4,18 @@ The primary goal of this subnet is to serve organic queries, as the leading prov
 
 ## Task API
 
-The Task API is how the [default validator](../docs/validator.md) handles organic and synthetic queries. If `--accept_organic_queries` is `true` it will first check, every time step (default: seconds), if it has received an organic query from its API host. If it hasn't, it will generate a [synthetic query](./synthetic.md).
+When the `--enable_task_api` flag is set, the validator will be able to serve organic queries from external clients. This works by having the validator process run a "sidecar" api server
+that can accept and serve requests as they come in (the impl can be found [here](../chunking/validator/integrated_api.py)). The host and port can be configured with `--task_api.host` and `--task_api.port` respectively.
 
-From [task_api.py](../chunking/validator/task_api.py), the validator first checks if it has received an organic request:
-```python
-def get_new_task(self, validator: Validator):
+After running, the swagger UI for the task API can be viewed at `http://<HOST>:<PORT>/docs`.
 
-        if os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES') == 'True':
-            hotkey = validator.wallet.get_hotkey()
-            nonce = validator.step
-            data = {
-                'hotkey_address': hotkey.ss58_address,
-                'nonce': nonce
-            }
+There are three endpoints at the moment (further described in the swagger UI):
 
-            # sign request with validator hotkey
-            request_signature = sign(
-                (hotkey.public_key, hotkey.private_key),
-                str.encode(json.dumps(data))
-                ).hex()
+| Method | Endpoint    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/rankings` | Returns the rankings of miners in the validator's tournament via two mappings (ranking -> UID and UID -> ranking). These mappings are in array form.                                                                                                                                                                                                                                                                                                                                                                                            |
+| `GET`  | `/groups`   | Returns the groups of miners in the validator's tournament via two mappings (group index -> group UIDs and UID -> group indices). These mappings are in array form.                                                                                                                                                                                                                                                                                                                                                                             |
+| `POST` | `/chunk`    | Accepts a chunk request and processes it. The user can specify the document, chunk size, chunk quantity, and time parameters (timeout and time soft max). The user can also specify either a single miner to query or a specific miner group to query. If no miner or group is specified, the request will be processed by a random miner group. The user can choose whether or not the request should be scored and count towards the tournament ranking (if only one miner is queried than this cannot count towards the tournament ranking). |
 
-            API_host = os.environ['CHUNKING_API_HOST']
-            task_url = f"{API_host}/task_api/get_new_task/"
-            headers = {"Content-Type": "application/json"}
-            request_data = {
-                'data': data, 
-                'signature': request_signature
-                }
-```
-
-## Chunking.com
-
-The default value for `--api_host` is currently set to none, but will change to the Chunking.com Task API in the near future. This serves as an easy to opt-in network for validators to sell their bandwidth and receive compensation in return.
-
-## Custom Task API
-
-A framework to easily create your own network will be released around the same time as the Chunking.com Task API. Validators can then serve their own organic queries, or market their bandwidth independently.
+> [!NOTE]
+> There is currently no built in way to blacklist/whitelist entities from using the task API. It is suggested to use a firewall like `ufw` to block requests from unwanted entities and/or only allow requests from predefined IPs.

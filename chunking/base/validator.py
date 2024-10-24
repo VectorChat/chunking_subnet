@@ -295,7 +295,12 @@ class BaseValidatorNeuron(BaseNeuron):
             pass
 
     def start_api(self):
-        config = uvicorn.Config(app=self.app, host="0.0.0.0", port=8080, loop="asyncio")
+        config = uvicorn.Config(
+            app=self.app,
+            host=self.config.task_api.host,
+            port=self.config.task_api.port,
+            loop="asyncio",
+        )
         self.api_server = uvicorn.Server(config)
 
         self.loop.create_task(self.api_server.serve())
@@ -395,7 +400,7 @@ class BaseValidatorNeuron(BaseNeuron):
             self.should_exit = False
             self.thread = threading.Thread(target=self.run, daemon=True)
             self.thread.start()
-            if self.config.neuron.run_task_api:
+            if self.config.enable_task_api:
                 bt.logging.info("Starting integrated task API in background thread.")
                 self.start_api()
             self.is_running = True
