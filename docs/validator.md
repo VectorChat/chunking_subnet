@@ -70,22 +70,18 @@ To run the validator issue the following command after setting your OpenAI API k
 bash run-validator.sh [...]
 ```
 
-## Flags
+## Configuration
 
-When validating, something to consider is number of embeddings you’re willing to generate per miner evaluation.
-
-When evaluating a miner, a random sample of 3-sentence segments are taken from the response and embedded. The dot product of every possible pair of these embeddings is then compared and added to the final score if the embeddings originated from the same chunk or are subtracted from the final score if they originated from different chunks. A greater sample size will likely result in more accurate evaluation and higher dividends, but comes at the cost of increased API calls to generate the embeddings and more time and resources to then compare them against each other.
-
-You can set this value with the following argument when running your validator:
-
-```bash
---num_embeddings <VALUE>
-```
-
-To earn additional revenue, you can opt into receiving organic queries from users wanting to use the subnet. To do this, set the environment variable: ACCEPT_ORGANIC_CHUNKING_QUERIES to 'True' or use the following argument when running your validator:
-
-```bash
---accept_organic_queries
-```
-
-Organic queries come with a list of miners to query. If these miners do not respond to your query, the code will send back a response from a different miner. Responses from miners not in specified list will result in lower pay. Payment is sent to your validator's coldkey once your response is verified.
+| Argument                              | Description                                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--neuron.timeout`                    | Timeout for calling miners in synthetic tournament rounds                                                 |
+| `--neuron.num_concurrent_forwards`    | Number of concurrent forwards/synthetic tournament rounds at a time                                       |
+| `--wandb.project_name`                | Name of the wandb project to log to (only needs to be changed if on testnet or logging to custom project) |
+| `--neuron.disable_set_weights`        | Disable the set weights mechanism                                                                         |
+| `--neuron.axon_off`                   | Set this flag to not attempt to serve an Axon                                                             |
+| `--num_embeddings`                    | Number of embeddings to generate and compare when rewarding miners in tournament rounds                   |
+| `--neuron.skip_set_weights_extrinsic` | Skip the set_weights extrinsic call (only logs to W&B)                                                    |
+| `--wandb.wandb_off`                   | Turn off wandb logging                                                                                    |
+| `--enable_task_api`                   | If set, runs the integrated API for that can be queried by external clients                               |
+| `--task_api.host`                     | The host for the task API                                                                                 |
+| `--task_api.port`                     | The port for the task API                                                                                 |

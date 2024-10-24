@@ -140,13 +140,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--neuron.synthetic_query_interval_seconds",
-            type=int,
-            help="The interval between synthetic queries in seconds.",
-            default=20,
-        )
-
-        parser.add_argument(
             "--neuron.disable_set_weights",
             action="store_true",
             help="Disables setting weights.",
@@ -168,13 +161,6 @@ def add_args(cls, parser):
             #   be blacklisted by the firewall of serving peers on the network.
             help="Set this flag to not attempt to serve an Axon.",
             default=False,
-        )
-
-        parser.add_argument(
-            "--neuron.vpermit_tao_limit",
-            type=int,
-            help="The maximum number of TAO allowed to query a validator with a vpermit.",
-            default=4096,
         )
 
         parser.add_argument(

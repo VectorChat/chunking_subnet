@@ -348,8 +348,6 @@ class BaseValidatorNeuron(BaseNeuron):
         # self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
 
-        interval_seconds = self.config.neuron.synthetic_query_interval_seconds
-
         # This loop maintains the validator's operations until intentionally stopped.
         try:
             while True:

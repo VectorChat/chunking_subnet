@@ -20,7 +20,7 @@ The initial phase of the subnet, containing the basic functionality of the subne
   - [x] Display all Miner and Validator data
   - [x] Show all tournament rounds: global, by validator, and by miner
 - [x] Unique synthetic queries via Wikipedia + LLM, mitigating potential for lookup attacks and providing miners a way to detect and prevent relay mining
-- [ ] Relay mining prevention ([Lucid](https://github.com/VectorChat/lucid))
+- [x] Relay mining prevention rollout ([Lucid](https://github.com/VectorChat/lucid))
 - [ ] Begin hosting multiple winner-take-all contests, for different resultant types of smart chunking
   - [ ] Unstructured images
     - [ ] image -> image

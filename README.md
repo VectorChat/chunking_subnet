@@ -26,14 +26,16 @@ _See visualizations of subnet data at [subnet.chunking.com](https://subnet.chunk
 
 _See how organic queries are handled [here](./docs/organic.md)._
 
-# Table of Contents
+# Overview
 
-- ⚖️ [Default Validator](./docs/validator.md)
+- ⚖️ [Validator](./docs/validator.md)
 - ⛏️ [Default Miner](./docs/default_miner.md)
 - 💰 [Incentive Mechanism](./docs/incentive_mechanism.md)
 - 📝 [Evaluation](./docs/evaluation.md)
+- 📊 [Ranking](./docs/ranking.md)
 - 🧪 [Synthetic Queries](./docs/synthetic.md)
-- 🌱 [Organic Queries & the Task API(s)](./docs/organic.md)
+- 🌱 [Organic Queries & the Task API](./docs/organic.md)
+- 📚 [W&B Guide](./docs/wandb_guide.md)
 
 ---
 
@@ -57,15 +59,10 @@ For those new to chunking or Retrieval Augmented Generation (RAG), we strongly r
 
 - [What is Chunking?](./docs/chunking.md)
 - [The Case for Intelligent Chunking](https://medium.com/@vectorchat/the-case-for-intelligent-chunking-3f903aa3a72c)
+- [Miner Guide](./docs/miner_guide.md)
 
 We also recommend these resources by [Pinecone.io](https://www.pinecone.io/):
 
 - [Retrieval-Augmented Generation](https://www.pinecone.io/learn/retrieval-augmented-generation/)
 - [Chunking Strategies for LLM Applications](https://www.pinecone.io/learn/chunking-strategies/)
 - [What is a Vector Database?](https://www.pinecone.io/learn/vector-database/)
-
-## Installation
-
-To learn how to set up a miner, see [Default Miner](./docs/default_miner.md). This is a very simple miner to get you started. We highly recommend you read our [Guide to Mining](./docs/miner_guide.md) to create your own logic.
-
-For validator setup and considerations, please view [Validation](./docs/validator.md).

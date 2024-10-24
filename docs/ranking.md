@@ -45,12 +45,6 @@ A good miner will have a hard time climbing ranks because they are always in at 
 
 At any point a miner tends to be in 2 groups as all miner groups overlap; This miner will be in one group that is better and one group that is worse. For example: a miner, M, with a rank of 3 will be in group 1 and group 2 (0-indexed). Here's a picture of groups and the corresponding ranks:
 
-<!-- ```txt
-0 1 <-- Group 0
-1 2 3 4 <-- Group 1
-3 4 5 6 7 8 <-- Group 2
-``` -->
-
 ![Old Group Ranking System](../assets/improved_ranking/old.png)
 
 Group 1 is better because it has miners that are lower ranked and group 2 is worse because it contains miner that are ranked higher (numerically). One issue with this approach is that the miner winning in group 2 actually hurts it's ability to climb ranks in group 1. As an example, let's say the current scores are [0.5, 1.2, 2.3, 2.7]. Our miner, M, has a score of 2.7 and the miner with a rank of 2 has a score of 2.3, and so on. Any win of miner M in group 2 actually ends up hurting it's score, as the best rank miner M can get in group 2 is 3, which is greater than 2.7. This means that, even if miner M wins 100% of the time in group 2, it still hurt's miner M's score.
@@ -70,12 +64,12 @@ The starting rank value of each miner group should be equal to the average of (1
 
 Why? This makes it such that a miner is not penalized by being in 2 groups at once. Below is a picture that explains more about the reasoning behind the new ranking system in a visual way:
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../assets/improved_ranking/system_comparison.png" alt="Ranking Change System Comparison" style="width: 50%; height: auto;">
 </div>
 
 ## Examples
 
-<div style="text-align: center;">
+<div align="center">
     <img src="../assets/improved_ranking/examples.png" alt="Worked out examples" style="width: 50%; height: auto;">
 </div>
