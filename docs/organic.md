@@ -5,7 +5,7 @@ The primary goal of this subnet is to serve organic queries, as the leading prov
 ## Task API
 
 When the `--enable_task_api` flag is set, the validator will be able to serve organic queries from external clients. This works by having the validator process run a "sidecar" api server
-that can accept and serve requests as they come in (the impl can be found [here](../chunking/validator/integrated_api.py)). The host and port can be configured with `--task_api.host` and `--task_api.port` respectively.
+that can accept and serve requests as they come in (the impl can be found at [`chunking/validator/integrated_api.py`](../chunking/validator/integrated_api.py)). The host and port can be configured with `--task_api.host` and `--task_api.port` respectively.
 
 After running, the swagger UI for the task API can be viewed at `http://<HOST>:<PORT>/docs`.
 
