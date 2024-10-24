@@ -12,13 +12,7 @@ In the default validator, [reward.py](../chunking/validator/reward.py) scores th
 
 First, the validator confirms that each word in the chunked response also exists, in the same order, in the original document.
 
-```python
-# check that every word in chunk exists and is in the same order as the source document
-chunk_words = ' '.join(word_tokenize(chunks[i]))
-combined_chunk_words += ' ' + chunk_words
-if chunk_words not in ' '.join(document_words):
-    return 0
-```
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L75
 
 ### 2. All words present
 
