@@ -42,11 +42,11 @@ SWARM_SECRET="261cacbfcf697faa54a7196b824e461adab7c188236ac79ee836e5b7c87f7d9a"
 LEADER_IPFS_MULTIADDR="/ip4/137.184.138.42/tcp/4001/p2p/12D3KooWPbLoA76oDwYwmuiXW6JFd7Bvbh4gvDfKzNjMWesB1JqV"
 LEADER_IPFS_CLUSTER_MULTIADDR="/ip4/137.184.138.42/tcp/9096/p2p/12D3KooWKDk3TGgkKodAjo6ydRZjtD6TeZT1dvqvb6Bm2h8RHRMU"
 LEADER_IPFS_CLUSTER_ID="12D3KooWKDk3TGgkKodAjo6ydRZjtD6TeZT1dvqvb6Bm2h8RHRMU"
-LISTENER_ARGS="--netuid 40 --min-stake 10000 --ws-url ws://subtensor-mainnet-lite:9944 --log-level info"
+LISTENER_ARGS="--netuid 40 --min-stake 10000 --ws-url ws://mainnet-lite:9944 --log-level info"
 BT_DIR="/root/.bittensor"
 
 # validator-only
-INSCRIBER_ARGS="--netuid 40 --bittensor-coldkey-name <YOUR_COLDKEY> --bittensor-hotkey-name <YOUR_HOTKEY> --ws-url ws://subtensor-mainnet-lite:9944 --log-level info"
+INSCRIBER_ARGS="--netuid 40 --bittensor-coldkey-name <YOUR_COLDKEY> --bittensor-hotkey-name <YOUR_HOTKEY> --ws-url ws://mainnet-lite:9944 --log-level info"
 ...
 ```
 
