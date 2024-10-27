@@ -110,11 +110,15 @@ class BaseValidatorNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
 
-        if self.config.debug:
+        self.is_debug = self.config.debug.on
+        self.allow_all_log_handlers = self.config.debug.all_log_handlers
+
+        if self.is_debug:
             bt.logging.set_debug()
             bt.logging.set_trace()
             bt.logging.register_primary_logger("asyncio")
-            # logging.getLogger("asyncio").setLevel(logging.DEBUG)
+            if self.allow_all_log_handlers:
+                bt.logging.enable_third_party_loggers()
             bt.logging.info("Debug mode enabled")
 
     def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
@@ -405,7 +409,7 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.success("Started")
 
     def thread_run(self):
-        asyncio.run(self.run(), debug=self.config.debug)
+        asyncio.run(self.run(), debug=self.is_debug)
 
     def stop_run_thread(self):
         """

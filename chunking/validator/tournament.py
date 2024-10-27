@@ -252,7 +252,7 @@ async def query_miner_groups(
 
 def cleanup_logging():
     """Properly cleanup logging handlers"""
-    for handler in logging.getLogger().handlers[:]:
+    for i, handler in enumerate(logging.getLogger().handlers[:]):
         try:
             handler.acquire()
             handler.flush()
@@ -260,11 +260,13 @@ def cleanup_logging():
         except (OSError, ValueError):
             pass
         finally:
+            print(f"released handler {i}")
             handler.release()
         logging.getLogger().removeHandler(handler)
 
 
 def run_get_rewards(*args, **kwargs):
+    print("running get rewards")
     document = kwargs["document"]
     doc_len = len(document)
     prefix = f"[GET_REWARDS, DOC LEN {doc_len}] "
@@ -273,32 +275,39 @@ def run_get_rewards(*args, **kwargs):
 
     # Register cleanup handler
     atexit.register(cleanup_logging)
+    print("registered cleanup logging")
 
     # Configure process-specific logging
     root_logger = logging.getLogger()
     root_logger.handlers = []
+    print("cleared handlers")
 
     # Create a simple stream handler instead of QueueHandler
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("%(message)s"))
     root_logger.addHandler(handler)
+    print("added simple stream handler")
 
     # Disable bittensor logging
     bt.logging.handlers = []
     bt.logging.disabled = True
+    print("disabled bittensor logging")
 
     asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-
+    print("created new event loop")
     client = AsyncOpenAI()
-
+    print("created openai client")
     try:
+
         result = loop.run_until_complete(get_rewards(*args, **kwargs, client=client))
 
         # Explicitly flush and cleanup
         sys.stdout.flush()
+        print("flushed stdout")
         sys.stderr.flush()
+        print("flushed stderr")
         cleanup_logging()
 
         return result
@@ -332,8 +341,10 @@ async def score_miner_group_responses(
         # )
 
         loop = asyncio.get_running_loop()
+        bt.logging.debug("got current loop")
 
         ctx = multiprocessing.get_context(self.config.process.context_type)
+        print(f"using context type: {self.config.process.context_type}")
         with ProcessPoolExecutor(
             mp_context=ctx, max_workers=1, initializer=None
         ) as executor:
@@ -346,6 +357,7 @@ async def score_miner_group_responses(
                 num_embeddings=self.num_embeddings,
                 verbose=self.config.debug,
             )
+            bt.logging.debug("running in executor")
             (rewards, extra_infos) = await loop.run_in_executor(executor, func)
             # await asyncio.sleep(0.1)
 
@@ -421,6 +433,7 @@ async def run_tournament_round(
     custom_miner_uids: (
         list[int] | None
     ) = None,  # takes precedence over `choose_miner_group_index`
+    # TODO: do not score responses if the task is not do_scoring
 ) -> list[EndTournamentRoundInfo | None]:
     """
     Run a tournament round for the validator's tournament.

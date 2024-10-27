@@ -223,9 +223,16 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--debug",
+            "--debug.on",
             action="store_true",
             help="If set, runs the validator in debug mode.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--debug.all_log_handlers",
+            action="store_true",
+            help="If in debug mode, allows all log handlers to be registered.",
             default=False,
         )
 
