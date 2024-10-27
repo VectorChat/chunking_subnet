@@ -265,7 +265,9 @@ def cleanup_logging():
 
 
 def run_get_rewards(*args, **kwargs):
-    prefix = "[GET_REWARDS] "
+    document = kwargs["document"]
+    doc_len = len(document)
+    prefix = f"[GET_REWARDS, DOC LEN {doc_len}] "
     sys.stdout = PrefixStream(sys.stdout, prefix)
     sys.stderr = PrefixStream(sys.stderr, prefix)
 
@@ -338,10 +340,6 @@ async def score_miner_group_responses(
                 verbose=self.config.debug,
             )
             (rewards, extra_infos) = await self.loop.run_in_executor(executor, func)
-            # print(
-            #     f"got rewards in thread name: {threading.current_thread().name}, rewards: {rewards}"
-            # )
-            # await asyncio.sleep(0)
 
         print(
             f"Rewards for {task.task_type} tournament round, Doc length: {len(input_synapse.document)}, Group index:"

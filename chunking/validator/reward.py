@@ -220,6 +220,8 @@ async def reward(
             f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}"
         )
 
+    start_time = time.time()
+
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
@@ -251,6 +253,9 @@ async def reward(
         return _get_early_return_stuff(
             f"Every set of 3 adjacent words from the document does not appear in the chunks"
         )
+
+    end_time = time.time()
+    print(f"Time to run checks: {end_time - start_time} seconds")
 
     _verbose(
         f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
@@ -290,7 +295,6 @@ async def reward(
 
     # calculate intrachunk and interchunk similarities
     for i in range(len(testChunks) - 1):
-        print(f"calculating similarities for {i}")
         j = i + 1
         while j < len(testChunks):
             if testChunks[i].sourceChunk == testChunks[j].sourceChunk:
