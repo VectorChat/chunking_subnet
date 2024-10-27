@@ -184,6 +184,13 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
+            "--neuron.synthetic_query_interval_seconds",
+            type=int,
+            help="The interval between synthetic queries in seconds.",
+            default=0,
+        )
+
+        parser.add_argument(
             "--wandb.wandb_off",
             action="store_true",
             help="Turn off wandb logging.",

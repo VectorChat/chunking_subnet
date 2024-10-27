@@ -20,6 +20,7 @@ from functools import partial
 import os
 import copy
 from fastapi import FastAPI, HTTPException
+import httpx
 import numpy as np
 import asyncio
 import threading
@@ -33,7 +34,7 @@ import traceback
 
 from dotenv import load_dotenv
 
-from typing import List, Literal, Union
+from typing import List, Literal, Tuple, Union
 from math import floor
 
 from chunking.base.neuron import BaseNeuron
@@ -91,18 +92,11 @@ class BaseValidatorNeuron(BaseNeuron):
         # load tournament state from disk, if it exists.
         self.load_state()
 
-        # Init sync with the network. Updates the metagraph.
-        self.sync_articles()
-        self.sync()
-
         # Serve axon to enable external connections.
         if not self.config.neuron.axon_off:
             self.serve_axon()
         else:
             bt.logging.warning("axon off, not serving ip to chain.")
-
-        # Create asyncio event loop to manage async tasks.
-        self.loop = asyncio.get_event_loop()
 
         self.app = FastAPI()
         self.score_update_queue: asyncio.Queue[EndTournamentRoundInfo] = asyncio.Queue()
@@ -115,6 +109,8 @@ class BaseValidatorNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
         self.lock = asyncio.Lock()
+
+        self.loop = asyncio.get_event_loop()
 
     def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
         """
@@ -316,31 +312,19 @@ class BaseValidatorNeuron(BaseNeuron):
 
     def run(self):
         """
-                Main loop for the validator.
+        Main loop for the validator.
 
-                This function performs the following primary tasks:
-                1. Make sure the validator is registered on the network and sync the metagraph.
-                2. Start main validator loop.
-                    2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
-                    it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
-                    Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
-                    moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
-                    weight each miner receives. The round info and updated scores/rankings are logged to wandb.
-                    2.2 Sync the metagraph and set weights if necessary.
-                    2.3 Save the current tournament state to disk.
-                    2.4 Sleep for a specified interval, repeat.
-
-        <<<<<<< HEAD
-
-        =======
-        >>>>>>> main
-                Note:
-                    - The function leverages the global configurations set during the initialization of the miner.
-                    - The miner's axon serves as its interface to the Bittensor network, handling incoming and outgoing requests.
-
-                Raises:
-                    KeyboardInterrupt: If the miner is stopped by a manual interruption.
-                    Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
+        This function performs the following primary tasks:
+        1. Make sure the validator is registered on the network and sync the metagraph.
+        2. Start main validator loop.
+            2.1. Run a tournament round (currently not parallelized), in this tournament round the validator chooses a random miner group to query with a task. If organic queries are allowed,
+            it checks an external task api to get an organic task (from the outside world). If organic queries are not allowed or there are no organic tasks available, it creates a synthetic task, currently
+            Wikipedia articles between 10k - 100k characters. Miner are rewarded based on the chunks they return for the task. They are then ranked within their group and this new ranking is used to update the global
+            moving average rank (`scores`) for each miner this moving average is then used to set the current global rankings for all miners in this validators tournament. The global ranking ultimately determines the
+            weight each miner receives. The round info and updated scores/rankings are logged to wandb.
+            2.2 Sync the metagraph and set weights if necessary.
+            2.3 Save the current tournament state to disk.
+            2.4 Sleep for a specified interval, repeat.
         """
 
         # Check that validator is registered on the network.
@@ -353,9 +337,11 @@ class BaseValidatorNeuron(BaseNeuron):
             while True:
                 bt.logging.info(f"step({self.step}) block({self.block})")
 
+                # TODO: consider using to_thread()
+
                 # Sync metagraph and potentially set weights.
+                self.loop.run_until_complete(self.sync_articles())
                 self.sync()
-                self.sync_articles()
 
                 # Run multiple forwards concurrently.
                 self.loop.run_until_complete(self.concurrent_forward())
@@ -368,14 +354,16 @@ class BaseValidatorNeuron(BaseNeuron):
                     break
 
                 # Save the current tournament state to disk.
-                self.save_state()
+                self.loop.run_until_complete(self.save_state())
 
-                # bt.logging.debug(
-                #     f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
-                # )
+                interval_seconds = self.config.neuron.synthetic_query_interval_seconds
+
+                bt.logging.debug(
+                    f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
+                )
                 self.step += 1
 
-                # time.sleep(interval_seconds)
+                time.sleep(interval_seconds)
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
@@ -387,6 +375,11 @@ class BaseValidatorNeuron(BaseNeuron):
         except Exception as err:
             bt.logging.error("Error during validation", str(err))
             traceback.print_exc()
+
+            # reinitialize subtensor just in case
+            self.subtensor = bt.subtensor(config=self.config)
+            # remake metagraph in case
+            self.metagraph = self.subtensor.metagraph(self.config.netuid)
 
     def run_in_background_thread(self):
         """
@@ -546,14 +539,16 @@ class BaseValidatorNeuron(BaseNeuron):
 
         return raw_weights
 
-    def set_weights_on_chain(self, uint_uids: List[int], uint_weights: List[int]):
+    def set_weights_on_chain(
+        self, uint_uids: List[int], uint_weights: List[int]
+    ) -> Tuple[bool, str]:
         result, msg = self.subtensor.set_weights(
             wallet=self.wallet,
             netuid=self.config.netuid,
             uids=uint_uids,
             weights=uint_weights,
             wait_for_finalization=False,
-            wait_for_inclusion=True,
+            wait_for_inclusion=False,
             version_key=self.spec_version,
         )
         return result, msg
@@ -619,6 +614,7 @@ class BaseValidatorNeuron(BaseNeuron):
             return
 
         try:
+            bt.logging.debug(f"setting weights on chain: ")
             result, msg = self.set_weights_on_chain(uint_uids, uint_weights)
             if result is True:
                 bt.logging.success(
@@ -648,7 +644,7 @@ class BaseValidatorNeuron(BaseNeuron):
         #     bt.logging.debug("metagraph axons are the same, nothing to update")
         #     return
 
-        bt.logging.info("Metagraph updated, re-syncing hotkeys")
+        bt.logging.debug("Metagraph updated, re-syncing hotkeys")
 
         # Reset scores for all hotkeys that have been replaced
         for uid, hotkey in enumerate(self.hotkeys):
@@ -668,6 +664,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+        bt.logging.debug(f"Updated hotkeys")
 
     async def queue_score_update(
         self,
@@ -711,8 +708,8 @@ class BaseValidatorNeuron(BaseNeuron):
         wandb_data = end_tournament_round_info.wandb_data
         ranks = end_tournament_round_info.ranked_responses_global
         uids = end_tournament_round_info.miner_group_uids
-        task_type = end_tournament_round_info.task_type
         alpha = end_tournament_round_info.alpha
+        do_wandb_log = end_tournament_round_info.do_wandb_log
 
         self.scores = self.scores.astype(np.float64)
         # Check if rewards contains NaN values.
@@ -766,7 +763,7 @@ class BaseValidatorNeuron(BaseNeuron):
         self.rankings = np.argsort(self.scores)
 
         # log scores and rankings and other data to wandb for synthetic queries
-        if task_type == "synthetic":
+        if do_wandb_log:
             for uid in uids_array:
                 # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
                 wandb_data["group"]["scores"][str(uid)] = self.scores[uid]
@@ -778,26 +775,36 @@ class BaseValidatorNeuron(BaseNeuron):
                 uid = self.rankings[rank]
                 wandb_data["all"]["rankings"][str(uid)] = rank
 
-            # bt.logging.debug(f"Logging wandb_data: {wandb_data}")
+            bt.logging.debug(
+                f"Logging wandb data for {end_tournament_round_info.task_type} tournament round with uids {uids_array}"
+            )
+            self.wandb_log(wandb_data)
+
+    def wandb_log(self, wandb_data: dict):
+        if not self.config.wandb.wandb_off:
             bt.logging.info("Logging wandb_data")
-            if not self.config.wandb.wandb_off:
-                wandb.log(wandb_data)
+            wandb.log(wandb_data)
+        else:
+            bt.logging.debug("WANDB logging is off, skipping")
 
-        # bt.logging.debug(f"Updated rankings: {self.rankings}")
-
-    def save_state(self):
+    async def save_state(self):
         """Saves the state of the validator to a file."""
         bt.logging.info("Saving validator state.")
 
-        # Save the state of the validator to file.
-        np.savez(
-            self.config.neuron.full_path + "/state.npz",
+        func = partial(
+            np.savez,
+            file=self.config.neuron.full_path + "/state.npz",
             step=self.step,
             scores=self.scores,
             rankings=self.rankings,
             articles=self.articles,
             hotkeys=self.hotkeys,
         )
+
+        bt.logging.debug(
+            f"Async saving state to {self.config.neuron.full_path}/state.npz"
+        )
+        await self.loop.run_in_executor(None, func)
 
         bt.logging.info(f"Saved validator state.")
         bt.logging.debug(
@@ -819,9 +826,9 @@ class BaseValidatorNeuron(BaseNeuron):
         self.articles = state["articles"]
 
         bt.logging.info(f"Loaded validator state.")
-        bt.logging.debug(
-            f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles"
-        )
+        # bt.logging.debug(
+        #     f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles"
+        # )
 
     async def query_axons(
         self, axons: list[bt.axon], synapse: bt.Synapse, timeout: float
@@ -837,28 +844,13 @@ class BaseValidatorNeuron(BaseNeuron):
         responses: list[bt.Synapse] = await loop.run_in_executor(None, func)
         return responses
 
-    def sync_articles(self):
+    async def sync_articles(self):
         try:
             bt.logging.debug(f"syncing articles")
             articles = []
-            response = requests.get(
-                "https://en.wikipedia.org/w/api.php",
-                params={
-                    "action": "query",
-                    "format": "json",
-                    "list": "categorymembers",
-                    "cmpageid": "8966941",
-                    "cmprop": "ids",
-                    "cmlimit": "max",
-                },
-            ).json()
 
-            articles.extend(
-                [page["pageid"] for page in response["query"]["categorymembers"]]
-            )
-            continuation = response.get("continue")
-            while continuation is not None:
-                response = requests.get(
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
                     "https://en.wikipedia.org/w/api.php",
                     params={
                         "action": "query",
@@ -867,13 +859,35 @@ class BaseValidatorNeuron(BaseNeuron):
                         "cmpageid": "8966941",
                         "cmprop": "ids",
                         "cmlimit": "max",
-                        "cmcontinue": continuation.get("cmcontinue"),
                     },
-                ).json()
-                continuation = response.get("continue")
+                )
+                response = res.json()
+
                 articles.extend(
                     [page["pageid"] for page in response["query"]["categorymembers"]]
                 )
+                continuation = response.get("continue")
+                while continuation is not None:
+                    res = await client.get(
+                        "https://en.wikipedia.org/w/api.php",
+                        params={
+                            "action": "query",
+                            "format": "json",
+                            "list": "categorymembers",
+                            "cmpageid": "8966941",
+                            "cmprop": "ids",
+                            "cmlimit": "max",
+                            "cmcontinue": continuation.get("cmcontinue"),
+                        },
+                    )
+                    response = res.json()
+                    continuation = response.get("continue")
+                    articles.extend(
+                        [
+                            page["pageid"]
+                            for page in response["query"]["categorymembers"]
+                        ]
+                    )
             self.articles = articles
             bt.logging.debug(f"synced articles!")
         except Exception as e:

@@ -24,6 +24,7 @@ import bittensor as bt
 
 from chunking.base.neuron import BaseNeuron
 
+
 class BaseMinerNeuron(BaseNeuron):
     """
     Base class for Bittensor miners.
@@ -41,14 +42,15 @@ class BaseMinerNeuron(BaseNeuron):
             forward_fn=self.forward,
             blacklist_fn=self.blacklist,
             priority_fn=self.priority,
-            verify_fn=(self.verify)
+            verify_fn=(self.verify),
         )
         bt.logging.info(f"Axon created: {self.axon}")
         # Instantiate runner
         self.should_exit: bool = False
         self.is_running: bool = False
         self.thread: threading.Thread = None
-        self.lock = asyncio.Lock()                
+
+        self.loop = asyncio.get_running_loop()
 
     def run(self):
         """
@@ -160,4 +162,4 @@ class BaseMinerNeuron(BaseNeuron):
             traceback: A traceback object encoding the stack trace.
                        None if the context was exited without an exception.
         """
-        self.stop_run_thread()    
+        self.stop_run_thread()

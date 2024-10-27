@@ -7,7 +7,7 @@ __spec_version__ = (
     + (1 * int(version_split[2]))
 )
 
-from .forward import forward, get_miner_groups
+from .forward import forward
 from .reward import reward
 from .task_api import Task
 from .types import TaskType

@@ -5,7 +5,6 @@ from venv import logger
 import aiohttp
 import bittensor as bt
 from openai import AsyncOpenAI, OpenAI
-import tiktoken
 from chunking.protocol import chunkSynapse, chunkSynapseType
 import requests
 import numpy as np
@@ -19,7 +18,6 @@ from chunking.utils.chunks import calculate_chunk_qty
 from chunking.utils.tokens import num_tokens_from_string
 from chunking.validator.types import TaskType
 from chunking.utils.relay.relay import make_relay_payload
-from neurons.validator import Validator
 
 
 class Task:
@@ -33,7 +31,7 @@ class Task:
         task_type: TaskType,
         task_id: int,
         page_id: int = -1,
-        miner_uids: Optional[List[int]] = None,
+        miner_uids: Optional[List[int]] = None,  # used for external organic task api
     ):
         self.synapse = synapse
         self.task_type = task_type
@@ -42,7 +40,7 @@ class Task:
         self.page_id = page_id
 
     @classmethod
-    def get_organic_task(cls, validator: Validator) -> Optional["Task"]:
+    def get_organic_task(cls, validator) -> Optional["Task"]:
         """
         Get an organic task from the API host.
 
@@ -125,7 +123,7 @@ class Task:
             return None
 
     @classmethod
-    async def get_synthetic_task(cls, validator: Validator) -> "Task":
+    async def get_synthetic_task(cls, validator) -> "Task":
         """
         Get a synthetic task from the API host.
 
@@ -140,7 +138,7 @@ class Task:
         return Task(synapse=synapse, task_type="synthetic", task_id=-1, page_id=page)
 
     @classmethod
-    async def get_new_task(self, validator: Validator) -> "Task":
+    async def get_new_task(self, validator) -> "Task":
         """
         Get a new task based on the validator's config.
 
@@ -285,7 +283,7 @@ async def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
 
 
 async def generate_doc_with_llm(
-    validator: Validator,
+    validator,
     pageids=None,
     temperature=0.7,
     override_client: AsyncOpenAI | None = None,

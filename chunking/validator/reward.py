@@ -495,7 +495,7 @@ def rank_responses_global(
     ranked_responses: np.ndarray[int],
     miner_group_uids: np.ndarray[int],
     override_scores: np.ndarray[float] | None = None,
-) -> np.ndarray[int]:
+) -> np.ndarray[np.float64]:
     # inf means the response should not be ranked
     ranked_responses_global = np.full_like(ranked_responses, np.inf)
 
@@ -512,6 +512,8 @@ def rank_responses_global(
         elif not np.isinf(scores[miner_group_uids[i]]):
             # give response worst rank in the group
             ranked_responses_global[i] = group_rank_values[-1]
+
+    ranked_responses_global = ranked_responses_global.astype(np.float64)
 
     return ranked_responses_global
 

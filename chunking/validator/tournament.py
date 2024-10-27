@@ -5,8 +5,9 @@ import traceback
 import bittensor as bt
 import numpy as np
 from random import choice
-from chunking.utils.integrated_api import api_log
+from chunking.utils.tournament import make_wandb_data
 from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
+from chunking.validator.task_api import Task
 from chunking.validator.types import EndTournamentRoundInfo
 from chunking.protocol import chunkSynapse
 
@@ -167,20 +168,20 @@ async def query_miner_group(
     self,
     input_synapse: chunkSynapse,
     miner_group_uids: np.ndarray[np.int32],
-    miner_group_index: int,
+    miner_group_index: int | None = None,
 ) -> list[chunkSynapse]:
-    api_log(
+    bt.logging.debug(
         f"Querying miner group ({miner_group_index}): {miner_group_uids}, timeout: {input_synapse.timeout}"
     )
     axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]
-    api_log(f"axons: {axons}")
+    bt.logging.debug(f"axons: {axons}")
     responses: list[chunkSynapse] = await self.query_axons(
         axons=axons,
         synapse=input_synapse,
         timeout=input_synapse.timeout,
     )
 
-    api_log(
+    bt.logging.debug(
         f"Got {len(responses)} responses from miner group ({miner_group_index}): {miner_group_uids}"
     )
     return responses
@@ -191,25 +192,35 @@ async def query_miner_groups(
     input_synapse: chunkSynapse,
     num_miner_groups_to_query: int = 1,
     choose_miner_group_index: int | None = None,
-    return_group_indices: bool = False,
-) -> list[list[chunkSynapse]] | tuple[list[list[chunkSynapse]], list[int]]:
-    miner_groups, _, _ = get_miner_groups(self)
+    custom_miner_uids: list[int] | None = None,
+) -> tuple[
+    list[list[chunkSynapse]],
+    list[int | None],
+    list[list[int]],
+    list[np.ndarray[np.float64 | None]],
+]:
+    if custom_miner_uids is None:
+        miner_groups, _, group_rank_values = get_miner_groups(self)
 
-    miner_group_indices = get_miner_groups_to_query(
-        miner_groups,
-        num_miner_groups_to_query,
-        choose_miner_group_index,
-    )
+        miner_group_indices = get_miner_groups_to_query(
+            miner_groups,
+            num_miner_groups_to_query,
+            choose_miner_group_index,
+        )
 
-    api_log(f"Miner group indices: {miner_group_indices}")
+        miner_uids_per_group = [miner_groups[i] for i in miner_group_indices]
+        rank_values_per_group = [group_rank_values[i] for i in miner_group_indices]
+    else:
+        # custom group
+        miner_group_indices = [None]
+        miner_uids_per_group = [custom_miner_uids]
+        rank_values_per_group = np.array([[None] * len(custom_miner_uids)])
 
-    miner_groups_to_query = [miner_groups[i] for i in miner_group_indices]
-
-    api_log(f"Miner groups to query: {miner_groups_to_query}")
+    bt.logging.debug(f"Miner group indices: {miner_group_indices}")
 
     coros = []
     for miner_group_index, miner_group_uids in zip(
-        miner_group_indices, miner_groups_to_query
+        miner_group_indices, miner_uids_per_group
     ):
         coros.append(
             query_miner_group(
@@ -222,21 +233,25 @@ async def query_miner_groups(
 
     group_responses = await asyncio.gather(*coros)
 
-    if return_group_indices:
-        return group_responses, miner_group_indices
-    else:
-        return group_responses
+    return (
+        group_responses,
+        miner_group_indices,
+        miner_uids_per_group,
+        rank_values_per_group,
+    )
 
 
 async def score_miner_group_responses(
     self,
-    input_synapse: chunkSynapse,
+    task: Task,
     responses: list[chunkSynapse],
     miner_group_uids: np.ndarray[np.int32],
-    group_rank_values: np.ndarray[np.float64],
-    miner_group_index: int,
+    group_rank_values: np.ndarray[np.float64 | None],
+    miner_group_index: int | None,
+    do_wandb_log: bool,
 ) -> EndTournamentRoundInfo | None:
     try:
+        input_synapse = task.synapse
         rewards, extra_infos = get_rewards(
             self,
             document=input_synapse.document,
@@ -245,27 +260,61 @@ async def score_miner_group_responses(
             responses=responses,
         )
 
-        api_log(f"Rewards: {rewards}")
+        bt.logging.debug(f"Rewards: {rewards}")
 
         ranked_responses = rank_responses(rewards)
 
-        api_log(f"Ranked responses: {ranked_responses}")
+        bt.logging.debug(f"Ranked responses: {ranked_responses}")
 
-        ranked_responses_global = rank_responses_global(
-            self, group_rank_values, ranked_responses, miner_group_uids
+        any_none_group_rank_values = any(
+            group_rank_value is None for group_rank_value in group_rank_values
         )
 
-        api_log(f"Ranked responses global: {ranked_responses_global}")
+        if any_none_group_rank_values:
+            # signifies there are no meaningful global ranks for custom group
+            ranked_responses_global = np.array([-2] * len(ranked_responses)).astype(
+                np.float64
+            )
+        else:
+            ranked_responses_global = rank_responses_global(
+                self, group_rank_values, ranked_responses, miner_group_uids
+            )
 
-        return EndTournamentRoundInfo(
+        bt.logging.debug(f"Ranked responses global: {ranked_responses_global}")
+
+        if miner_group_index is None:
+            alpha = -1
+        else:
+            alpha = get_alpha(self, len(miner_group_uids), miner_group_index)
+
+        wandb_data = make_wandb_data(
+            block_number=self.block,
+            miner_group_uids=miner_group_uids,
+            miner_group_index=miner_group_index or -1,
+            task=task,
             responses=responses,
-            miner_group_index=miner_group_index,
+            rewards=rewards,
+            reward_extra_infos=extra_infos,
+            ranked_responses=ranked_responses,
+            ranked_responses_global=ranked_responses_global,
+            alpha=alpha,
+        )
+
+        end_tournament_round_info = EndTournamentRoundInfo(
+            responses=responses,
+            miner_group_index=miner_group_index or -1,
             rewards=rewards.tolist(),
             ranked_responses_global=ranked_responses_global.tolist(),
             miner_group_uids=miner_group_uids.tolist(),
-            task_type="organic",
-            alpha=get_alpha(self, len(miner_group_uids), miner_group_index),
+            alpha=alpha,
+            do_wandb_log=do_wandb_log,
+            wandb_data=wandb_data,
+            task_type=task.task_type,
         )
+
+        # bt.logging.debug(f"End tournament round info: {end_tournament_round_info}")
+        return end_tournament_round_info
+
     except Exception as e:
         bt.logging.error(f"Error querying miner group: {e}")
         bt.logging.error(traceback.format_exc())
@@ -274,42 +323,53 @@ async def score_miner_group_responses(
 
 async def run_tournament_round(
     self,
-    input_synapse: chunkSynapse,
+    task: Task,
+    do_wandb_log: bool,
     choose_miner_group_index: int | None = None,
+    custom_miner_uids: (
+        list[int] | None
+    ) = None,  # takes precedence over `choose_miner_group_index`
 ) -> list[EndTournamentRoundInfo | None]:
     """
     Run a tournament round for the validator's tournament.
     """
 
-    group_responses, miner_group_indices = await query_miner_groups(
+    (
+        group_responses,
+        miner_group_indices,
+        miner_uids_per_group,
+        rank_values_per_group,
+    ) = await query_miner_groups(
         self,
-        input_synapse,
+        task.synapse,
         num_miner_groups_to_query=1,
         choose_miner_group_index=choose_miner_group_index,
-        return_group_indices=True,
+        custom_miner_uids=custom_miner_uids,
     )
 
-    api_log(
-        f"Got {len(group_responses)} group responses from groups: {miner_group_indices}"
+    bt.logging.debug(
+        f"Got {len(group_responses)} group responses from groups: {miner_uids_per_group}"
     )
-
-    miner_groups, _, group_rank_values = get_miner_groups(self)
 
     coros = []
-    for miner_group_responses, miner_group_index in zip(
-        group_responses, miner_group_indices
+    for miner_group_responses, miner_group_index, miner_uids, rank_values in zip(
+        group_responses,
+        miner_group_indices,
+        miner_uids_per_group,
+        rank_values_per_group,
     ):
-        api_log(
-            f"Scoring {len(miner_group_responses)} responses from group {miner_group_index}"
+        bt.logging.debug(
+            f"Scoring {len(miner_group_responses)} responses from group {miner_uids}"
         )
         coros.append(
             score_miner_group_responses(
                 self,
-                input_synapse,
+                task=task,
                 responses=miner_group_responses,
-                miner_group_uids=miner_groups[miner_group_index],
-                group_rank_values=group_rank_values[miner_group_index],
+                miner_group_uids=np.array(miner_uids),
+                group_rank_values=rank_values,
                 miner_group_index=miner_group_index,
+                do_wandb_log=do_wandb_log,
             )
         )
 

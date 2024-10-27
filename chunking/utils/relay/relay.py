@@ -1,6 +1,6 @@
 import argparse
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 import json
 import os
 from typing import List
@@ -194,7 +194,13 @@ async def make_relay_payload(
         f"IPFS payload:\n message: {json.dumps(payload_dict['message'])[:100]}...\n signature: {payload_dict['signature']}"
     )
 
-    tmp_file = "tmp_relay_payload.json"
+    time = datetime.now().isoformat()
+
+    tmp_file_base = f"tmp_relay_payload_{time}"
+
+    tmp_file_hashed = sha256_hash(tmp_file_base)
+
+    tmp_file = f"{tmp_file_hashed}.json"
 
     with open(tmp_file, "w") as f:
         json.dump(payload_dict, f)
