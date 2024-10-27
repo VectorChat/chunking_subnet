@@ -10,6 +10,7 @@ from chunking.validator.tournament import run_tournament_round
 from chunking.protocol import chunkSynapse
 import bittensor as bt
 
+
 class ChunkRequest(BaseModel):
     document: str = Body(..., description="The document to chunk")
     chunk_size: int = Body(
@@ -27,14 +28,13 @@ class ChunkRequest(BaseModel):
         description="Soft max multiplier for the chunking task, defaults to 0.75 times timeout. Time after timeout * time_soft_max_multiplier is considered as a time penalty for the miner.",
     )
     custom_miner_uids: Optional[List[int]] = Body(
-        default=None,
-        description="Specific miner UIDs to query",
+        default=None, description="Specific miner UIDs to query", min_length=1
     )
     miner_group_index: Optional[int] = Body(
         default=None, description="Specific miner group index to query"
     )
     do_scoring: bool = Body(
-        default=True,
+        default=False,
         description="Whether chunks should count towards scores in the tournament",
     )
     do_wandb_log: bool = Body(
@@ -56,7 +56,8 @@ class ChunkResult(BaseModel):
         description="The index of the miner group that generated the chunks",
     )
     process_time: float = Field(
-        ..., description="The time it took to process the chunking task (including network i/o)"
+        ...,
+        description="The time it took to process the chunking task (including network i/o)",
     )
 
 
@@ -67,6 +68,10 @@ class ChunkResponse(BaseModel):
 
 
 async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
+
+    print(
+        f"handling chunk request with document length: {len(request.document)}, miner uids: {request.custom_miner_uids}, miner group index: {request.miner_group_index}"
+    )
 
     chunk_qty = request.chunk_qty or calculate_chunk_qty(
         request.document, request.chunk_size
@@ -111,7 +116,9 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
     for result in usable_results:
         if request.custom_miner_uids is not None and request.do_wandb_log:
             # manually log because it will not be logged during score update
-            bt.logging.debug(f"Logging wandb data for custom miner uids: {request.custom_miner_uids}")
+            bt.logging.debug(
+                f"Logging wandb data for custom miner uids: {request.custom_miner_uids}"
+            )
             self.wandb_log(result.wandb_data)
         elif request.do_scoring:
             await self.queue_score_update(result)

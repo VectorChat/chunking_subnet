@@ -373,14 +373,14 @@ async def score_miner_group_responses(
 
         wandb_data = make_wandb_data(
             block_number=self.block,
-            miner_group_uids=miner_group_uids,
+            miner_group_uids=miner_group_uids.astype(int).tolist(),
             miner_group_index=miner_group_index or -1,
             task=task,
             responses=responses,
             rewards=rewards,
             reward_extra_infos=extra_infos,
-            ranked_responses=ranked_responses,
-            ranked_responses_global=ranked_responses_global,
+            ranked_responses=ranked_responses.astype(int).tolist(),
+            ranked_responses_global=ranked_responses_global.astype(float).tolist(),
             alpha=alpha,
         )
 
@@ -389,7 +389,7 @@ async def score_miner_group_responses(
             miner_group_index=miner_group_index or -1,
             rewards=rewards.tolist(),
             ranked_responses_global=ranked_responses_global.tolist(),
-            miner_group_uids=miner_group_uids.tolist(),
+            miner_group_uids=miner_group_uids.astype(int).tolist(),
             alpha=alpha,
             do_wandb_log=do_wandb_log,
             wandb_data=wandb_data,

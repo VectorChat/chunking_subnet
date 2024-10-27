@@ -86,7 +86,7 @@ def make_wandb_data(
     rewards: list[float],
     reward_extra_infos: list[dict],
     ranked_responses: list[int],
-    ranked_responses_global: list[int],
+    ranked_responses_global: list[float],
     alpha: float,
 ) -> dict:
     # initial structure for wandb logging
