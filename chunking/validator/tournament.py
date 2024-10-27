@@ -347,6 +347,7 @@ async def score_miner_group_responses(
                 verbose=self.config.debug,
             )
             (rewards, extra_infos) = await loop.run_in_executor(executor, func)
+            # await asyncio.sleep(0.1)
 
         print(
             f"Rewards for {task.task_type} tournament round, Doc length: {len(input_synapse.document)}, Group index:"
