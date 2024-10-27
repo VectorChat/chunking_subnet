@@ -14,14 +14,15 @@ import bittensor as bt
 class ChunkRequest(BaseModel):
     document: str = Body(..., description="The document to chunk")
     chunk_size: int = Body(
-        ..., description="The maximum size of each chunk in characters"
+        ..., description="The maximum size of each chunk in characters", gt=0
     )
     chunk_qty: Optional[int] = Body(
         None,
         description="Max number of chunks to create, defaults to `ceil(ceil(len(document) / chunk_size) * 1.5)`",
+        gt=0,
     )
     timeout: Optional[float] = Body(
-        default=60, description="Hard timeout for the chunking task"
+        default=60, description="Hard timeout for the chunking task", gt=0
     )
     time_soft_max_multiplier: Optional[float] = Body(
         default=0.75,
@@ -31,7 +32,7 @@ class ChunkRequest(BaseModel):
         default=None, description="Specific miner UIDs to query", min_length=1
     )
     miner_group_index: Optional[int] = Body(
-        default=None, description="Specific miner group index to query"
+        default=None, description="Specific miner group index to query", ge=0
     )
     do_scoring: bool = Body(
         default=False,

@@ -229,6 +229,13 @@ def add_args(cls, parser):
             default=False,
         )
 
+        parser.add_argument(
+            "--process.context_type",
+            type=str,
+            help="The type of context to use for the process.",
+            default="fork",
+        )
+
     # Miner
     else:
         parser.add_argument(

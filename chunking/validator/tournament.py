@@ -74,8 +74,8 @@ def create_groups(rankings: np.ndarray, group_size: int):
         else:
             miner_groups.append(np.array(rankings[group_ranks[-1]], dtype=int))
 
-    bt.logging.debug(f"group_ranks: {group_ranks}")
-    bt.logging.debug(f"miner_groups: {miner_groups}")
+    # bt.logging.debug(f"group_ranks: {group_ranks}")
+    # bt.logging.debug(f"miner_groups: {miner_groups}")
 
     group_rank_values = []
 
@@ -287,10 +287,14 @@ def run_get_rewards(*args, **kwargs):
     bt.logging.handlers = []
     bt.logging.disabled = True
 
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     client = AsyncOpenAI()
 
     try:
-        result = asyncio.run(get_rewards(*args, **kwargs, client=client))
+        result = loop.run_until_complete(get_rewards(*args, **kwargs, client=client))
 
         # Explicitly flush and cleanup
         sys.stdout.flush()
@@ -304,6 +308,7 @@ def run_get_rewards(*args, **kwargs):
     finally:
         # Ensure cleanup happens even on error
         cleanup_logging()
+        loop.close()
 
 
 async def score_miner_group_responses(
@@ -326,7 +331,9 @@ async def score_miner_group_responses(
         #     responses=responses,
         # )
 
-        ctx = multiprocessing.get_context("fork")
+        loop = asyncio.get_running_loop()
+
+        ctx = multiprocessing.get_context(self.config.process.context_type)
         with ProcessPoolExecutor(
             mp_context=ctx, max_workers=1, initializer=None
         ) as executor:
@@ -339,7 +346,7 @@ async def score_miner_group_responses(
                 num_embeddings=self.num_embeddings,
                 verbose=self.config.debug,
             )
-            (rewards, extra_infos) = await self.loop.run_in_executor(executor, func)
+            (rewards, extra_infos) = await loop.run_in_executor(executor, func)
 
         print(
             f"Rewards for {task.task_type} tournament round, Doc length: {len(input_synapse.document)}, Group index:"

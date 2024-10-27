@@ -109,11 +109,8 @@ class BaseValidatorNeuron(BaseNeuron):
         self.should_exit: bool = False
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
-        self.lock = asyncio.Lock()
 
-        self.loop = asyncio.get_event_loop()
         if self.config.debug:
-            self.loop.set_debug(True)
             bt.logging.set_debug()
             bt.logging.set_trace()
             bt.logging.register_primary_logger("asyncio")
@@ -307,7 +304,7 @@ class BaseValidatorNeuron(BaseNeuron):
         )
         self.api_server = uvicorn.Server(config)
 
-        self.loop.create_task(self.api_server.serve())
+        asyncio.create_task(self.api_server.serve())
 
     async def concurrent_forward(self):
         """
@@ -318,7 +315,7 @@ class BaseValidatorNeuron(BaseNeuron):
         ]
         await asyncio.gather(*coroutines)
 
-    def run(self):
+    async def run(self):
         """
         Main loop for the validator.
 
@@ -335,6 +332,10 @@ class BaseValidatorNeuron(BaseNeuron):
             2.4 Sleep for a specified interval, repeat.
         """
 
+        if self.config.enable_task_api:
+            bt.logging.info("Starting integrated task API")
+            self.start_api()
+
         # Check that validator is registered on the network.
         # self.sync()
         # self.sync_articles()
@@ -348,21 +349,21 @@ class BaseValidatorNeuron(BaseNeuron):
                 # TODO: consider using to_thread()
 
                 # Sync metagraph and potentially set weights.
-                self.loop.run_until_complete(self.sync_articles())
+                await self.sync_articles()
                 self.sync()
 
                 # Run multiple forwards concurrently.
-                self.loop.run_until_complete(self.concurrent_forward())
+                await self.concurrent_forward()
 
                 # Process any queued score updates.
-                self.loop.run_until_complete(self.process_score_updates())
+                await self.process_score_updates()
 
                 # Check if we should exit.
                 if self.should_exit:
                     break
 
                 # Save the current tournament state to disk.
-                self.loop.run_until_complete(self.save_state())
+                await self.save_state()
 
                 interval_seconds = self.config.neuron.synthetic_query_interval_seconds
 
@@ -397,13 +398,14 @@ class BaseValidatorNeuron(BaseNeuron):
         if not self.is_running:
             bt.logging.info("Starting validator in background thread.")
             self.should_exit = False
-            self.thread = threading.Thread(target=self.run, daemon=True)
+            self.thread = threading.Thread(target=self.thread_run, daemon=True)
             self.thread.start()
-            if self.config.enable_task_api:
-                bt.logging.info("Starting integrated task API in background thread.")
-                self.start_api()
+
             self.is_running = True
             bt.logging.success("Started")
+
+    def thread_run(self):
+        asyncio.run(self.run(), debug=self.config.debug)
 
     def stop_run_thread(self):
         """
@@ -820,7 +822,8 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.debug(
             f"Async saving state to {self.config.neuron.full_path}/state.npz"
         )
-        await self.loop.run_in_executor(None, func)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, func)
 
         bt.logging.info(f"Saved validator state.")
         bt.logging.debug(
