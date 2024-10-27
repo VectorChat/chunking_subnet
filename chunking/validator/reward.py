@@ -26,6 +26,7 @@ from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 import numpy as np
+from aiomultiprocess import Pool
 
 from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
@@ -136,6 +137,9 @@ def check_document_words_in_chunks(
             len(document_words_str) < chunk_size
             and document_words_str not in combined_chunk_words
         ):
+            print(
+                f"Unable to find {document_words_str} in combined_chunk_words, k: {k}"
+            )
             return False
 
     return True
@@ -146,8 +150,8 @@ async def reward(
     chunk_size: int,
     chunk_qty: int,
     response: chunkSynapse,
-    client: AsyncOpenAI,
     num_embeddings: int,
+    client: AsyncOpenAI = AsyncOpenAI(),
     verbose: bool = False,
 ) -> Tuple[float, dict]:
     """
@@ -222,6 +226,12 @@ async def reward(
 
     start_time = time.time()
 
+    # check that every set of 3 adjacent words from the document appears in the chunks
+    if not check_document_words_in_chunks(document, chunks, chunk_size):
+        return _get_early_return_stuff(
+            f"Every set of 3 adjacent words from the document does not appear in the chunks"
+        )
+
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
@@ -246,12 +256,6 @@ async def reward(
 
         _verbose(
             f"Chunk {i} has {len(sentences)} sentences. Added {ceil(len(sentences) / 3)} test segments"
-        )
-
-    # check that every set of 3 adjacent words from the document appears in the chunks
-    if not check_document_words_in_chunks(document, chunks, chunk_size):
-        return _get_early_return_stuff(
-            f"Every set of 3 adjacent words from the document does not appear in the chunks"
         )
 
     end_time = time.time()
@@ -399,39 +403,56 @@ async def get_rewards(
 
     chunks_hash_to_info = {}
     hashes = []
-    for response in responses:
-        miner_hotkey = response.axon.hotkey or "not found"
-        print(f"handling response from {miner_hotkey[:10]}")
-        chunks_hash = get_chunks_hash(response.chunks) if response is not None else ""
-        if chunks_hash not in hashes and response is not None:
-            try:
-                print(
-                    f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
-                )
-                reward_value, extra_info = await reward(
-                    document,
-                    chunk_size,
-                    chunk_qty,
-                    response,
-                    client=client,
-                    num_embeddings=num_embeddings,
-                    verbose=verbose,
-                )
-            except Exception as e:
-                print(
-                    f"Error calculating reward for response {response.name}, axon {miner_hotkey[:10]}: {e}"
-                )
-                reward_value = 0
-                extra_info = {}
 
-            chunks_hash_to_info[chunks_hash] = {
-                "reward": reward_value,
-                "extra_info": extra_info,
-            }
-            print(
-                f"calculated reward for new chunks hash: {chunks_hash[:10]}..., reward: {reward_value}"
+    async with Pool() as pool:
+        for response in responses:
+            miner_hotkey = response.axon.hotkey or "not found"
+            print(f"handling response from {miner_hotkey[:10]}")
+            chunks_hash = (
+                get_chunks_hash(response.chunks) if response is not None else ""
             )
-        hashes.append(chunks_hash)
+            if chunks_hash not in hashes and response is not None:
+                try:
+                    print(
+                        f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
+                    )
+                    # reward_value, extra_info = await reward(
+                    #     document,
+                    #     chunk_size,
+                    #     chunk_qty,
+                    #     response,
+                    #     client=client,
+                    #     num_embeddings=num_embeddings,
+                    #     verbose=verbose,
+                    # )
+                    print("calling reward() via aiomultiprocess pool")
+                    reward_value, extra_info = await pool.apply(
+                        reward,
+                        kwds={
+                            "document": document,
+                            "chunk_size": chunk_size,
+                            "chunk_qty": chunk_qty,
+                            "response": response,
+                            "num_embeddings": num_embeddings,
+                            "verbose": verbose,
+                            # no client to avoid pickling
+                        },
+                    )
+                except Exception as e:
+                    print(
+                        f"Error calculating reward for response {response.name}, axon {miner_hotkey[:10]}: {e}"
+                    )
+                    reward_value = 0
+                    extra_info = {}
+
+                chunks_hash_to_info[chunks_hash] = {
+                    "reward": reward_value,
+                    "extra_info": extra_info,
+                }
+                print(
+                    f"calculated reward for new chunks hash: {chunks_hash[:10]}..., reward: {reward_value}"
+                )
+            hashes.append(chunks_hash)
 
     for i, response in enumerate(responses):
         chunks_hash = hashes[i]
@@ -445,11 +466,11 @@ async def get_rewards(
             rewards[i] = 0
             extra_infos.append({})
         print(
-            f"response {i}: {rewards[i]} - {miner_hotkey[:10]} - {chunks_hash[:10]}..."
+            f"response {i}: {rewards[i]} - {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'} - {chunks_hash[:10]}..."
         )
 
-    print(f"rewards is picklable: {dill.pickles(rewards)}")
-    print(f"extra_infos is picklable: {dill.pickles(extra_infos)}")
+    # print(f"rewards is picklable: {dill.pickles(rewards)}")
+    # print(f"extra_infos is picklable: {dill.pickles(extra_infos)}")
 
     return rewards, extra_infos
 
