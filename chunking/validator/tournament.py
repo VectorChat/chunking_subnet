@@ -1,11 +1,20 @@
 import asyncio
+import atexit
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import logging
+import multiprocessing
 import random
-from typing import Optional
+import sys
+import threading
 import traceback
 import bittensor as bt
 import numpy as np
 from random import choice
-from chunking.utils.tournament import make_wandb_data
+
+from openai import AsyncOpenAI
+from chunking.utils.log import PrefixStream
+from chunking.utils.tournament import make_wandb_data, pretty_print_rewards
 from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
 from chunking.validator.task_api import Task
 from chunking.validator.types import EndTournamentRoundInfo
@@ -174,7 +183,7 @@ async def query_miner_group(
         f"Querying miner group ({miner_group_index}): {miner_group_uids}, timeout: {input_synapse.timeout}"
     )
     axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]
-    bt.logging.debug(f"axons: {axons}")
+
     responses: list[chunkSynapse] = await self.query_axons(
         axons=axons,
         synapse=input_synapse,
@@ -241,6 +250,60 @@ async def query_miner_groups(
     )
 
 
+def cleanup_logging():
+    """Properly cleanup logging handlers"""
+    for handler in logging.getLogger().handlers[:]:
+        try:
+            handler.acquire()
+            handler.flush()
+            handler.close()
+        except (OSError, ValueError):
+            pass
+        finally:
+            handler.release()
+        logging.getLogger().removeHandler(handler)
+
+
+def run_get_rewards(*args, **kwargs):
+    prefix = "[GET_REWARDS] "
+    sys.stdout = PrefixStream(sys.stdout, prefix)
+    sys.stderr = PrefixStream(sys.stderr, prefix)
+
+    # Register cleanup handler
+    atexit.register(cleanup_logging)
+
+    # Configure process-specific logging
+    root_logger = logging.getLogger()
+    root_logger.handlers = []
+
+    # Create a simple stream handler instead of QueueHandler
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    root_logger.addHandler(handler)
+
+    # Disable bittensor logging
+    bt.logging.handlers = []
+    bt.logging.disabled = True
+
+    client = AsyncOpenAI()
+
+    try:
+        result = asyncio.run(get_rewards(*args, **kwargs, client=client))
+
+        # Explicitly flush and cleanup
+        sys.stdout.flush()
+        sys.stderr.flush()
+        cleanup_logging()
+
+        return result
+    except Exception as e:
+        print(f"Error in get_rewards: {e}")
+        raise
+    finally:
+        # Ensure cleanup happens even on error
+        cleanup_logging()
+
+
 async def score_miner_group_responses(
     self,
     task: Task,
@@ -252,15 +315,38 @@ async def score_miner_group_responses(
 ) -> EndTournamentRoundInfo | None:
     try:
         input_synapse = task.synapse
-        rewards, extra_infos = get_rewards(
-            self,
-            document=input_synapse.document,
-            chunk_size=input_synapse.chunk_size,
-            chunk_qty=input_synapse.chunk_qty,
-            responses=responses,
-        )
 
-        bt.logging.debug(f"Rewards: {rewards}")
+        # rewards, extra_infos = await get_rewards(
+        #     self,
+        #     document=input_synapse.document,
+        #     chunk_size=input_synapse.chunk_size,
+        #     chunk_qty=input_synapse.chunk_qty,
+        #     responses=responses,
+        # )
+
+        ctx = multiprocessing.get_context("fork")
+        with ProcessPoolExecutor(
+            mp_context=ctx, max_workers=1, initializer=None
+        ) as executor:
+            func = partial(
+                run_get_rewards,
+                document=input_synapse.document,
+                chunk_size=input_synapse.chunk_size,
+                chunk_qty=input_synapse.chunk_qty,
+                responses=responses,
+                num_embeddings=self.num_embeddings,
+                verbose=self.config.debug,
+            )
+            (rewards, extra_infos) = await self.loop.run_in_executor(executor, func)
+            # print(
+            #     f"got rewards in thread name: {threading.current_thread().name}, rewards: {rewards}"
+            # )
+            # await asyncio.sleep(0)
+
+        print(
+            f"Rewards for {task.task_type} tournament round, Doc length: {len(input_synapse.document)}, Group index:"
+        )
+        pretty_print_rewards(miner_group_uids, rewards, extra_infos)
 
         ranked_responses = rank_responses(rewards)
 

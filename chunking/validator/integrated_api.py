@@ -1,3 +1,4 @@
+import time
 from typing import List, Optional
 from fastapi import Body, HTTPException
 from pydantic import BaseModel, Field
@@ -63,7 +64,13 @@ def setup_routes(self):
     @self.app.post("/chunk")
     async def chunk(request: ChunkRequest) -> ChunkResponse:
         try:
-            return await chunk_handler(self, request)
+            start_time = time.time()
+            result = await chunk_handler(self, request)
+            end_time = time.time()
+            bt.logging.debug(
+                f"Serviced request in {end_time - start_time} seconds for doc of length {len(request.document)}"
+            )
+            return result
         except Exception as e:
             bt.logging.error(f"Error in chunking: {e}")
             traceback.print_exc()

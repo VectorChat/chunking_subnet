@@ -17,6 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from functools import partial
+import logging
 import os
 import copy
 from fastapi import FastAPI, HTTPException
@@ -111,6 +112,13 @@ class BaseValidatorNeuron(BaseNeuron):
         self.lock = asyncio.Lock()
 
         self.loop = asyncio.get_event_loop()
+        if self.config.debug:
+            self.loop.set_debug(True)
+            bt.logging.set_debug()
+            bt.logging.set_trace()
+            bt.logging.register_primary_logger("asyncio")
+            # logging.getLogger("asyncio").setLevel(logging.DEBUG)
+            bt.logging.info("Debug mode enabled")
 
     def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
         """
@@ -565,7 +573,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions."
             )
 
-        bt.logging.debug(f"self.scores = {self.scores}")
+        # bt.logging.debug(f"self.scores = {self.scores}")
 
         if len(self.scores) != len(self.rankings):
             bt.logging.warning(
@@ -575,8 +583,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
         raw_weights = self._get_raw_weights(self.scores, self.rankings)
 
-        bt.logging.debug("raw_weights", raw_weights)
-        bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
+        # bt.logging.debug("raw_weights", raw_weights)
+        # bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
         # Process the raw weights to final_weights via subtensor limitations.
         (
             processed_weight_uids,
@@ -589,8 +597,8 @@ class BaseValidatorNeuron(BaseNeuron):
             metagraph=self.metagraph,
             skip_exclude=True,
         )
-        bt.logging.debug("processed_weights", processed_weights)
-        bt.logging.debug("processed_weight_uids", processed_weight_uids)
+        # bt.logging.debug("processed_weights", processed_weights)
+        # bt.logging.debug("processed_weight_uids", processed_weight_uids)
 
         # Convert to uint16 weights and uids.
         (
@@ -739,7 +747,7 @@ class BaseValidatorNeuron(BaseNeuron):
             adjusted_alpha = rank_value_to_adjusted_alpha[rank]
 
             bt.logging.debug(
-                f"uid: {uid}, rank: {rank}, adjusted_alpha: {adjusted_alpha}"
+                f"uid: {uid}, rank value: {rank}, adjusted_alpha: {adjusted_alpha}"
             )
             score_str = f"score: {self.scores[uid]} -> "
 
@@ -760,7 +768,15 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
 
+        old_rankings = copy.deepcopy(self.rankings)
+
         self.rankings = np.argsort(self.scores)
+
+        # print old/new rankings
+        for uid in uids_array:
+            bt.logging.debug(
+                f"uid: {uid}. Rank: {old_rankings.tolist().index(uid)} -> {self.rankings.tolist().index(uid)}"
+            )
 
         # log scores and rankings and other data to wandb for synthetic queries
         if do_wandb_log:
@@ -833,16 +849,9 @@ class BaseValidatorNeuron(BaseNeuron):
     async def query_axons(
         self, axons: list[bt.axon], synapse: bt.Synapse, timeout: float
     ):
-        loop = self.loop
-        func = partial(
-            self.dendrite.query,
-            axons=axons,
-            timeout=timeout,
-            synapse=synapse,
-            deserialize=False,
+        return await self.dendrite.forward(
+            axons=axons, synapse=synapse, timeout=timeout, deserialize=False
         )
-        responses: list[bt.Synapse] = await loop.run_in_executor(None, func)
-        return responses
 
     async def sync_articles(self):
         try:

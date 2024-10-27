@@ -222,6 +222,13 @@ def add_args(cls, parser):
             default=8080,
         )
 
+        parser.add_argument(
+            "--debug",
+            action="store_true",
+            help="If set, runs the validator in debug mode.",
+            default=False,
+        )
+
     # Miner
     else:
         parser.add_argument(

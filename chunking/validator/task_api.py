@@ -308,7 +308,7 @@ async def generate_doc_with_llm(
     source_articles = []
     article_names = []
     for page in pages:
-        contents, name = await get_wiki_content_for_page(page)
+        contents, name = await get_wiki_content_for_page(int(page))
         source_articles.append(contents)
         article_names.append(name)
 
