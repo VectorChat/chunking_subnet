@@ -4,7 +4,7 @@ from fastapi import Body, HTTPException
 from pydantic import BaseModel, Field
 import bittensor as bt
 import traceback
-from chunking.utils.integrated_api.chunk import (
+from chunking.utils.integrated_api.chunk.chunk import (
     ChunkRequest,
     ChunkResponse,
     chunk_handler,

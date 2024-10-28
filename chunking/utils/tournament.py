@@ -1,4 +1,3 @@
-from asyncio import Task
 from tabulate import tabulate
 import bittensor as bt
 from chunking.protocol import chunkSynapse
@@ -6,6 +5,10 @@ import numpy as np
 import json
 import gzip
 import base64
+
+from chunking.utils.integrated_api.chunk.types import ChunkRequestType
+from chunking.utils.log import debug_log_dict
+from chunking.validator.task_api import Task
 
 
 def pretty_print_rewards(
@@ -77,6 +80,12 @@ def print_responses(responses: list[chunkSynapse]):
         print_response(response)
 
 
+def compress_and_encode_string(string: str) -> str:
+    compressed = gzip.compress(string.encode())
+    encoded = base64.b64encode(compressed).decode()
+    return encoded
+
+
 def make_wandb_data(
     block_number: int,
     miner_group_uids: list[int],
@@ -88,12 +97,25 @@ def make_wandb_data(
     ranked_responses: list[int],
     ranked_responses_global: list[float],
     alpha: float,
+    request_type: ChunkRequestType,
+    cur_scores: list[float],
+    cur_rankings: list[int],
+    is_debug: bool = False,
 ) -> dict:
     # initial structure for wandb logging
     wandb_data = {
         "modality": "text",
         "sync_block": block_number,
         "task_type": task.task_type,
+        "type": request_type.value,
+        "params": {
+            "chunk_size": task.synapse.chunk_size,
+            "chunk_qty": task.synapse.chunk_qty,
+            "timeout": task.synapse.timeout,
+            "time_soft_max": task.synapse.time_soft_max,
+            "CID": task.synapse.CID,
+            "document": compress_and_encode_string(task.synapse.document),
+        },
         "all": {
             "scores": {},
             "rankings": {},
@@ -112,6 +134,16 @@ def make_wandb_data(
         },
         "page_id": task.page_id or -1,
     }
+
+    # if benchmark, socres/rankings will not be added in update_scores func so add cur rankings/scores manualy
+    if request_type == ChunkRequestType.benchmark:
+        for uid in range(len(cur_scores)):
+            wandb_data["all"]["scores"][str(uid)] = cur_scores[uid]
+
+        for rank_i in range(len(cur_rankings)):
+            uid = cur_rankings[rank_i]
+            wandb_data["all"]["rankings"][str(uid)] = rank_i
+
 
     # log the uids that are part of the miner group that is queried
     wandb_data["group"]["uids"] = miner_group_uids
@@ -137,10 +169,9 @@ def make_wandb_data(
 
         # compress and encode the chunks for wandb logging
         json_str = json.dumps(response.chunks)
-        compressed = gzip.compress(json_str.encode())
-        encoded = base64.b64encode(compressed).decode()
+        encoded_chunks = compress_and_encode_string(json_str)
 
-        wandb_data["group"]["chunks"][str(uid)] = encoded
+        wandb_data["group"]["chunks"][str(uid)] = encoded_chunks
 
     # list of hotkeys from the responses
     hotkeys = [response.axon.hotkey for response in responses]
@@ -148,10 +179,17 @@ def make_wandb_data(
     # log the hotkeys from the responses for wandb logging
     wandb_data["group"]["hotkeys"] = hotkeys
 
+    miner_group_cur_scores = [cur_scores[uid] for uid in miner_group_uids]
+
     for i in range(len(miner_group_uids)):
         uid = str(miner_group_uids[i])
         wandb_data["group"]["rewards"][uid] = rewards[i]
         wandb_data["group"]["local_rankings"][uid] = ranked_responses[i]
         wandb_data["group"]["global_rankings"][uid] = ranked_responses_global[i]
+        wandb_data["group"]["scores"][uid] = miner_group_cur_scores[i]
+
+    if is_debug:
+        bt.logging.debug("WANDB DATA:")
+        debug_log_dict(wandb_data, truncate=100, indent=2)
 
     return wandb_data

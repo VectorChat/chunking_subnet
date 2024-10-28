@@ -786,16 +786,14 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # log scores and rankings and other data to wandb for synthetic queries
         if do_wandb_log:
-            for uid in uids_array:
-                # wandb_data["all_rankings"][str(uid)] = list(self.rankings).index(uid)
-                wandb_data["group"]["scores"][str(uid)] = self.scores[uid]
-
             for uid in range(len(self.scores)):
                 wandb_data["all"]["scores"][str(uid)] = self.scores[uid]
+            bt.logging.debug("added final scores for all to wandb log")
 
             for rank in range(len(self.rankings)):
                 uid = self.rankings[rank]
                 wandb_data["all"]["rankings"][str(uid)] = rank
+            bt.logging.debug("adding final global rankings for all to wandb log")
 
             bt.logging.debug(
                 f"Logging wandb data for {end_tournament_round_info.task_type} tournament round with uids {uids_array}"

@@ -13,6 +13,7 @@ import numpy as np
 from random import choice
 
 from openai import AsyncOpenAI
+from chunking.utils.integrated_api.chunk.types import ChunkRequestType
 from chunking.utils.log import PrefixStream
 from chunking.utils.tournament import make_wandb_data, pretty_print_rewards
 from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
@@ -328,6 +329,7 @@ async def score_miner_group_responses(
     group_rank_values: np.ndarray[np.float64 | None],
     miner_group_index: int | None,
     do_wandb_log: bool,
+    request_type: ChunkRequestType,
 ) -> EndTournamentRoundInfo | None:
     try:
         input_synapse = task.synapse
@@ -394,6 +396,9 @@ async def score_miner_group_responses(
         else:
             alpha = get_alpha(self, len(miner_group_uids), miner_group_index)
 
+        scores: np.ndarray[np.float64] = self.scores
+        rankings: np.ndarray[np.int32] = self.rankings
+
         wandb_data = make_wandb_data(
             block_number=self.block,
             miner_group_uids=miner_group_uids.astype(int).tolist(),
@@ -405,6 +410,10 @@ async def score_miner_group_responses(
             ranked_responses=ranked_responses.astype(int).tolist(),
             ranked_responses_global=ranked_responses_global.astype(float).tolist(),
             alpha=alpha,
+            request_type=request_type,
+            is_debug=self.is_debug,
+            cur_scores=scores.tolist(),
+            cur_rankings=rankings.tolist(),
         )
 
         end_tournament_round_info = EndTournamentRoundInfo(
@@ -436,6 +445,7 @@ async def run_tournament_round(
     custom_miner_uids: (
         list[int] | None
     ) = None,  # takes precedence over `choose_miner_group_index`
+    request_type: ChunkRequestType = ChunkRequestType.normal,
     # TODO: do not score responses if the task is not do_scoring
 ) -> list[EndTournamentRoundInfo | None]:
     """
@@ -478,6 +488,7 @@ async def run_tournament_round(
                 group_rank_values=rank_values,
                 miner_group_index=miner_group_index,
                 do_wandb_log=do_wandb_log,
+                request_type=request_type,
             )
         )
 
