@@ -184,6 +184,13 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
+            "--neuron.synthetic_query_interval_seconds",
+            type=int,
+            help="The interval between synthetic queries in seconds.",
+            default=0,
+        )
+
+        parser.add_argument(
             "--wandb.wandb_off",
             action="store_true",
             help="Turn off wandb logging.",
@@ -213,6 +220,27 @@ def add_args(cls, parser):
             type=int,
             help="The port for the task API.",
             default=8080,
+        )
+
+        parser.add_argument(
+            "--debug.on",
+            action="store_true",
+            help="If set, runs the validator in debug mode.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--debug.all_log_handlers",
+            action="store_true",
+            help="If in debug mode, allows all log handlers to be registered.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--process.context_type",
+            type=str,
+            help="The type of context to use for the process.",
+            default="fork",
         )
 
     # Miner

@@ -1,7 +1,6 @@
 import logging
 import numpy as np
 import bittensor as bt
-from chunking.validator.forward import  get_miner_groups
 from chunking.validator.tournament import create_groups
 from tests.utils.misc import compare_lists
 

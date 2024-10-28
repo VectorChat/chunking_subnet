@@ -5,9 +5,8 @@ import bittensor as bt
 U32_MAX = 4294967295
 U16_MAX = 65535
 
-def normalize_max_weight(
-    x: np.ndarray, limit: float = 0.1
-) -> np.ndarray:
+
+def normalize_max_weight(x: np.ndarray, limit: float = 0.1) -> np.ndarray:
     r"""Normalizes the numpy array x so that sum(x) = 1 and the max value is not greater than the limit.
     Args:
         x (:obj:`np.ndarray`):
@@ -124,10 +123,14 @@ def process_weights_for_netuid(
 
     # Get latest metagraph from chain if metagraph is None.
     if metagraph == None:
+        bt.logging.debug("metagraph is None, getting from chain")
         metagraph = subtensor.metagraph(netuid)
 
     # Cast weights to floats.
     if not isinstance(weights, np.ndarray) or weights.dtype != np.float32:
+        bt.logging.debug(
+            f"weights is not a numpy array or is not float32, casting. received type {type(weights)}"
+        )
         weights = weights.astype(np.float32)
 
     # Network configuration parameters from an subtensor.
@@ -158,9 +161,7 @@ def process_weights_for_netuid(
         )  # creating minimum even non-zero weights
         weights[non_zero_weight_idx] += non_zero_weights
         bt.logging.debug("final_weights", weights)
-        normalized_weights = normalize_max_weight(
-            x=weights, limit=max_weight_limit
-        )
+        normalized_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
         return np.arange(len(normalized_weights)), normalized_weights
 
     bt.logging.debug("non_zero_weights", non_zero_weights)
@@ -169,7 +170,7 @@ def process_weights_for_netuid(
     if not skip_exclude:
         max_exclude = max(0, len(non_zero_weights) - min_allowed_weights) / len(
             non_zero_weights
-        )                
+        )
         lowest_quantile = np.quantile(non_zero_weights, exclude_quantile)
         bt.logging.debug("max_exclude", max_exclude)
         bt.logging.debug("exclude_quantile", exclude_quantile)
@@ -184,7 +185,7 @@ def process_weights_for_netuid(
         non_zero_weight_uids = uids
         non_zero_weights = weights
         bt.logging.debug("Skipping exclude step.")
-    
+
     # Normalize weights and return.
     normalized_weights = normalize_max_weight(
         x=non_zero_weights, limit=max_weight_limit

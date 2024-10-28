@@ -15,7 +15,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import asyncio
 import copy
+from functools import partial
+import traceback
 from packaging import version as packaging_version
 
 import bittensor as bt
@@ -94,13 +97,13 @@ class BaseNeuron(ABC):
         # Set the last sync block to 1 to ensure the metagraph is synced on initialization.
         self.last_sync_block = 1
 
-        # Setup bittensor objects for interacting with subtensor 
+        # Setup bittensor objects for interacting with subtensor
         bt.logging.info("Setting up bittensor objects.")
 
         # The wallet holds the cryptographic key pairs for the miner.
         self.wallet = bt.wallet(config=self.config)
-        
-        # class that helps with connecting to subtensor chain, handles calling extrinsics, querying state, etc.    
+
+        # class that helps with connecting to subtensor chain, handles calling extrinsics, querying state, etc.
         self.subtensor = bt.subtensor(config=self.config)
 
         # class that helps with getting structured information from the subtensor chain
@@ -130,8 +133,9 @@ class BaseNeuron(ABC):
         """
         Wrapper for synchronizing the state of the network for the given miner or validator.
         """
-        # Ensure miner or validator hotkey is still registered on the network.
         self.check_registered()
+        bt.logging.success("still registered")
+
         if self.should_sync_metagraph():
             self.resync_metagraph()
 
@@ -139,16 +143,19 @@ class BaseNeuron(ABC):
             self.set_weights()
 
     def check_registered(self):
-        # --- Check for registration.
-        if not self.subtensor.is_hotkey_registered(
+        is_registered = self.subtensor.is_hotkey_registered(
             netuid=self.config.netuid,
             hotkey_ss58=self.wallet.hotkey.ss58_address,
-        ):
+        )
+        if not is_registered:
             bt.logging.error(
                 f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}."
                 f" Please register the hotkey using `btcli subnets register` before trying again"
             )
             exit()
+        bt.logging.debug(
+            f"Wallet: {self.wallet} is registered on netuid {self.config.netuid}."
+        )
 
     def resync_metagraph(self) -> bool:
         """

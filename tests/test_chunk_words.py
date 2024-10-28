@@ -3,7 +3,7 @@ import logging
 from math import ceil
 import time
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
 from chunking.validator.reward import (
     check_chunk_words_in_document,
@@ -92,7 +92,7 @@ async def run_test():
 
     assert first_n < sample_size
 
-    client = OpenAI()
+    client = AsyncOpenAI()
 
     NUM_EMBEDDINGS = 2000
 
@@ -136,8 +136,14 @@ async def run_test():
         logger.info("rewarding chunks")
         start_time = time.time()
 
-        reward_value, _ = reward(
-            None, document, chunk_size, chunk_qty, synapse, client, NUM_EMBEDDINGS, True
+        reward_value, _ = await reward(
+            document=document,
+            chunk_size=chunk_size,
+            chunk_qty=chunk_qty,
+            response=synapse,
+            num_embeddings=NUM_EMBEDDINGS,
+            client=client,
+            verbose=True,
         )
 
         end_time = time.time()

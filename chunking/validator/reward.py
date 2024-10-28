@@ -18,17 +18,20 @@
 
 import hashlib
 from math import ceil, e
+import time
 from typing import List, Tuple
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 import numpy as np
+from aiomultiprocess import Pool
 
 from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
 import regex as re
+import dill
 
 
 PUNCTUATION_REGEX = r'([.,!?"\'])'
@@ -37,37 +40,15 @@ PUNCTUATION_REGEX = r'([.,!?"\'])'
 def custom_word_tokenize(text: str) -> List[str]:
     initial_words = wordpunct_tokenize(text)
 
-    final_words = []
-
-    for word in initial_words:
-        final_word = ""
-        for char in word:
-            if re.match(PUNCTUATION_REGEX, char):
-                final_word += " " + char + " "
-            else:
-                final_word += char
-
-        # remove extra spaces
-        final_word = re.sub(r"\s+", " ", final_word).strip()
-
-        final_words.append(final_word)
-
-    return final_words
-
-
-def get_words_string(words: List[str]) -> str:
-    words_string = " "
-    for word in words:
-        words_string += " " + word
+    words_str = " ".join(initial_words)
 
     # add spaces around punctuation
-    punctuation_regex = r'([.,!?"\'])'
-    words_string = re.sub(punctuation_regex, r" \1 ", words_string)
+    words_str = re.sub(PUNCTUATION_REGEX, r" \1 ", words_str)
 
     # remove extra spaces
-    words_string = re.sub(r"\s+", " ", words_string).strip()
+    words_str = re.sub(r"\s+", " ", words_str).strip()
 
-    return words_string
+    return words_str.split()
 
 
 def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = False):
@@ -75,20 +56,23 @@ def check_chunk_words_in_document(chunk: str, document: str, verbose: bool = Fal
         if verbose:
             print(msg)
 
+    start_time = time.time()
     chunk_words = custom_word_tokenize(chunk)
+
     document_words = custom_word_tokenize(document)
 
-    _verbose(f"created {len(chunk_words)} chunk words")
-    _verbose(f"created {len(document_words)} document words")
-
-    chunk_words_str = get_words_string(chunk_words)
-    document_words_str = get_words_string(document_words)
+    chunk_words_str = " ".join(chunk_words).strip()
+    document_words_str = " ".join(document_words).strip()
 
     if chunk_words_str in document_words_str:
-        _verbose("chunk words in document words")
+        _verbose(
+            f"Time to check chunk words in document words: {time.time() - start_time} seconds"
+        )
         return True
     else:
-        _verbose("chunk words not in document words")
+        _verbose(
+            f"Time to check chunk words not in document words: {time.time() - start_time} seconds"
+        )
 
         if verbose:
             closest_match_index = 0
@@ -141,9 +125,11 @@ def check_document_words_in_chunks(
     document: str, chunks: List[str], chunk_size: int, k=3
 ):
     document_words = custom_word_tokenize(document)
-    combined_chunk_words = " "
+    combined_chunk_words = ""
     for chunk in chunks:
         combined_chunk_words += " " + " ".join(custom_word_tokenize(chunk))
+
+    combined_chunk_words = combined_chunk_words.strip()
 
     for i in range(0, len(document_words), k):
         document_words_str = " ".join(document_words[i : i + k])
@@ -151,19 +137,21 @@ def check_document_words_in_chunks(
             len(document_words_str) < chunk_size
             and document_words_str not in combined_chunk_words
         ):
+            print(
+                f"Unable to find {document_words_str} in combined_chunk_words, k: {k}"
+            )
             return False
 
     return True
 
 
-def reward(
-    self,
+async def reward(
     document: str,
     chunk_size: int,
     chunk_qty: int,
     response: chunkSynapse,
-    override_client: OpenAI | None = None,
-    override_num_embeddings: int | None = None,
+    num_embeddings: int,
+    client: AsyncOpenAI = AsyncOpenAI(),
     verbose: bool = False,
 ) -> Tuple[float, dict]:
     """
@@ -193,18 +181,13 @@ def reward(
     - chunk_size (int): The soft max size of a chunk in characters before penalties are applied.
     - chunk_qty (int): The soft max number of chunks before penalties are applied.
     - response (chunkSynapse): The synapse received from the miner.
-    - override_client (OpenAI | None): An optional OpenAI client to use for embedding (useful for testing when a validator instance is not available)
-    - override_num_embeddings (int | None): An optional number of embeddings to use for evaluation (useful for testing when a validator instance is not available)
+    - client (AsyncOpenAI | None): An optional OpenAI client to use for embedding (useful for testing when a validator instance is not available)
+    - num_embeddings (int | None): An optional number of embeddings to use for evaluation (useful for testing when a validator instance is not available)
     - verbose (bool): Whether to print verbose output.
 
     Returns:
     - Tuple[float, dict]: A tuple containing the reward and extra info (penalties, timing, etc.) for wandb logging.
     """
-
-    if not self and not override_client and not override_num_embeddings:
-        raise Exception(
-            "Either self or override_client and override_num_embeddings must be provided"
-        )
 
     # helper function to print verbose output
     def _verbose(msg: str):
@@ -241,10 +224,18 @@ def reward(
             f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}"
         )
 
+    start_time = time.time()
+
+    # check that every set of 3 adjacent words from the document appears in the chunks
+    if not check_document_words_in_chunks(document, chunks, chunk_size):
+        return _get_early_return_stuff(
+            f"Every set of 3 adjacent words from the document does not appear in the chunks"
+        )
+
     for i in range(len(chunks)):
 
         # check that every word in chunk exists and is in the same order as the source document
-        if not check_chunk_words_in_document(chunks[i], document):
+        if not check_chunk_words_in_document(chunks[i], document, verbose):
             return _get_early_return_stuff(
                 f"Chunk {i} does not contain all words from the document"
             )
@@ -267,18 +258,11 @@ def reward(
             f"Chunk {i} has {len(sentences)} sentences. Added {ceil(len(sentences) / 3)} test segments"
         )
 
-    # check that every set of 3 adjacent words from the document appears in the chunks
-    if not check_document_words_in_chunks(document, chunks, chunk_size):
-        return _get_early_return_stuff(
-            f"Every set of 3 adjacent words from the document does not appear in the chunks"
-        )
+    end_time = time.time()
+    print(f"Time to run checks: {end_time - start_time} seconds")
 
     _verbose(
         f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
-    )
-
-    num_embeddings = (
-        override_num_embeddings if override_num_embeddings else self.num_embeddings
     )
 
     testChunks: list[smallChunk]
@@ -291,25 +275,29 @@ def reward(
 
     _verbose(f"Using {len(testChunks)} test segments for evaluation")
 
-    client = override_client if override_client else self.client
-
     # all text to be embedded
     all_text = " ".join([testChunk.text for testChunk in testChunks])
 
     # calculate the number of tokens in the text (for logging/accounting purposes)
     num_tokens = num_tokens_from_string(all_text, "gpt-4o-mini")
 
-    bt.logging.info(f"Using {num_tokens} tokens for test embeddings")
+    print(f"Using {num_tokens} tokens for test embeddings")
+    start_time = time.time()
 
     # calculate rewards using embeddings of test chunks
-    embeddings = client.embeddings.create(
+    res = await client.embeddings.create(
         input=[testChunk.text for testChunk in testChunks],
         model="text-embedding-ada-002",
-    ).data
-    embeddings = [item.embedding for item in embeddings]
+    )
+    data = res.data
+    embeddings = [item.embedding for item in data]
+
+    end_time = time.time()
+    print(f"Time to get embeddings: {end_time - start_time} seconds")
+
+    start_time = time.time()
 
     # calculate intrachunk and interchunk similarities
-    _verbose(f"Calculated embeddings for {len(embeddings)} test segments")
     for i in range(len(testChunks) - 1):
         j = i + 1
         while j < len(testChunks):
@@ -327,6 +315,9 @@ def reward(
     reward = (
         np.mean(intrachunk_similarities) if len(intrachunk_similarities) > 0 else 0
     ) - (np.mean(interchunk_similarities) if len(interchunk_similarities) > 0 else 0)
+
+    end_time = time.time()
+    print(f"Time to calculate embedding reward: {end_time - start_time} seconds")
 
     _verbose(f"Embedding reward: {reward}")
     _verbose(f"Size penalty: {size_penalty}")
@@ -384,14 +375,14 @@ def get_chunks_hash(chunks: List[str] | None) -> str:
     return final_hash
 
 
-def get_rewards(
-    self,
+async def get_rewards(
     document: str,
     chunk_size: int,
     chunk_qty: int,
     responses: List[chunkSynapse],
-    override_client: OpenAI | None = None,
-    override_num_embeddings: int | None = None,
+    client: AsyncOpenAI,
+    num_embeddings: int,
+    verbose: bool = False,
 ) -> Tuple[np.ndarray, List[dict]]:
     """
     Get the rewards for the given query and responses, returning the rewards and extra info (penalties, timing, etc.) for each response.
@@ -412,31 +403,56 @@ def get_rewards(
 
     chunks_hash_to_info = {}
     hashes = []
-    for response in responses:
-        chunks_hash = get_chunks_hash(response.chunks) if response is not None else ""
-        if chunks_hash not in hashes and response is not None:
-            try:
-                reward_value, extra_info = reward(
-                    self,
-                    document,
-                    chunk_size,
-                    chunk_qty,
-                    response,
-                    override_client=override_client,
-                    override_num_embeddings=override_num_embeddings,
-                )
-            except Exception as e:
-                bt.logging.error(
-                    f"Error calculating reward for response {response.name}, axon {response.axon.hotkey[:10]}: {e}"
-                )
-                reward_value = 0
-                extra_info = {}
 
-            chunks_hash_to_info[chunks_hash] = {
-                "reward": reward_value,
-                "extra_info": extra_info,
-            }
-        hashes.append(chunks_hash)
+    async with Pool() as pool:
+        for response in responses:
+            miner_hotkey = response.axon.hotkey or "not found"
+            print(f"handling response from {miner_hotkey[:10]}")
+            chunks_hash = (
+                get_chunks_hash(response.chunks) if response is not None else ""
+            )
+            if chunks_hash not in hashes and response is not None:
+                try:
+                    print(
+                        f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
+                    )
+                    # reward_value, extra_info = await reward(
+                    #     document,
+                    #     chunk_size,
+                    #     chunk_qty,
+                    #     response,
+                    #     client=client,
+                    #     num_embeddings=num_embeddings,
+                    #     verbose=verbose,
+                    # )
+                    print("calling reward() via aiomultiprocess pool")
+                    reward_value, extra_info = await pool.apply(
+                        reward,
+                        kwds={
+                            "document": document,
+                            "chunk_size": chunk_size,
+                            "chunk_qty": chunk_qty,
+                            "response": response,
+                            "num_embeddings": num_embeddings,
+                            "verbose": verbose,
+                            # no client to avoid pickling
+                        },
+                    )
+                except Exception as e:
+                    print(
+                        f"Error calculating reward for response {response.name}, axon {miner_hotkey[:10]}: {e}"
+                    )
+                    reward_value = 0
+                    extra_info = {}
+
+                chunks_hash_to_info[chunks_hash] = {
+                    "reward": reward_value,
+                    "extra_info": extra_info,
+                }
+                print(
+                    f"calculated reward for new chunks hash: {chunks_hash[:10]}..., reward: {reward_value}"
+                )
+            hashes.append(chunks_hash)
 
     for i, response in enumerate(responses):
         chunks_hash = hashes[i]
@@ -449,6 +465,12 @@ def get_rewards(
         else:
             rewards[i] = 0
             extra_infos.append({})
+        print(
+            f"response {i}: {rewards[i]} - {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'} - {chunks_hash[:10]}..."
+        )
+
+    # print(f"rewards is picklable: {dill.pickles(rewards)}")
+    # print(f"extra_infos is picklable: {dill.pickles(extra_infos)}")
 
     return rewards, extra_infos
 
@@ -495,7 +517,7 @@ def rank_responses_global(
     ranked_responses: np.ndarray[int],
     miner_group_uids: np.ndarray[int],
     override_scores: np.ndarray[float] | None = None,
-) -> np.ndarray[int]:
+) -> np.ndarray[np.float64]:
     # inf means the response should not be ranked
     ranked_responses_global = np.full_like(ranked_responses, np.inf)
 
@@ -512,6 +534,8 @@ def rank_responses_global(
         elif not np.isinf(scores[miner_group_uids[i]]):
             # give response worst rank in the group
             ranked_responses_global[i] = group_rank_values[-1]
+
+    ranked_responses_global = ranked_responses_global.astype(np.float64)
 
     return ranked_responses_global
 
