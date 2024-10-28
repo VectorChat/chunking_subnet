@@ -1,11 +1,12 @@
 import asyncio
 from copy import deepcopy
+import logging
 from math import ceil
 import random
 from typing import List
 import numpy as np
 import bittensor as bt
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
@@ -13,6 +14,8 @@ from chunking.validator.reward import get_chunks_hash, get_rewards
 from chunking.validator.task_api import get_wiki_content_for_page
 from tests.utils.articles import get_articles
 from tests.utils.chunker import base_chunker
+
+logger = logging.getLogger(__name__)
 
 
 async def run_test():
@@ -46,6 +49,7 @@ async def run_test():
         return chunk_method()
 
     # all different
+    logger.info("testing all different chunkers")
 
     chunk_results = [run_chunk_method(i) for i in range(2)]
 
@@ -67,6 +71,8 @@ async def run_test():
 
     chunk_responses = get_chunk_responses(chunk_results)
 
+    logger.info("all chunks should be non-empty")
+
     assert all(
         chunk_response is not None
         and chunk_response.chunks is not None
@@ -74,22 +80,24 @@ async def run_test():
         for chunk_response in chunk_responses
     )
 
-    override_client = OpenAI()
+    override_client = AsyncOpenAI()
     override_num_embeddings = 50
 
-    rewards, extra_infos = get_rewards(
-        None,
-        test_doc,
-        chunk_size,
-        chunk_qty,
-        chunk_responses,
-        override_client,
-        override_num_embeddings,
+    rewards, extra_infos = await get_rewards(
+        document=test_doc,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        responses=chunk_responses,
+        client=override_client,
+        num_embeddings=override_num_embeddings,
+        verbose=True,
     )
 
     assert len(set(rewards.tolist())) == len(chunk_results)
 
     # two people tie
+
+    logger.info("testing two people tie")
 
     chunk_results = []
 
@@ -100,14 +108,14 @@ async def run_test():
 
     chunk_responses = get_chunk_responses(chunk_results)
 
-    rewards, extra_infos = get_rewards(
-        None,
-        test_doc,
-        chunk_size,
-        chunk_qty,
-        chunk_responses,
-        override_client,
-        override_num_embeddings,
+    rewards, extra_infos = await get_rewards(
+        document=test_doc,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        responses=chunk_responses,
+        client=override_client,
+        num_embeddings=override_num_embeddings,
+        verbose=True,
     )
 
     assert len(set(rewards.tolist())) == 3
@@ -118,6 +126,8 @@ async def run_test():
 
     # three people tie
 
+    logger.info("testing three people tie")
+
     chunk_results = []
 
     chunk_results.append(run_chunk_method(0))
@@ -127,14 +137,14 @@ async def run_test():
 
     chunk_responses = get_chunk_responses(chunk_results)
 
-    rewards, extra_infos = get_rewards(
-        None,
-        test_doc,
-        chunk_size,
-        chunk_qty,
-        chunk_responses,
-        override_client,
-        override_num_embeddings,
+    rewards, extra_infos = await get_rewards(
+        document=test_doc,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        responses=chunk_responses,
+        client=override_client,
+        num_embeddings=override_num_embeddings,
+        verbose=True,
     )
 
     assert len(set(rewards.tolist())) == 3
@@ -145,6 +155,8 @@ async def run_test():
 
     # 2 sep groups tie
 
+    logger.info("testing two separate groups tie")
+
     chunk_results = []
 
     chunk_results.append(run_chunk_method(0))
@@ -156,14 +168,14 @@ async def run_test():
 
     chunk_responses = get_chunk_responses(chunk_results)
 
-    rewards, extra_infos = get_rewards(
-        None,
-        test_doc,
-        chunk_size,
-        chunk_qty,
-        chunk_responses,
-        override_client,
-        override_num_embeddings,
+    rewards, extra_infos = await get_rewards(
+        document=test_doc,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        responses=chunk_responses,
+        client=override_client,
+        num_embeddings=override_num_embeddings,
+        verbose=True,
     )
 
     assert len(set(rewards.tolist())) == 4
