@@ -72,16 +72,19 @@ bash run-validator.sh [...]
 
 ## Configuration
 
-| Argument                              | Description                                                                                               |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `--neuron.timeout`                    | Timeout for calling miners in synthetic tournament rounds                                                 |
-| `--neuron.num_concurrent_forwards`    | Number of concurrent forwards/synthetic tournament rounds at a time                                       |
-| `--wandb.project_name`                | Name of the wandb project to log to (only needs to be changed if on testnet or logging to custom project) |
-| `--neuron.disable_set_weights`        | Disable the set weights mechanism                                                                         |
-| `--neuron.axon_off`                   | Set this flag to not attempt to serve an Axon                                                             |
-| `--num_embeddings`                    | Number of embeddings to generate and compare when rewarding miners in tournament rounds                   |
-| `--neuron.skip_set_weights_extrinsic` | Skip the set_weights extrinsic call (only logs to W&B)                                                    |
-| `--wandb.wandb_off`                   | Turn off wandb logging                                                                                    |
-| `--enable_task_api`                   | If set, runs the integrated API for that can be queried by external clients                               |
-| `--task_api.host`                     | The host for the task API                                                                                 |
-| `--task_api.port`                     | The port for the task API                                                                                 |
+| Argument                                    | Description                                                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--neuron.timeout`                          | Timeout for calling miners in synthetic tournament rounds                                                 |
+| `--neuron.num_concurrent_forwards`          | Number of concurrent forwards/synthetic tournament rounds at a time                                       |
+| `--wandb.project_name`                      | Name of the wandb project to log to (only needs to be changed if on testnet or logging to custom project) |
+| `--neuron.disable_set_weights`              | Disable the set weights mechanism                                                                         |
+| `--neuron.axon_off`                         | Set this flag to not attempt to serve an Axon                                                             |
+| `--num_embeddings`                          | Number of embeddings to generate and compare when rewarding miners in tournament rounds                   |
+| `--neuron.skip_set_weights_extrinsic`       | Skip the set_weights extrinsic call (only logs to W&B)                                                    |
+| `--wandb.wandb_off`                         | Turn off wandb logging                                                                                    |
+| `--enable_task_api`                         | If set, runs the integrated API for that can be queried by external clients                               |
+| `--task_api.host`                           | The host for the task API                                                                                 |
+| `--task_api.port`                           | The port for the task API                                                                                 |
+| `--neuron.synthetic_query_interval_seconds` | The interval to sleep between synthetic queries in seconds.                                               |
+| `--debug.on`                                | Turn on debug logging.                                                                                    |
+| `--debug.all_log_handlers`                  | If in debug mode, turns on all third party log handlers                                                   |
