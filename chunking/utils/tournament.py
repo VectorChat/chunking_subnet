@@ -6,7 +6,7 @@ import json
 import gzip
 import base64
 
-from chunking.utils.integrated_api.chunk.types import ChunkRequestType
+from chunking.utils.integrated_api.chunk.types import BenchmarkID, ChunkRequestType
 from chunking.utils.log import debug_log_dict
 from chunking.validator.task_api import Task
 
@@ -100,6 +100,7 @@ def make_wandb_data(
     request_type: ChunkRequestType,
     cur_scores: list[float],
     cur_rankings: list[int],
+    benchmark_id: BenchmarkID | None,
     is_debug: bool = False,
 ) -> dict:
     # initial structure for wandb logging
@@ -108,6 +109,7 @@ def make_wandb_data(
         "sync_block": block_number,
         "task_type": task.task_type,
         "type": request_type.value,
+        "benchmark_id": str(benchmark_id),
         "params": {
             "chunk_size": task.synapse.chunk_size,
             "chunk_qty": task.synapse.chunk_qty,
@@ -143,7 +145,6 @@ def make_wandb_data(
         for rank_i in range(len(cur_rankings)):
             uid = cur_rankings[rank_i]
             wandb_data["all"]["rankings"][str(uid)] = rank_i
-
 
     # log the uids that are part of the miner group that is queried
     wandb_data["group"]["uids"] = miner_group_uids

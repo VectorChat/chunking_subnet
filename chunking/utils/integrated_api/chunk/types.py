@@ -2,12 +2,15 @@ from enum import Enum
 from typing import List, Optional
 
 from fastapi import Body
-from pydantic import BaseModel, Field
+from pydantic import UUID4, BaseModel, Field
 
 
 class ChunkRequestType(Enum):
     normal = "normal"
     benchmark = "benchmark"
+
+
+BenchmarkID = UUID4
 
 
 class ChunkRequest(BaseModel):
@@ -44,6 +47,10 @@ class ChunkRequest(BaseModel):
     request_type: ChunkRequestType = Body(
         default=ChunkRequestType.normal,
         description="The type of chunking task to run",
+    )
+    benchmark_id: Optional[BenchmarkID] = Field(
+        default=None,
+        description="The benchmark ID to use for the chunking task if running as benchmark round",
     )
 
 

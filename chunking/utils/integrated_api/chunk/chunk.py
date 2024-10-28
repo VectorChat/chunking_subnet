@@ -4,7 +4,7 @@ from typing import Optional, List
 from fastapi import Body
 from pydantic import BaseModel, Field
 from chunking.utils.chunks import calculate_chunk_qty
-from chunking.utils.integrated_api.chunk.types import ChunkRequest, ChunkResponse, ChunkResult
+from chunking.utils.integrated_api.chunk.types import ChunkRequest, ChunkRequestType, ChunkResponse, ChunkResult
 from chunking.utils.integrated_api.log import api_log
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import Task
@@ -14,6 +14,9 @@ import bittensor as bt
 
 
 async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
+
+    if request.request_type == ChunkRequestType.benchmark and request.benchmark_id is None:
+        raise ValueError("Benchmark ID is required for benchmark round")
 
     print(
         f"handling chunk request with document length: {len(request.document)}, miner uids: {request.custom_miner_uids}, miner group index: {request.miner_group_index}"
@@ -51,6 +54,7 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
         custom_miner_uids=request.custom_miner_uids,
         do_wandb_log=request.do_wandb_log,
         request_type=request.request_type,
+        benchmark_id=request.benchmark_id,
     )
 
     usable_results = [result for result in results if result is not None]
