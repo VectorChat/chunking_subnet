@@ -348,7 +348,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # This loop maintains the validator's operations until intentionally stopped.
         try:
             while True:
-                bt.logging.info(f"step({self.step}) block({self.block})")
+                bt.logging.info(f"step({self.step})")
 
                 # TODO: consider using to_thread()
 
@@ -372,7 +372,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 interval_seconds = self.config.neuron.synthetic_query_interval_seconds
 
                 bt.logging.debug(
-                    f"step({self.step}) block({self.block}) completed!, sleeping for {interval_seconds} seconds"
+                    f"step({self.step}) completed!, sleeping for {interval_seconds} seconds"
                 )
                 self.step += 1
 
@@ -846,10 +846,15 @@ class BaseValidatorNeuron(BaseNeuron):
         self.rankings = state["rankings"]
         self.articles = state["articles"]
 
-        bt.logging.info(f"Loaded validator state.")
+        bt.logging.info(
+            f"Loaded validator state from {self.config.neuron.full_path}/state.npz"
+        )
         # bt.logging.debug(
         #     f"Loaded state: Step: {self.step}, Scores: {self.scores}, Hotkeys: {self.hotkeys}, rankings: {self.rankings}, {len(self.articles)} articles"
         # )
+        bt.logging.debug(
+            f"Loaded state: Step: {self.step}, {len(self.hotkeys)} hotkeys, {len(self.articles)} articles, {len(self.rankings)} rankings ({str(self.rankings.tolist())[:40]}...), {len(self.scores)} scores ({str(self.scores.tolist())[:40]}...)"
+        )
 
     async def query_axons(
         self, axons: list[bt.axon], synapse: bt.Synapse, timeout: float

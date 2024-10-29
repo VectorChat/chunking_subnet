@@ -28,8 +28,8 @@ check_root() {
 check_root
 
 # check Python version and venv availability
-if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.version_info >= (3,8), 'Python 3.8+ required'"; then
-    echo "Error: Python 3.8 or higher is required."
+if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.version_info >= (3,10), 'Python 3.10+ required'"; then
+    echo "Error: Python 3.10 or higher is required."
     exit 1
 fi
 
@@ -48,7 +48,8 @@ fi
 
 # git + dependencies
 
-if [ ! -d "chunking_subnet" ]; then
+# if not chunking_subnet directory or not already in it
+if [ ! -d "chunking_subnet"  ] || [ ! "$(pwd)" == "chunking_subnet" ]; then
     git clone https://github.com/VectorChat/chunking_subnet 
 else
     echo "chunking_subnet directory already exists. Skipping git clone."
