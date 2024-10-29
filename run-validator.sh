@@ -15,8 +15,13 @@ fi
 python3 -c "import bittensor as bt" > /dev/null 2>&1
 
 if [ $? -eq 1 ]; then
-    echo "Make sure your venv is activated, usually: 'source venv/bin/activate'"
+    echo "Make sure your venv is activated, usually: 'source venv/bin/activate' and that you have installed the dependencies with 'pip3 install -e .'"
     exit 1
+fi
+
+if ! python3 -c "from nltk.tokenize import sent_tokenize; sent_tokenize('Hello, world!')" > /dev/null 2>&1; then
+    echo "Installing nltk stuff..."
+    python3 -c "import nltk; nltk.download('punkt')" > /dev/null 2>&1
 fi
 
 NAME=${VAL_PM2_NAME:-"chunking_validator"}
