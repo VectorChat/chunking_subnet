@@ -54,7 +54,12 @@ class Miner(BaseMinerNeuron):
 
         self.nonces = {}
         self.recent_queries = []
-        self.aclient = AsyncOpenAI()
+
+        if not (
+            self.config.neuron.no_check_ipfs
+            or self.config.neuron.no_check_duplicate_ipfs
+        ):
+            self.aclient = AsyncOpenAI()
 
     def get_similarities(
         self,
