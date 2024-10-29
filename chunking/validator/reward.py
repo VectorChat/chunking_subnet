@@ -151,7 +151,7 @@ async def reward(
     chunk_qty: int,
     response: chunkSynapse,
     num_embeddings: int,
-    client: AsyncOpenAI = AsyncOpenAI(),
+    client: AsyncOpenAI | None = None,
     verbose: bool = False,
 ) -> Tuple[float, dict]:
     """
@@ -193,6 +193,9 @@ async def reward(
     def _verbose(msg: str):
         if verbose:
             print(msg)
+
+    if client is None:
+        client = AsyncOpenAI()
 
     # dictionary to store extra info (penalties, timing, etc.) for wandb logging
     extra_info_dict = {}
