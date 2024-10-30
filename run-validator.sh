@@ -19,9 +19,9 @@ if [ $? -eq 1 ]; then
     exit 1
 fi
 
-if ! python3 -c "from nltk.tokenize import sent_tokenize; sent_tokenize('Hello, world!')" > /dev/null 2>&1; then
+if ! python3 -c "from nltk.tokenize import sent_tokenize, wordpunct_tokenize; sent_tokenize('Hello, world!'); wordpunct_tokenize('Hello, world!')" > /dev/null 2>&1; then
     echo "Installing nltk stuff..."
-    python3 -c "import nltk; nltk.download('punkt')" > /dev/null 2>&1
+    python3 -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')" > /dev/null 2>&1
 fi
 
 NAME=${VAL_PM2_NAME:-"chunking_validator"}

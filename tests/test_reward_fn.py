@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from math import ceil
+from math import ceil, e
 from random import sample
 from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
@@ -10,6 +10,7 @@ from chunking.validator.task_api import generate_doc_normal, generate_synthetic_
 from tests.utils import base_chunker
 
 logger = logging.getLogger(__name__)
+
 
 async def run_test():
     PAGE_ID = 33653136
@@ -30,27 +31,37 @@ async def run_test():
         timeout=timeout,
     )
 
-    assert synapse.time_soft_max == 15
-
     client = AsyncOpenAI()
 
     NUM_EMBEDDINGS = 150
 
+    async def _calculate_reward(
+        synapse: chunkSynapse, do_checks: bool, do_penalties: bool
+    ):
+        reward_value, extra_info = await reward(
+            document=document,
+            chunk_size=chunk_size,
+            chunk_qty=chunk_qty,
+            response=synapse,
+            num_embeddings=NUM_EMBEDDINGS,
+            client=client,
+            verbose=True,
+            do_checks=do_checks,
+            do_penalties=do_penalties,
+        )
+
+        return reward_value, extra_info
+
+    assert synapse.time_soft_max == 15
+
     # reward should be 0 if no chunks
     logger.info("reward should be 0 if no chunks")
 
-    reward_value, _ = await reward(
-        document=document,
-        chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
-        response=synapse,
-        num_embeddings=NUM_EMBEDDINGS,
-        client=client,
-        verbose=True,
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
     )
 
     assert reward_value == 0
-
 
     # reward should be zero if any word is reordered
 
@@ -65,17 +76,19 @@ async def run_test():
 
     synapse.chunks = test_chunks
 
-    reward_value, _ = await reward(
-        document=document,
-        chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
-        response=synapse,
-        num_embeddings=NUM_EMBEDDINGS,
-        client=client,
-        verbose=True,
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
     )
 
     assert reward_value == 0
+
+    logger.info("reward should be non-zero if not doing checks")
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=False, do_penalties=False
+    )
+
+    assert reward_value > 0
 
     # reward should be zero if any word is removed
 
@@ -89,17 +102,19 @@ async def run_test():
 
     synapse.chunks = test_chunks
 
-    reward_value, _ = await reward(
-        document=document,
-        chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
-        response=synapse,
-        num_embeddings=NUM_EMBEDDINGS,
-        client=client,
-        verbose=True,
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
     )
 
     assert reward_value == 0
+
+    logger.info("reward should be non-zero if not doing checks")
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=False, do_penalties=False
+    )
+
+    assert reward_value > 0
 
     # reward should be zero if any word is added
 
@@ -113,17 +128,19 @@ async def run_test():
 
     synapse.chunks = test_chunks
 
-    reward_value, _ = await reward(
-        document=document,
-        chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
-        response=synapse,
-        num_embeddings=NUM_EMBEDDINGS,
-        client=client,
-        verbose=True,
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
     )
 
     assert reward_value == 0
+
+    logger.info("reward should be non-zero if not doing checks")
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=False, do_penalties=False
+    )
+
+    assert reward_value > 0
 
     # reward should be zero if any chunks are removed
 
@@ -137,17 +154,17 @@ async def run_test():
 
     synapse.chunks = test_chunks
 
-    reward_value, _ = await reward(
-        document=document,
-        chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
-        response=synapse,
-        num_embeddings=NUM_EMBEDDINGS,
-        client=client,
-        verbose=True,
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
     )
 
     assert reward_value == 0
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=False, do_penalties=False
+    )
+
+    assert reward_value > 0
 
     # should give reward for proper chunking
 
@@ -157,17 +174,61 @@ async def run_test():
 
     synapse.chunks = test_chunks
 
-    reward_value, _ = await reward(
-        document=document,
-        chunk_size=chunk_size,
-        chunk_qty=chunk_qty,
-        response=synapse,
-        num_embeddings=NUM_EMBEDDINGS,
-        client=client,
-        verbose=True,
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
     )
 
     assert reward_value > 0
+
+    # should penalize big_chunks
+
+    logger.info("should penalize big_chunks")
+
+    big_chunks = base_chunker(synapse.document, synapse.chunk_size * 2)
+
+    synapse.chunks = big_chunks
+
+    reward_value, extra_info = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=True
+    )
+
+    embedding_reward = extra_info["embedding_reward"]
+    exp_embedding_reward = e**embedding_reward
+
+    assert reward_value < exp_embedding_reward
+
+    logger.info("reward should not penalize big chunks if not doing penalties")
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
+    )
+
+    assert reward_value > 1
+
+    # should penalize lots of chunks
+
+    logger.info("should penalize lots of chunks")
+
+    small_chunks = base_chunker(synapse.document, synapse.chunk_size // 2)
+
+    synapse.chunks = small_chunks
+
+    reward_value, extra_info = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=True
+    )
+
+    embedding_reward = extra_info["embedding_reward"]
+    exp_embedding_reward = e**embedding_reward
+
+    assert reward_value < exp_embedding_reward
+
+    logger.info("reward should not penalize lots of chunks if not doing penalties")
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=True, do_penalties=False
+    )
+
+    assert reward_value > 1
 
 
 def test_reward_fn():

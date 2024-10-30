@@ -28,10 +28,12 @@ from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 import numpy as np
 from aiomultiprocess import Pool
 
+from chunking.utils.integrated_api.chunk.types import RewardOptions
 from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
 import regex as re
 import dill
+import nltk
 
 
 PUNCTUATION_REGEX = r'([.,!?"\'])'
@@ -153,6 +155,8 @@ async def reward(
     num_embeddings: int,
     client: AsyncOpenAI | None = None,
     verbose: bool = False,
+    do_checks: bool = True,
+    do_penalties: bool = True,
 ) -> Tuple[float, dict]:
     """
     Reward the miner based on the chunks they make for a specific document.
@@ -200,7 +204,7 @@ async def reward(
     # dictionary to store extra info (penalties, timing, etc.) for wandb logging
     extra_info_dict = {}
 
-    # helper function to return early if there is an error
+    # helper function to return early if there are no chunks or checks failed
     def _get_early_return_stuff(msg: str):
         _verbose(msg)
 
@@ -212,44 +216,44 @@ async def reward(
         )
 
     chunks = response.chunks
-    intrachunk_similarities = []
-    interchunk_similarities = []
+
+    print(
+        f"Rewarding {len(chunks)} chunks, do_checks: {do_checks}, do_penalties: {do_penalties}"
+    )
+
     smallChunks = []
     size_penalty = 0
-
     qty_penalty = 0
-
-    # penalize an excessive number of chunks
-    num_chunks = len(chunks)
-    if num_chunks > chunk_qty:
-        qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
-        _verbose(
-            f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}"
-        )
 
     start_time = time.time()
 
-    # check that every set of 3 adjacent words from the document appears in the chunks
-    if not check_document_words_in_chunks(document, chunks, chunk_size):
-        return _get_early_return_stuff(
-            f"Every set of 3 adjacent words from the document does not appear in the chunks"
+    if do_checks:
+        # check that every set of 3 adjacent words from the document appears in the chunks
+        if not check_document_words_in_chunks(document, chunks, chunk_size):
+            return _get_early_return_stuff(
+                f"Every set of 3 adjacent words from the document does not appear in the chunks"
+            )
+
+        _verbose(
+            f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
         )
 
     for i in range(len(chunks)):
+        if do_checks:
+            # check that every word in chunk exists and is in the same order as the source document
+            if not check_chunk_words_in_document(chunks[i], document, verbose):
+                return _get_early_return_stuff(
+                    f"Chunk {i} does not contain all words from the document"
+                )
 
-        # check that every word in chunk exists and is in the same order as the source document
-        if not check_chunk_words_in_document(chunks[i], document, verbose):
-            return _get_early_return_stuff(
-                f"Chunk {i} does not contain all words from the document"
-            )
-
-        # add up size penalty to be applied later
-        chunk_length = len(chunks[i])
-        if chunk_length > chunk_size:
-            size_penalty += ((chunk_length / chunk_size) - 1) * 10
-            _verbose(
-                f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}"
-            )
+        if do_penalties:
+            # add up size penalty to be applied later
+            chunk_length = len(chunks[i])
+            if chunk_length > chunk_size:
+                size_penalty += ((chunk_length / chunk_size) - 1) * 10
+                _verbose(
+                    f"Chunk {i} is too long: {chunk_length} characters, new size penalty: {size_penalty}"
+                )
 
         # create test segments
         sentences = sent_tokenize(chunks[i])
@@ -261,12 +265,13 @@ async def reward(
             f"Chunk {i} has {len(sentences)} sentences. Added {ceil(len(sentences) / 3)} test segments"
         )
 
-    end_time = time.time()
-    print(f"Time to run checks: {end_time - start_time} seconds")
+    if do_checks:
+        _verbose(
+            f"Passed: Every word in chunk exists and is in the same order as the source document"
+        )
 
-    _verbose(
-        f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
-    )
+        end_time = time.time()
+        print(f"Time to run checks: {end_time - start_time} seconds")
 
     testChunks: list[smallChunk]
 
@@ -300,6 +305,9 @@ async def reward(
 
     start_time = time.time()
 
+    intrachunk_similarities = []
+    interchunk_similarities = []
+
     # calculate intrachunk and interchunk similarities
     for i in range(len(testChunks) - 1):
         j = i + 1
@@ -322,10 +330,6 @@ async def reward(
     end_time = time.time()
     print(f"Time to calculate embedding reward: {end_time - start_time} seconds")
 
-    _verbose(f"Embedding reward: {reward}")
-    _verbose(f"Size penalty: {size_penalty}")
-    _verbose(f"Quantity penalty: {qty_penalty}")
-
     # store extra info for wandb logging/printing
     extra_info_dict["embeddings"] = embeddings
     extra_info_dict["intrachunk_similarities"] = intrachunk_similarities
@@ -335,33 +339,48 @@ async def reward(
     extra_info_dict["qty_penalty"] = qty_penalty
     extra_info_dict["num_embed_tokens"] = num_tokens
 
+    if do_penalties:
+        # size penalty created earlier
+
+        # create quantity penalty; penalize an excessive number of chunks
+        num_chunks = len(chunks)
+        if num_chunks > chunk_qty:
+            qty_penalty += 10 * ((num_chunks / chunk_qty) - 1) * 10
+            _verbose(
+                f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}"
+            )
+
+        # apply time penalty if the process time is greater than the time soft max
+        if (
+            response.dendrite
+            and response.dendrite.process_time
+            and response.dendrite.process_time > response.time_soft_max
+        ):
+            over_time = response.dendrite.process_time - response.time_soft_max
+            _verbose(f"Applying time penalty: {over_time} seconds over time")
+            time_penalty = (2 / 3) ** over_time
+
+            extra_info_dict["time_penalty"] = time_penalty
+
+            # apply time penalty to the reward
+            reward *= time_penalty
+
+        # apply size and quantity penalties
+        reward *= (2 / 3) ** (size_penalty + qty_penalty)
+
+    _verbose(f"Embedding reward: {reward}")
+    _verbose(f"Size penalty: {size_penalty}")
+    _verbose(f"Quantity penalty: {qty_penalty}")
+
     # ensure that the reward is positive
     reward = e**reward
     _verbose(f"Ensuring reward is positive (e ** reward):\n{reward}")
 
-    # apply time penalty if the process time is greater than the time soft max
-    if (
-        response.dendrite
-        and response.dendrite.process_time
-        and response.dendrite.process_time > response.time_soft_max
-    ):
-        over_time = response.dendrite.process_time - response.time_soft_max
-        _verbose(f"Applying time penalty: {over_time} seconds over time")
-        time_penalty = (2 / 3) ** over_time
-
-        extra_info_dict["time_penalty"] = time_penalty
-
-        # apply time penalty to the reward
-        reward *= time_penalty
-
-    # apply size and quantity penalties
-    reward *= (2 / 3) ** (size_penalty + qty_penalty)
-
     return reward, extra_info_dict
 
 
-def get_chunk_hash(chunk: str) -> str:
-    return hashlib.sha256(chunk.encode()).hexdigest()
+def get_chunk_hash(chunk: str):
+    return hashlib.sha256(chunk.encode())
 
 
 def get_chunks_hash(chunks: List[str] | None) -> str:
@@ -371,11 +390,11 @@ def get_chunks_hash(chunks: List[str] | None) -> str:
     if len(chunks) == 0:
         return ""
 
-    final_hash = get_chunk_hash(re.sub(r"\s+", " ", chunks[0]).strip())
+    final_hash = get_chunk_hash(re.sub(r"\s+", "", chunks[0]).strip())
     for chunk in chunks[1:]:
-        final_hash += get_chunk_hash(re.sub(r"\s+", " ", chunk).strip())
+        final_hash.update(get_chunk_hash(re.sub(r"\s+", "", chunk).strip()).digest())
 
-    return final_hash
+    return final_hash.hexdigest()
 
 
 async def get_rewards(
@@ -385,6 +404,7 @@ async def get_rewards(
     responses: List[chunkSynapse],
     client: AsyncOpenAI,
     num_embeddings: int,
+    reward_options: RewardOptions = RewardOptions(),
     verbose: bool = False,
 ) -> Tuple[np.ndarray, List[dict]]:
     """
@@ -415,19 +435,12 @@ async def get_rewards(
                 get_chunks_hash(response.chunks) if response is not None else ""
             )
             if chunks_hash not in hashes and response is not None:
-                try:
+
+                async def _calculate_reward():
                     print(
                         f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
                     )
-                    # reward_value, extra_info = await reward(
-                    #     document,
-                    #     chunk_size,
-                    #     chunk_qty,
-                    #     response,
-                    #     client=client,
-                    #     num_embeddings=num_embeddings,
-                    #     verbose=verbose,
-                    # )
+
                     print("calling reward() via aiomultiprocess pool")
                     reward_value, extra_info = await pool.apply(
                         reward,
@@ -438,9 +451,23 @@ async def get_rewards(
                             "response": response,
                             "num_embeddings": num_embeddings,
                             "verbose": verbose,
+                            "do_checks": reward_options.with_checks,
+                            "do_penalties": reward_options.with_penalties,
                             # no client to avoid pickling
                         },
                     )
+
+                    return reward_value, extra_info
+
+                try:
+                    reward_value, extra_info = await _calculate_reward()
+                except LookupError as e:
+                    print(f"LookupError: {e}")
+                    nltk.download("punkt")
+                    nltk.download("punkt_tab")
+                    # retry
+                    print(f"retrying {chunks_hash[:10]}...")
+                    reward_value, extra_info = await _calculate_reward()
                 except Exception as e:
                     print(
                         f"Error calculating reward for response {response.name}, axon {miner_hotkey[:10]}: {e}"

@@ -10,6 +10,17 @@ class ChunkRequestType(Enum):
     benchmark = "benchmark"
 
 
+class RewardOptions(BaseModel):
+    with_checks: bool = Body(
+        default=True,
+        description="Whether to check that chunks appropriately match the document",
+    )
+    with_penalties: bool = Body(
+        default=True,
+        description="Whether to apply penalties when grading chunks (e.g. size, quantity, time)",
+    )
+
+
 class ChunkRequest(BaseModel):
     document: str = Body(..., description="The document to chunk")
     chunk_size: int = Body(
@@ -44,6 +55,10 @@ class ChunkRequest(BaseModel):
     request_type: ChunkRequestType = Body(
         default=ChunkRequestType.normal,
         description="The type of chunking task to run",
+    )
+    reward_options: RewardOptions = Body(
+        default=RewardOptions(),
+        description="Options for rewarding chunks",
     )
 
 
