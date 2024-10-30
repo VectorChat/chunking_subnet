@@ -18,6 +18,18 @@ from tests.utils.chunker import base_chunker
 logger = logging.getLogger(__name__)
 
 
+def add_spaces(chunk: str, k: int) -> str:
+    length = len(chunk)
+    random_indices = random.sample(range(1, length), k)
+
+    for i in random_indices:
+        chunk = chunk[:i] + " " + chunk[i:]
+
+    logger.info(f"Added {k} spaces at random locations to chunk: {chunk[:50]}...")
+
+    return chunk
+
+
 async def run_test():
     bt.debug()
 
@@ -126,14 +138,21 @@ async def run_test():
 
     # three people tie
 
-    logger.info("testing three people tie")
+    logger.info("testing three people tie (with two malicious tie-ers)")
 
     chunk_results = []
 
     chunk_results.append(run_chunk_method(0))
     chunk_results.append(run_chunk_method(1))
     chunk_results.append(run_chunk_method(1))
+    chunk_results.append(run_chunk_method(1))
     chunk_results.append(run_chunk_method(3))
+
+    # second tie-er adds space at beginning and end of each chunk
+    chunk_results[2] = [" " + chunk + " " for chunk in chunk_results[2]]
+
+    # third tie-r tries adding random spaces
+    chunk_results[3] = [add_spaces(chunk, 10) for chunk in chunk_results[3]]
 
     chunk_responses = get_chunk_responses(chunk_results)
 
@@ -150,8 +169,9 @@ async def run_test():
     assert len(set(rewards.tolist())) == 3
 
     assert rewards[1] == rewards[2]
+    assert rewards[1] == rewards[3]
     assert rewards[1] != rewards[0]
-    assert rewards[1] != rewards[3]
+    assert rewards[1] != rewards[4]
 
     # 2 sep groups tie
 

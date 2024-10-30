@@ -28,6 +28,7 @@ from chunking.validator import forward
 from chunking.base.validator import BaseValidatorNeuron
 from openai import AsyncOpenAI, OpenAI
 
+
 class Validator(BaseValidatorNeuron):
 
     def __init__(self):
@@ -35,26 +36,44 @@ class Validator(BaseValidatorNeuron):
         bt.logging.info("load_state()")
         self.load_state()
 
-        if not os.environ.get('OPENAI_API_KEY'):
+        if not os.environ.get("OPENAI_API_KEY"):
             raise Exception("OPENAI_API_KEY environment variable must be set.")
-        
-        if self.config.accept_organic_queries:
-            os.environ['ALLOW_ORGANIC_CHUNKING_QUERIES'] = str(self.config.accept_organic_queries)
 
-        if not os.environ.get('ALLOW_ORGANIC_CHUNKING_QUERIES'):
-            os.environ['ALLOW_ORGANIC_CHUNKING_QUERIES'] = 'False'
-        
-        if not os.environ.get('CHUNKING_API_HOST'):
-            bt.logging.warning("CHUNKING_API_HOST variable not set; defaulting to https://chunking.com/web3/api")
-            os.environ['CHUNKING_API_HOST'] = 'https://chunking.com/web3/api/'
-            
+        if self.config.accept_organic_queries:
+            os.environ["ALLOW_ORGANIC_CHUNKING_QUERIES"] = str(
+                self.config.accept_organic_queries
+            )
+
+        if not os.environ.get("ALLOW_ORGANIC_CHUNKING_QUERIES"):
+            os.environ["ALLOW_ORGANIC_CHUNKING_QUERIES"] = "False"
+
+        if not os.environ.get("CHUNKING_API_HOST"):
+            bt.logging.warning(
+                "CHUNKING_API_HOST variable not set; defaulting to https://chunking.com/web3/api"
+            )
+            os.environ["CHUNKING_API_HOST"] = "https://chunking.com/web3/api/"
+
         self.client: OpenAI = OpenAI()
         self.aclient = AsyncOpenAI()
         self.embedding_model = "text-embedding-ada-002"
         self.num_embeddings = int(self.config.num_embeddings)
         self.sample_size = int(self.config.neuron.sample_size)
 
-        
+        self.check_nltk_download()
+
+    def check_nltk_download(self):
+        try:
+            from nltk.tokenize import sent_tokenize, wordpunct_tokenize
+
+            test_str = "Hello, world!"
+            sent_tokenize(test_str)
+            wordpunct_tokenize(test_str)
+        except LookupError:
+            import nltk
+
+            nltk.download("punkt")
+            nltk.download("punkt_tab")
+            print("nltk downloaded")
 
     async def forward(self):
         """
@@ -67,6 +86,7 @@ class Validator(BaseValidatorNeuron):
         """
 
         return await forward(self)
+
 
 # The main function parses the configuration and runs the validator.
 if __name__ == "__main__":

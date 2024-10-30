@@ -51,6 +51,7 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
         custom_miner_uids=request.custom_miner_uids,
         do_wandb_log=request.do_wandb_log,
         request_type=request.request_type,
+        reward_options=request.reward_options,
     )
 
     usable_results = [result for result in results if result is not None]

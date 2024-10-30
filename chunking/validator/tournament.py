@@ -13,7 +13,7 @@ import numpy as np
 from random import choice
 
 from openai import AsyncOpenAI
-from chunking.utils.integrated_api.chunk.types import ChunkRequestType
+from chunking.utils.integrated_api.chunk.types import ChunkRequestType, RewardOptions
 from chunking.utils.log import PrefixStream
 from chunking.utils.tournament import make_wandb_data, pretty_print_rewards
 from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
@@ -251,76 +251,6 @@ async def query_miner_groups(
     )
 
 
-def cleanup_logging():
-    """Properly cleanup logging handlers"""
-    for i, handler in enumerate(logging.getLogger().handlers[:]):
-        try:
-            handler.acquire()
-            handler.flush()
-            handler.close()
-        except (OSError, ValueError):
-            pass
-        finally:
-            print(f"released handler {i}")
-            handler.release()
-        logging.getLogger().removeHandler(handler)
-
-
-def run_get_rewards(*args, **kwargs):
-    print("running get rewards")
-    document = kwargs["document"]
-    doc_len = len(document)
-    prefix = f"[GET_REWARDS, DOC LEN {doc_len}] "
-    sys.stdout = PrefixStream(sys.stdout, prefix)
-    sys.stderr = PrefixStream(sys.stderr, prefix)
-
-    # Register cleanup handler
-    atexit.register(cleanup_logging)
-    print("registered cleanup logging")
-
-    # Configure process-specific logging
-    root_logger = logging.getLogger()
-    root_logger.handlers = []
-    print("cleared handlers")
-
-    # Create a simple stream handler instead of QueueHandler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    root_logger.addHandler(handler)
-    print("added simple stream handler")
-
-    # Disable bittensor logging
-    bt.logging.handlers = []
-    bt.logging.disabled = True
-    print("disabled bittensor logging")
-
-    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    print("created new event loop")
-    client = AsyncOpenAI()
-    print("created openai client")
-    try:
-
-        result = loop.run_until_complete(get_rewards(*args, **kwargs, client=client))
-
-        # Explicitly flush and cleanup
-        sys.stdout.flush()
-        print("flushed stdout")
-        sys.stderr.flush()
-        print("flushed stderr")
-        cleanup_logging()
-
-        return result
-    except Exception as e:
-        print(f"Error in get_rewards: {e}")
-        raise
-    finally:
-        # Ensure cleanup happens even on error
-        cleanup_logging()
-        loop.close()
-
-
 async def score_miner_group_responses(
     self,
     task: Task,
@@ -330,6 +260,7 @@ async def score_miner_group_responses(
     miner_group_index: int | None,
     do_wandb_log: bool,
     request_type: ChunkRequestType,
+    reward_options: RewardOptions,
 ) -> EndTournamentRoundInfo | None:
     try:
         input_synapse = task.synapse
@@ -342,6 +273,7 @@ async def score_miner_group_responses(
             responses=responses,
             client=AsyncOpenAI(),
             num_embeddings=self.num_embeddings,
+            reward_options=reward_options,
             verbose=self.is_debug,
         )
 
@@ -446,6 +378,7 @@ async def run_tournament_round(
         list[int] | None
     ) = None,  # takes precedence over `choose_miner_group_index`
     request_type: ChunkRequestType = ChunkRequestType.normal,
+    reward_options: RewardOptions = RewardOptions(),
     # TODO: do not score responses if the task is not do_scoring
 ) -> list[EndTournamentRoundInfo | None]:
     """
@@ -489,6 +422,7 @@ async def run_tournament_round(
                 miner_group_index=miner_group_index,
                 do_wandb_log=do_wandb_log,
                 request_type=request_type,
+                reward_options=reward_options,
             )
         )
 
