@@ -217,7 +217,7 @@ async def reward(
 
     chunks = response.chunks
 
-    bt.logging.debug(
+    print(
         f"Rewarding {len(chunks)} chunks, do_checks: {do_checks}, do_penalties: {do_penalties}"
     )
 
