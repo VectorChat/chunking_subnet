@@ -1,9 +1,10 @@
+import asyncio
 from copy import deepcopy
 import logging
 import random
 from typing import List
 import numpy as np
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
@@ -27,7 +28,7 @@ GROUP_SIZE = 2
 logger = logging.getLogger(__name__)
 
 
-def test_e2e_rank_values():
+async def main():
     bt.logging.set_debug()
     rankings = np.arange(256)
     scores = rankings / 2
@@ -42,7 +43,7 @@ def test_e2e_rank_values():
 
     test_pageid = random.choice(articles)
 
-    test_doc, title = get_wiki_content_for_page(test_pageid)
+    test_doc, title = await get_wiki_content_for_page(test_pageid)
 
     logger.info(f"Title: {title}")
 
@@ -101,17 +102,16 @@ def test_e2e_rank_values():
     )
 
     # get rewards (make sure tieing system works)
-    override_client = OpenAI()
+    override_client = AsyncOpenAI()
     override_num_embeddings = 50
 
-    rewards, extra_infos = get_rewards(
-        None,
-        test_doc,
-        chunk_size,
-        chunk_qty,
-        chunk_responses,
-        override_client,
-        override_num_embeddings,
+    rewards, extra_infos = await get_rewards(
+        document=test_doc,
+        chunk_size=chunk_size,
+        chunk_qty=chunk_qty,
+        responses=chunk_responses,
+        num_embeddings=override_num_embeddings,
+        client=override_client,
     )
 
     logger.info(f"rewards: {rewards}")
@@ -157,3 +157,7 @@ def test_e2e_rank_values():
         len(set(rank_value_to_adjusted_alpha.values()))
         == len(chunk_results) - target_unique + 1
     )
+
+
+def test_e2e_rank_values():
+    asyncio.run(main())
