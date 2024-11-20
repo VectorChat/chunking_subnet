@@ -1,3 +1,4 @@
+import asyncio
 import random
 import time
 from typing import Literal, Optional, List, Tuple
@@ -252,7 +253,7 @@ class Task:
             )
 
 
-SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+# SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
 
 
 async def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
@@ -282,12 +283,22 @@ async def get_wiki_content_for_page(pageid: int) -> Tuple[str, str]:
             return page["extract"], page["title"]
 
 
+OLD_SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
+
+NEW_SYSTEM_PROMPT = """
+You are a masterful writer known for your ability to seamlessly intertwine multiple topics into a single, cohesive, and original piece. You expertly change genres and styles as appropriate, using a variety of sentence structures and stylistic techniques to create engaging and unpredictable narratives. Your writing challenges readers' expectations by interweaving concepts from different subjects throughout the text without using common transitional phrases or indicators of topic shifts. You avoid any explicit or implicit segmentation based on the source material, ensuring that your work flows naturally and cannot be easily divided into distinct sections.
+"""
+
+
 async def generate_doc_with_llm(
     validator,
     pageids=None,
     temperature=0.7,
     override_client: AsyncOpenAI | None = None,
-) -> Tuple[str, int]:
+    k=3,
+    loop_range=range(3, 7),
+    gen_type: Literal["old", "new"] = "new",
+) -> Tuple[str, List[str]]:
     """
     Generate a synthetic document based on three articles from wikipedia.
 
@@ -300,24 +311,74 @@ async def generate_doc_with_llm(
     Returns:
         str: The synthetic document.
     """
-    pages = (
-        choices(pageids, k=3)
-        if pageids != None and len(pageids) == 3
-        else choices(validator.articles, k=3)
-    )
+    # pages = (
+    #     choices(pageids, k=k)
+    #     if pageids != None and len(pageids) == k
+    #     else choices(validator.articles, k=k)
+    # )
+    if validator is None and (pageids is None or len(pageids) != k):
+        raise ValueError("Either validator or pageids must be provided")
+
+    if pageids is None:
+        pages = random.sample(validator.articles, k=k)
+    else:
+        pages = pageids
+
     source_articles = []
     article_names = []
+    coros = []
     for page in pages:
-        contents, name = await get_wiki_content_for_page(int(page))
+        coros.append(get_wiki_content_for_page(int(page)))
+    results = await asyncio.gather(*coros)
+    for contents, name in results:
         source_articles.append(contents)
         article_names.append(name)
 
     bt.logging.debug(f"source pageids: {pages}")
+    bt.logging.debug(f"source names: {article_names}")
+    bt.logging.debug(f"gen_type: {gen_type}")
 
-    bt.logging.info("Generating first section of synthetic query")
+    bt.logging.info(f"Generating first section of synthetic query with {k} articles")
     start = time.time()
 
     aclient = override_client if override_client else validator.aclient
+
+    system_prompt = OLD_SYSTEM_PROMPT if gen_type == "old" else NEW_SYSTEM_PROMPT
+
+    old_initial_gen_message = {
+        "role": "user",
+        "content": f"""
+            Use the following three articles to write the first third of an article. The article will be between 5,000 and 10,000 words long. Do not include section titles. Write to your token limit.
+            Article 1:
+            {source_articles[0]}
+        
+            Article 2:
+            {source_articles[1]}
+
+            Article 3:
+            {source_articles[2]}
+            """,
+    }
+
+    new_initial_gen_message = {
+        "role": "user",
+        "content": f"""
+Compose a high-quality article that seamlessly integrates and synthesizes the content from the following three articles. Change genres or styles as you see fit to enhance the narrative, and use a variety of sentence structures and stylistic techniques. The article should interweave concepts from all three topics unpredictably, challenging the reader's expectations. Integrate ideas without using common transitional phrases or indicators of topic shifts. The content should flow naturally, blending concepts from all articles throughout. Avoid any explicit or implicit segmentation based on the source articles. The article should be between 5,000 and 10,000 words long. Do not include section titles or headings. Write up to your token limit.
+
+Article 1:
+{source_articles[0]}
+
+Article 2:
+{source_articles[1]}
+
+Article 3:
+{source_articles[2]}
+""",
+    }
+
+    initial_gen_message = (
+        old_initial_gen_message if gen_type == "old" else new_initial_gen_message
+    )
 
     synthetic_document = (
         (
@@ -325,21 +386,8 @@ async def generate_doc_with_llm(
                 model="gpt-4o-mini",
                 temperature=temperature,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": f"""
-                Use the following three articles to write the first third of an article. The article will be between 5,000 and 10,000 words long. Do not include section titles. Write to your token limit.
-                Article 1:
-                {source_articles[0]}
-            
-                Article 2:
-                {source_articles[1]}
-
-                Article 3:
-                {source_articles[2]}
-                """,
-                    },
+                    {"role": "system", "content": system_prompt},
+                    initial_gen_message,
                 ],
             )
         )
@@ -354,26 +402,48 @@ async def generate_doc_with_llm(
     synthetic_document = " ".join(synthetic_document.split())
     previous_synthesis = synthetic_document
 
-    bt.logging.info("Generating rest of synthetic query")
+    bt.logging.info(
+        f"Generating rest of synthetic query with {k} articles, looping between {loop_range.start} and {loop_range.stop} times"
+    )
 
-    end_index_choices = list(range(3, 7))
+    end_index_choices = list(loop_range)
 
     end_index = choice(end_index_choices)
 
     bt.logging.info(f"Generating {end_index} more sections of synthetic query")
 
     for j in range(end_index):
+
+        old_continuation_gen_message = {
+            "role": "user",
+            "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
+        }
+
+        new_continuation_gen_message = {
+            "role": "user",
+            "content": f"""
+This is part of a cohesive and unpredictable article that seamlessly integrates concepts from {article_names[0]}, {article_names[1]}, and {article_names[2]}:
+
+{previous_synthesis}
+
+Continue the article, changing genres or styles as appropriate to enhance the narrative. Use a variety of sentence structures and stylistic techniques. Interweave concepts from all three topics unpredictably, challenging the reader's expectations. Integrate ideas without using common transitional phrases or indicators of topic shifts. Ensure the content flows naturally, blending concepts from all articles throughout. Avoid any explicit or implicit segmentation based on the source articles. Do not include section titles or headings. Write up to your token limit.
+            """,
+        }
+
+        continuation_gen_message = (
+            old_continuation_gen_message
+            if gen_type == "old"
+            else new_continuation_gen_message
+        )
+
         next_synthesis = (
             (
                 await aclient.chat.completions.create(
                     model="gpt-4o-mini",
                     temperature=temperature,
                     messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {
-                            "role": "user",
-                            "content": f"This is part of an article about {article_names[0]}, {article_names[1]}, and {article_names[2]}:\n{previous_synthesis}\nContinue the article. Do not include section titles. Write to your token limit.",
-                        },
+                        {"role": "system", "content": system_prompt},
+                        continuation_gen_message,
                     ],
                 )
             )
@@ -399,7 +469,7 @@ async def generate_doc_with_llm(
     bt.logging.info(f"Generated synthetic query with {num_tokens} tokens")
 
     bt.logging.info(f"Took {time.time() - start} seconds to generate synthetic query")
-    return synthetic_document, -1
+    return synthetic_document, article_names
 
 
 async def generate_doc_normal(validator, pageid=None) -> Tuple[str, int]:
@@ -445,7 +515,8 @@ async def generate_synthetic_synapse(
     if validator.config.neuron.use_wiki_gen:
         document, pageid = await generate_doc_normal(validator)
     else:
-        document, pageid = await generate_doc_with_llm(validator)
+        document, _ = await generate_doc_with_llm(validator)
+        pageid = -1
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
     chunk_size = 4096
