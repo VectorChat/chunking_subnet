@@ -330,24 +330,27 @@ class BaseValidatorNeuron(BaseNeuron):
         Produce synthetic documents for the validator to query indefinitely.
         """
         bt.logging.info("Starting synthetic document producer")
+
+        async def generate_and_add_to_queue():
+            start_time = time.time()
+            doc, pageid = await generate_document(self)
+            end_time = time.time()
+            bt.logging.info(
+                f"Generated document in {end_time - start_time} seconds of length {len(doc)} chars"
+            )
+            await self.add_synthetic_document_to_queue(doc, pageid)
+
         while True:
             bt.logging.info(
-                f"Generating {self.config.doc_gen.concurrent_n} synthetic documents"
+                f"Generating {self.config.doc_gen.concurrent_n} synthetic documents concurrently"
             )
-            start_time = time.time()
-            results = await asyncio.gather(
+
+            await asyncio.gather(
                 *[
-                    generate_document(self)
+                    generate_and_add_to_queue()
                     for _ in range(self.config.doc_gen.concurrent_n)
                 ]
             )
-            end_time = time.time()
-            bt.logging.info(
-                f"Generated {len(results)} synthetic documents in {end_time - start_time} seconds"
-            )
-
-            for doc, pageid in results:
-                await self.add_synthetic_document_to_queue(doc, pageid)
 
             await asyncio.sleep(self.config.doc_gen.interval_seconds)
 
@@ -404,6 +407,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
 
+        await self.sync_articles()
         synth_gen_task = asyncio.create_task(self.synthetic_document_producer())
 
         # This loop maintains the validator's operations until intentionally stopped.
@@ -432,7 +436,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 interval_seconds = self.config.neuron.synthetic_query_interval_seconds
 
-                bt.logging.debug(
+                bt.logging.success(
                     f"step({self.step}) completed!, sleeping for {interval_seconds} seconds"
                 )
                 self.step += 1
@@ -441,6 +445,9 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # If someone intentionally stops the validator, it'll safely terminate operations.
         except KeyboardInterrupt:
+            bt.logging.info("Canceling synthetic data generation task")
+            synth_gen_task.cancel()
+            bt.logging.success("Cancelled synthetic data generation task")
             self.axon.stop()
             bt.logging.success("Validator killed by keyboard interrupt.")
             exit()
@@ -454,9 +461,11 @@ class BaseValidatorNeuron(BaseNeuron):
             self.subtensor = bt.subtensor(config=self.config)
             # remake metagraph in case
             self.metagraph = self.subtensor.metagraph(self.config.netuid)
-        
+
         finally:
+            bt.logging.info("Canceling synthetic data generation task")
             synth_gen_task.cancel()
+            bt.logging.success("Cancelled synthetic data generation task")
 
     def run_in_background_thread(self):
         """

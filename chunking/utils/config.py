@@ -224,7 +224,7 @@ def add_args(cls, parser):
             "--doc_gen.concurrent_n",
             type=int,
             help="The number of concurrent document generation tasks to run.",
-            default=3,
+            default=5,
         )
 
         parser.add_argument(

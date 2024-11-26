@@ -9,13 +9,13 @@ from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
 from chunking.utils.score import get_rank_value_to_adjusted_alpha
+from chunking.utils.synthetic import get_wiki_content_for_page
 from chunking.validator.reward import (
     get_chunks_hash,
     get_rewards,
     rank_responses,
     rank_responses_global,
 )
-from chunking.validator.task_api import get_wiki_content_for_page
 from chunking.validator.tournament import create_groups, get_alpha
 from tests.utils.articles import get_articles
 from tests.utils.chunker import base_chunker

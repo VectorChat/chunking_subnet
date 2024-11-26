@@ -4,8 +4,8 @@ from math import ceil, e
 from random import sample
 from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
+from chunking.utils.synthetic import generate_doc_normal
 from chunking.validator.reward import reward
-from chunking.validator.task_api import generate_doc_normal, generate_synthetic_synapse
 
 from tests.utils import base_chunker
 

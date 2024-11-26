@@ -10,8 +10,8 @@ from openai import AsyncOpenAI, OpenAI
 
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
+from chunking.utils.synthetic import get_wiki_content_for_page
 from chunking.validator.reward import get_chunks_hash, get_rewards
-from chunking.validator.task_api import get_wiki_content_for_page
 from tests.utils.articles import get_articles
 from tests.utils.chunker import base_chunker
 

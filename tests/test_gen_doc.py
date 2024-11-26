@@ -3,7 +3,7 @@ import random
 
 from openai import AsyncOpenAI
 
-from chunking.validator.task_api import generate_doc_with_llm
+from chunking.utils.synthetic import generate_doc_with_llm
 from tests.utils.articles import get_articles
 
 async def main():
