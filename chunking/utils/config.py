@@ -157,7 +157,7 @@ def add_args(cls, parser):
             "--neuron.synthetic_query_interval_seconds",
             type=int,
             help="The interval between synthetic queries in seconds.",
-            default=0,
+            default=30,
         )
 
         parser.add_argument(
@@ -211,6 +211,27 @@ def add_args(cls, parser):
             type=str,
             help="The type of context to use for the process.",
             default="fork",
+        )
+
+        parser.add_argument(
+            "--doc_gen.queue_size",
+            type=int,
+            help="The size of the synthetic document queue.",
+            default=10,
+        )
+
+        parser.add_argument(
+            "--doc_gen.concurrent_n",
+            type=int,
+            help="The number of concurrent document generation tasks to run.",
+            default=3,
+        )
+
+        parser.add_argument(
+            "--doc_gen.interval_seconds",
+            type=int,
+            help="The interval between document generation tasks in seconds.",
+            default=0,
         )
 
     # Miner

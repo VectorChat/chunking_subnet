@@ -24,10 +24,9 @@ from chunking.validator.tournament import (
     run_tournament_round,
 )
 from chunking.validator.task_api import Task
-from neurons.validator import Validator
 
 
-async def forward(self: Validator):
+async def forward(self):
     """
     The forward function is called by the validator every time step.
 

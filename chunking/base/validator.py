@@ -43,6 +43,7 @@ import wandb
 from wandb.apis.public.runs import Runs, Run
 import sympy as sp
 
+from chunking.utils.synthetic import generate_document
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
 from chunking.utils.score import get_rank_value_to_adjusted_alpha
@@ -120,6 +121,11 @@ class BaseValidatorNeuron(BaseNeuron):
             if self.allow_all_log_handlers:
                 bt.logging.enable_third_party_loggers()
             bt.logging.info("Debug mode enabled")
+
+        # synthetic document queue
+        self.synthetic_document_queue = asyncio.Queue[Tuple[str, int]](
+            self.config.doc_gen.queue_size
+        )
 
     def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
         """
@@ -319,6 +325,59 @@ class BaseValidatorNeuron(BaseNeuron):
         ]
         await asyncio.gather(*coroutines)
 
+    async def synthetic_document_producer(self):
+        """
+        Produce synthetic documents for the validator to query indefinitely.
+        """
+        bt.logging.info("Starting synthetic document producer")
+        while True:
+            bt.logging.info(
+                f"Generating {self.config.doc_gen.concurrent_n} synthetic documents"
+            )
+            start_time = time.time()
+            results = await asyncio.gather(
+                *[
+                    generate_document(self)
+                    for _ in range(self.config.doc_gen.concurrent_n)
+                ]
+            )
+            end_time = time.time()
+            bt.logging.info(
+                f"Generated {len(results)} synthetic documents in {end_time - start_time} seconds"
+            )
+
+            for doc, pageid in results:
+                await self.add_synthetic_document_to_queue(doc, pageid)
+
+            await asyncio.sleep(self.config.doc_gen.interval_seconds)
+
+    async def add_synthetic_document_to_queue(
+        self, synthetic_document: str, pageid: int
+    ):
+        """
+        Add a synthetic document to the queue.
+        """
+        bt.logging.debug(
+            f"Adding synth doc to queue of length {self.synthetic_document_queue.qsize()}, pageid: {pageid}"
+        )
+        await self.synthetic_document_queue.put((synthetic_document, pageid))
+        bt.logging.debug(
+            f"Added synth doc to queue of length {self.synthetic_document_queue.qsize()}, pageid: {pageid}"
+        )
+
+    async def get_synthetic_document_from_queue(self) -> Tuple[str, int]:
+        """
+        Get a synthetic document from the queue.
+        """
+        bt.logging.debug(
+            f"Getting synth doc from queue of length {self.synthetic_document_queue.qsize()}"
+        )
+        doc, pageid = await self.synthetic_document_queue.get()
+        bt.logging.debug(
+            f"Got synth doc ({len(doc)} chars) with pageid: {pageid} from queue. New queue size: {self.synthetic_document_queue.qsize()}"
+        )
+        return doc, pageid
+
     async def run(self):
         """
         Main loop for the validator.
@@ -344,6 +403,8 @@ class BaseValidatorNeuron(BaseNeuron):
         # self.sync()
         # self.sync_articles()
         bt.logging.info(f"Validator starting at block: {self.block}")
+
+        synth_gen_task = asyncio.create_task(self.synthetic_document_producer())
 
         # This loop maintains the validator's operations until intentionally stopped.
         try:
@@ -393,6 +454,9 @@ class BaseValidatorNeuron(BaseNeuron):
             self.subtensor = bt.subtensor(config=self.config)
             # remake metagraph in case
             self.metagraph = self.subtensor.metagraph(self.config.netuid)
+        
+        finally:
+            synth_gen_task.cancel()
 
     def run_in_background_thread(self):
         """
