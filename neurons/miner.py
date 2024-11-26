@@ -45,6 +45,9 @@ from chunking.utils.relay.relay import (
     make_embeddings,
     sha256_hash,
 )
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Miner(BaseMinerNeuron):

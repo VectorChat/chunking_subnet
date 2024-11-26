@@ -13,6 +13,7 @@ from chunking.validator.task_api import (
 )
 import bittensor as bt
 from tests.utils.articles import get_articles
+from dotenv import load_dotenv
 
 
 async def runner(args: argparse.Namespace):
@@ -47,7 +48,7 @@ async def runner(args: argparse.Namespace):
 
     bt.logging.debug(f"Random article: {random_article}")
 
-    doc, title = get_wiki_content_for_page(random_article)
+    doc, title = await get_wiki_content_for_page(random_article)
 
     # with open("test_doc.txt") as f:
     #     doc = f.read()
@@ -126,4 +127,5 @@ if __name__ == "__main__":
     argparser.add_argument("--fake_cid", action="store_true")
     argparser.add_argument("--uid", type=int, default=16)
     args = argparser.parse_args()
+    load_dotenv()
     test_relay_round(args)
