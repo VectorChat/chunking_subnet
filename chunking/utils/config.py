@@ -207,13 +207,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--process.context_type",
-            type=str,
-            help="The type of context to use for the process.",
-            default="fork",
-        )
-
-        parser.add_argument(
             "--doc_gen.queue_size",
             type=int,
             help="The size of the synthetic document queue.",
