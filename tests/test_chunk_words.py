@@ -5,17 +5,13 @@ import time
 
 from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
+from chunking.utils.synthetic import get_wiki_content_for_page
 from chunking.validator.reward import (
     check_chunk_words_in_document,
     check_document_words_in_chunks,
     reward,
 )
-from chunking.validator.task_api import (
-    generate_doc_normal,
-    generate_synthetic_synapse,
-    get_wiki_content_for_page,
-)
-from nltk.tokenize import sent_tokenize
+
 import random
 
 from tests.utils import get_articles, base_chunker

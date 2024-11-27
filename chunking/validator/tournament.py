@@ -277,27 +277,6 @@ async def score_miner_group_responses(
             verbose=self.is_debug,
         )
 
-        # loop = asyncio.get_running_loop()
-        # bt.logging.debug("got current loop")
-
-        # ctx = multiprocessing.get_context(self.config.process.context_type)
-        # print(f"using context type: {self.config.process.context_type}")
-        # with ProcessPoolExecutor(
-        #     mp_context=ctx, max_workers=1, initializer=None
-        # ) as executor:
-        #     func = partial(
-        #         run_get_rewards,
-        #         document=input_synapse.document,
-        #         chunk_size=input_synapse.chunk_size,
-        #         chunk_qty=input_synapse.chunk_qty,
-        #         responses=responses,
-        #         num_embeddings=self.num_embeddings,
-        #         verbose=self.config.debug,
-        #     )
-        #     bt.logging.debug("running in executor")
-        #     (rewards, extra_infos) = await loop.run_in_executor(executor, func)
-        #     # await asyncio.sleep(0.1)
-
         print(
             f"Rewards for {task.task_type} tournament round, Doc length: {len(input_synapse.document)}, Group index:"
         )
