@@ -12,15 +12,21 @@ In the default validator, [reward.py](../chunking/validator/reward.py) rewards t
 
 First, the validator confirms that each word in the chunked response also exists, in the same order, in the original document.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L73-L138
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L56-L123
 
 ### 2. Check that all document words can be found in at least one chunk
 
 Then, the validator confirms that every set of 3 adjacent words in the original document is also present within the chunked response.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L141-L157
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L126-L147
 
 If either don't hold true, the reward is 0.
+
+### 3. Check that each chunk ends on a sentence boundary
+
+Finally, the validator checks that each chunk ends on a sentence boundary.
+
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L150-L157
 
 ## Evaluating
 

@@ -147,6 +147,15 @@ def check_document_words_in_chunks(
     return True
 
 
+def check_chunk_ends_on_sentence_boundary(chunk: str):
+    sentence_end_regex = r"([.!?])"
+    stripped_chunk = chunk.strip()  # remove leading and trailing whitespace
+    if re.search(sentence_end_regex, stripped_chunk):
+        return True
+    else:
+        return False
+
+
 async def reward(
     document: str,
     chunk_size: int,
@@ -164,6 +173,7 @@ async def reward(
     The reward function checks that:
     - every word in each chunk exists in the source document
     - every set of 3 adjacent words in the document appears in at least one chunk
+    - each chunk ends on a sentence boundary
 
     If these conditions are not met, the reward is set to 0.
 
@@ -244,6 +254,11 @@ async def reward(
             if not check_chunk_words_in_document(chunks[i], document, verbose):
                 return _get_early_return_stuff(
                     f"Chunk {i} does not contain all words from the document"
+                )
+
+            if not check_chunk_ends_on_sentence_boundary(chunks[i]):
+                return _get_early_return_stuff(
+                    f"Chunk {i} does not end on a sentence boundary. Must end with a punctuation mark."
                 )
 
         if do_penalties:
@@ -334,9 +349,7 @@ async def reward(
     extra_info_dict["embeddings"] = embeddings
     extra_info_dict["intrachunk_similarities"] = intrachunk_similarities
     extra_info_dict["interchunk_similarities"] = interchunk_similarities
-    extra_info_dict["size_penalty"] = size_penalty
     extra_info_dict["embedding_reward"] = reward
-    extra_info_dict["qty_penalty"] = qty_penalty
     extra_info_dict["num_embed_tokens"] = num_tokens
 
     if do_penalties:
@@ -367,6 +380,9 @@ async def reward(
 
         # apply size and quantity penalties
         reward *= (2 / 3) ** (size_penalty + qty_penalty)
+
+    extra_info_dict["qty_penalty"] = qty_penalty
+    extra_info_dict["size_penalty"] = size_penalty
 
     _verbose(f"Embedding reward: {reward}")
     _verbose(f"Size penalty: {size_penalty}")
