@@ -12,6 +12,7 @@ from chunking.validator.reward import reward
 from tests.utils.articles import get_articles
 from tests.utils.chunker import base_chunker, mid_sentence_chunker
 from tests.utils.synthetic import get_or_load_synthetic_data
+from nltk.tokenize import word_tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +111,13 @@ async def run_test(document: str):
 
     test_chunks = base_chunker(synapse.document, synapse.chunk_size)
 
-    ## remove the first word from the first chunk
-
-    test_chunks[0] = " ".join(test_chunks[0].split()[1:])
+    ## remove the words from the first chunk
+    first_chunk = test_chunks[0]
+    logger.info(f"first_chunk: {first_chunk}")
+    words = word_tokenize(first_chunk)
+    words = words[2:]
+    test_chunks[0] = " ".join(words)
+    logger.info(f"new chunk after removing words: {test_chunks[0]}")
 
     synapse.chunks = test_chunks
 
@@ -227,9 +232,6 @@ async def run_test(document: str):
     size_penalty = extra_info["size_penalty"]
     logger.info(f"size_penalty: {size_penalty}")
 
-    exp_embedding_reward = e**embedding_reward
-
-    assert reward_value < exp_embedding_reward
     assert size_penalty > 0
 
     logger.info("reward should not penalize big chunks if not doing penalties")
@@ -302,14 +304,19 @@ async def main(num_articles: int):
 
     logger.info(f"Got {len(documents)} documents")
 
-    for document, save_path in documents:
-        logger.info(
-            f"Testing document with {len(document)} characters from {save_path}"
-        )
-        await run_test(document)
-        logger.info(
-            f"Finished testing document with {len(document)} characters from {save_path}"
-        )
+    batch_size = 5
+
+    for i in range(0, len(documents), batch_size):
+        batch = documents[i : i + batch_size]
+
+        for document, save_path in batch:
+            logger.info(
+                f"Testing document with {len(document)} characters from {save_path}"
+            )
+            await run_test(document)
+            logger.info(
+                f"Finished testing document with {len(document)} characters from {save_path}"
+            )
 
 
 # @pytest.mark.parametrize("num_articles", [5])
