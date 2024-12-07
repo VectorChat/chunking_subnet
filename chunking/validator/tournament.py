@@ -22,7 +22,7 @@ from chunking.validator.types import EndTournamentRoundInfo
 from chunking.protocol import chunkSynapse
 
 
-def create_groups(rankings: np.ndarray, group_size: int):
+def create_groups(rankings: np.ndarray, group_size: int) -> tuple[list[np.ndarray[int]], list[range], list[np.ndarray[float]]]:
     """
     Creates groups of miners based on the rankings. The group size increases as the ranks get worse (higher number).
     There is always overlap between each group, with the size of the overlap being group_size // 2.
