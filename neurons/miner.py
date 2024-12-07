@@ -32,8 +32,6 @@ import json
 from sr25519 import sign
 from substrateinterface import Keypair
 
-from bittensor.errors import SynapseDendriteNoneException
-from bittensor.constants import V_7_2_0
 
 from chunking.utils.ipfs.ipfs import get_from_ipfs, get_pinned_cids
 from chunking.utils.maths import calc_cosine_similarity
@@ -364,15 +362,15 @@ class Miner(BaseMinerNeuron):
             "chunks": synapse.chunks,
         }
 
-        synapse.miner_signature = str(
-            sign(
-                (
-                    self.wallet.get_hotkey().public_key,
-                    self.wallet.get_hotkey().private_key,
-                ),
-                str.encode(json.dumps(response_data)),
-            ).hex()
-        )
+        # synapse.miner_signature = str(
+        #     sign(
+        #         (
+        #             self.wallet.get_hotkey().public_key,
+        #             self.wallet.get_hotkey().private_key,
+        #         ),
+        #         str.encode(json.dumps(response_data)),
+        #     ).hex()
+        # )
 
         bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
 
@@ -511,10 +509,7 @@ class Miner(BaseMinerNeuron):
             if synapse.dendrite.nonce is None:
                 raise Exception("Missing Nonce")
 
-            if (
-                synapse.dendrite.version is not None
-                and synapse.dendrite.version >= V_7_2_0
-            ):
+            if synapse.dendrite.version is not None and synapse.dendrite.version >= 720:
                 bt.logging.debug(f"Using custom synapse verification logic")
                 # If we don't have a nonce stored, ensure that the nonce falls within
                 # a reasonable delta.
@@ -569,12 +564,15 @@ class Miner(BaseMinerNeuron):
             # Success
             self.nonces[endpoint_key] = synapse.dendrite.nonce  # type: ignore
         else:
-            raise SynapseDendriteNoneException(synapse=synapse)
+            raise Exception("Dendrite is None")
+
+
+def main():
+    miner = Miner()
+
+    miner.run()
 
 
 # This is the main function, which runs the miner.
 if __name__ == "__main__":
-    with Miner() as miner:
-        while True:
-            # bt.logging.info("Miner running...", time.time())
-            time.sleep(10)
+    main()
