@@ -285,6 +285,13 @@ def add_args(cls, parser):
             default=False,
         )
 
+        parser.add_argument(
+            "--neuron.no_serve",
+            action="store_true",
+            help="If set, does not serve the miner axon.",
+            default=False,
+        )
+
 
 def config(cls):
     """
