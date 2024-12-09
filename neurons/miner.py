@@ -355,26 +355,24 @@ class Miner(BaseMinerNeuron):
 
         synapse.chunks = chunks
 
+        synapse.miner_signature = self.make_miner_signature(synapse)
+
+        bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
+
+        return synapse
+
+    def make_miner_signature(self, synapse: chunking.protocol.chunkSynapse) -> str:
         response_data = {
             "document": synapse.document,
             "chunk_size": synapse.chunk_size,
             "chunk_qty": synapse.chunk_qty,
             "chunks": synapse.chunks,
         }
-
-        # synapse.miner_signature = str(
-        #     sign(
-        #         (
-        #             self.wallet.get_hotkey().public_key,
-        #             self.wallet.get_hotkey().private_key,
-        #         ),
-        #         str.encode(json.dumps(response_data)),
-        #     ).hex()
-        # )
-
-        bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
-
-        return synapse
+        data_to_sign = str.encode(json.dumps(response_data))
+        bt.logging.trace(f"data to sign: {data_to_sign[:100]}...")
+        signature = self.wallet.get_hotkey().sign(data_to_sign)
+        
+        return signature.hex()
 
     async def blacklist(
         self, synapse: chunking.protocol.chunkSynapse
