@@ -268,6 +268,9 @@ async def generate_doc_normal(validator, pageid=None) -> Tuple[str, int]:
     return content, random_page_id
 
 
+gen_types: List[SyntheticGenType] = ["old", "new"]
+probabilities_gen_types = [0.2, 0.8]
+
 async def generate_document(validator) -> Tuple[str, int]:
     """
     Generate a synthetic document for a synthetic tournament round. Either from wikipedia or with an llm.
@@ -283,8 +286,13 @@ async def generate_document(validator) -> Tuple[str, int]:
         bt.logging.info("Getting random document from wikipedia")
         return await generate_doc_normal(validator)
     else:
-        bt.logging.info("Generating synthetic document with llm")
-        synthetic_document, article_names = await generate_doc_with_llm(validator)
+        gen_type = np.random.choice(gen_types, p=probabilities_gen_types)
+        bt.logging.info(
+            f"Generating synthetic document with llm, gen_type: {gen_type}"
+        )
+        synthetic_document, article_names = await generate_doc_with_llm(
+            validator, gen_type=gen_type
+        )
         bt.logging.debug(
             f"Generated synthetic document with {len(synthetic_document)} characters from articles: {article_names}"
         )
