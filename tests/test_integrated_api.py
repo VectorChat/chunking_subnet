@@ -106,13 +106,14 @@ async def main(num_articles: int, batch_size: int):
 
         batch_times.append(end_time - start_time)
 
-        print(f"Responses received for batch {i} in {batch_times[-1]} seconds")
+        logger.info(f"Responses received for batch {i} in {batch_times[-1]} seconds")
 
         logger.info(f"Got {len(responses)} responses")
 
-        for response in responses:
+        for i, response in enumerate(responses):
             assert response is not None
             res_json = response.json()
+            logger.info(f"Response {i}: {res_json}")
             assert ChunkResponse.model_validate(res_json)
 
     print(f"Batch times: {json.dumps(batch_times, indent=2)}")

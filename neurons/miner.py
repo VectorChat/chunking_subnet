@@ -32,8 +32,6 @@ import json
 from sr25519 import sign
 from substrateinterface import Keypair
 
-from bittensor.errors import SynapseDendriteNoneException
-from bittensor.constants import V_7_2_0
 
 from chunking.utils.ipfs.ipfs import get_from_ipfs, get_pinned_cids
 from chunking.utils.maths import calc_cosine_similarity
@@ -357,26 +355,24 @@ class Miner(BaseMinerNeuron):
 
         synapse.chunks = chunks
 
+        synapse.miner_signature = self.make_miner_signature(synapse)
+
+        bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
+
+        return synapse
+
+    def make_miner_signature(self, synapse: chunking.protocol.chunkSynapse) -> str:
         response_data = {
             "document": synapse.document,
             "chunk_size": synapse.chunk_size,
             "chunk_qty": synapse.chunk_qty,
             "chunks": synapse.chunks,
         }
-
-        synapse.miner_signature = str(
-            sign(
-                (
-                    self.wallet.get_hotkey().public_key,
-                    self.wallet.get_hotkey().private_key,
-                ),
-                str.encode(json.dumps(response_data)),
-            ).hex()
-        )
-
-        bt.logging.debug(f"signed synapse with signature: {synapse.miner_signature}")
-
-        return synapse
+        data_to_sign = str.encode(json.dumps(response_data))
+        bt.logging.trace(f"data to sign: {data_to_sign[:100]}...")
+        signature = self.wallet.get_hotkey().sign(data_to_sign)
+        
+        return signature.hex()
 
     async def blacklist(
         self, synapse: chunking.protocol.chunkSynapse
@@ -511,10 +507,7 @@ class Miner(BaseMinerNeuron):
             if synapse.dendrite.nonce is None:
                 raise Exception("Missing Nonce")
 
-            if (
-                synapse.dendrite.version is not None
-                and synapse.dendrite.version >= V_7_2_0
-            ):
+            if synapse.dendrite.version is not None and synapse.dendrite.version >= 720:
                 bt.logging.debug(f"Using custom synapse verification logic")
                 # If we don't have a nonce stored, ensure that the nonce falls within
                 # a reasonable delta.
@@ -569,12 +562,15 @@ class Miner(BaseMinerNeuron):
             # Success
             self.nonces[endpoint_key] = synapse.dendrite.nonce  # type: ignore
         else:
-            raise SynapseDendriteNoneException(synapse=synapse)
+            raise Exception("Dendrite is None")
+
+
+def main():
+    miner = Miner()
+
+    miner.run()
 
 
 # This is the main function, which runs the miner.
 if __name__ == "__main__":
-    with Miner() as miner:
-        while True:
-            # bt.logging.info("Miner running...", time.time())
-            time.sleep(10)
+    main()
