@@ -563,9 +563,11 @@ def rank_responses_global(
     miner_group_uids: np.ndarray[int],
     override_scores: np.ndarray[float] | None = None,
 ) -> np.ndarray[np.float64]:
+    """
+    Get the effective rank values for each response, which should be used when updating scores (the psuedo- moving average of a miner's rank)
+    """
     # inf means the response should not be ranked
     ranked_responses_global = np.full_like(ranked_responses, np.inf)
-
     scores = override_scores if override_scores is not None else self.scores
 
     ranked_responses = ranked_responses.astype(int)

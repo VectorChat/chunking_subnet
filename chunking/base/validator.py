@@ -46,7 +46,7 @@ import sympy as sp
 from chunking.utils.synthetic import generate_document
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
-from chunking.utils.score import get_rank_value_to_adjusted_alpha
+from chunking.utils.score import get_new_scores, get_rank_value_to_adjusted_alpha
 
 
 load_dotenv()
@@ -793,62 +793,25 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         wandb_data = end_tournament_round_info.wandb_data
-        ranks = end_tournament_round_info.ranked_responses_global
-        uids = end_tournament_round_info.miner_group_uids
-        alpha = end_tournament_round_info.alpha
         do_wandb_log = end_tournament_round_info.do_wandb_log
-
-        self.scores = self.scores.astype(np.float64)
-        # Check if rewards contains NaN values.
-        if np.isnan(ranks).any():
-            bt.logging.warning(f"NaN values detected in rewards: {ranks}")
-            # Replace any NaN values in rewards with inf.
-            ranks = np.nan_to_num(ranks, nan=np.inf)
+        uids = end_tournament_round_info.miner_group_uids
 
         if isinstance(uids, np.ndarray):
             uids_array = uids.copy()
         else:
             uids_array = np.array(uids)
 
-        # Update scores with rewards produced by this step.
-        # bt.logging.debug(
-        #     f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
-        # )
+        self.scores = self.scores.astype(np.float64)
 
-        bt.logging.debug(f"group alpha: {alpha}")
-
-        rank_value_to_adjusted_alpha = get_rank_value_to_adjusted_alpha(ranks, alpha)
-
-        for rank, uid in zip(ranks, uids_array):
-            if np.isinf(rank):
-                continue
-
-            adjusted_alpha = rank_value_to_adjusted_alpha[rank]
-
-            bt.logging.debug(
-                f"uid: {uid}, rank value: {rank}, adjusted_alpha: {adjusted_alpha}"
-            )
-            score_str = f"score: {self.scores[uid]} -> "
-
-            # initialize score if it is np.inf
-            if np.isinf(self.scores[uid]):
-                self.scores[uid] = adjusted_alpha * rank + (1 - adjusted_alpha) * floor(
-                    np.sum(np.isfinite(self.scores)) / 2
-                )
-            elif self.scores[uid] < 0:
-                self.scores[uid] = np.inf
-            else:
-                self.scores[uid] = (
-                    adjusted_alpha * rank + (1 - adjusted_alpha) * self.scores[uid]
-                )
-
-            score_str += f"{self.scores[uid]}"
-            bt.logging.debug(score_str)
-
-        # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+        self.scores = get_new_scores(
+            scores=self.scores,
+            uids=uids_array,
+            alpha=end_tournament_round_info.alpha,
+            group_best_possible_rank_value=end_tournament_round_info.group_best_possible_rank_value,
+            rank_values=end_tournament_round_info.rank_values,
+        )
 
         old_rankings = copy.deepcopy(self.rankings)
-
         self.rankings = np.argsort(self.scores)
 
         # print old/new rankings
