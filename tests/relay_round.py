@@ -7,7 +7,7 @@ from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
 from chunking.utils.relay.relay import make_relay_payload
-from chunking.utils.synthetic import get_wiki_content_for_page
+from chunking.utils.synthetic.synthetic import get_wiki_content_for_page
 from chunking.validator.task_api import (
     Task,
 )

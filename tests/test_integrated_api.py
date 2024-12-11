@@ -6,7 +6,7 @@ import time
 import httpx
 
 from chunking.utils.integrated_api.chunk.types import ChunkResponse
-from chunking.utils.synthetic import get_wiki_content_for_page
+from chunking.utils.synthetic.synthetic import get_wiki_content_for_page
 from tests.utils.articles import get_articles
 
 

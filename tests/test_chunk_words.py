@@ -5,7 +5,7 @@ import time
 
 from openai import AsyncOpenAI, OpenAI
 from chunking.protocol import chunkSynapse
-from chunking.utils.synthetic import get_wiki_content_for_page
+from chunking.utils.synthetic.synthetic import get_wiki_content_for_page
 from chunking.validator.reward import (
     check_chunk_words_in_document,
     check_document_words_in_chunks,

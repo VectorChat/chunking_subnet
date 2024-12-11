@@ -43,7 +43,8 @@ import wandb
 from wandb.apis.public.runs import Runs, Run
 import sympy as sp
 
-from chunking.utils.synthetic import generate_document
+from chunking.utils.synthetic.synthetic import generate_document
+from chunking.utils.synthetic.types import SyntheticGenType
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
 from chunking.utils.score import get_new_scores, get_rank_value_to_adjusted_alpha

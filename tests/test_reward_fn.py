@@ -6,7 +6,7 @@ from openai import AsyncOpenAI, OpenAI
 import pytest
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
-from chunking.utils.synthetic import generate_doc_normal
+from chunking.utils.synthetic.synthetic import generate_doc_normal
 from chunking.validator.reward import reward
 
 from tests.utils.articles import get_articles
