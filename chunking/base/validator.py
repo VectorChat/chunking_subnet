@@ -43,7 +43,7 @@ import wandb
 from wandb.apis.public.runs import Runs, Run
 import sympy as sp
 
-from chunking.utils.synthetic import generate_document
+from chunking.utils.synthetic.synthetic import generate_document
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
 from chunking.utils.score import get_rank_value_to_adjusted_alpha
@@ -324,6 +324,9 @@ class BaseValidatorNeuron(BaseNeuron):
             self.forward() for _ in range(self.config.neuron.num_concurrent_forwards)
         ]
         await asyncio.gather(*coroutines)
+
+    gen_types: List[LLMGenType] = ["old", "new"]
+    probabilities_gen_types = [0.2, 0.8]
 
     async def synthetic_document_producer(self):
         """

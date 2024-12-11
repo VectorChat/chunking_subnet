@@ -8,6 +8,7 @@ import random
 import time
 from chunking.protocol import chunkSynapse
 from chunking.utils.chunks import calculate_chunk_qty
+from chunking.utils.synthetic.types import SyntheticGenType
 from chunking.utils.tokens import num_tokens_from_string
 
 # SYSTEM_PROMPT = "You are a writer tasked with writing an article that combines multiple topics. You are known for your long-winded tangents and detailed exploration of all topics covered in your articles."
@@ -54,7 +55,7 @@ async def generate_doc_with_llm(
     override_client: AsyncOpenAI | None = None,
     k=3,
     loop_range=range(3, 7),
-    gen_type: Literal["old", "new"] = "new",
+    gen_type: SyntheticGenType = "new",
 ) -> Tuple[str, List[str]]:
     """
     Generate a synthetic document based on three articles from wikipedia.
@@ -290,8 +291,8 @@ async def generate_document(validator) -> Tuple[str, int]:
         return synthetic_document, -1
 
 
-chunk_sizes = [2048, 4096]
-probabilities = [0.1, 0.9]
+chunk_sizes = [2000, 3000, 4000]
+probabilities_chunk_sizes = [0.2, 0.3, 0.5]
 
 
 async def generate_synthetic_synapse(
@@ -302,10 +303,11 @@ async def generate_synthetic_synapse(
 
     timeout = validator.config.neuron.timeout if validator is not None else timeout
     time_soft_max = timeout * 0.75
-    chunk_size = np.random.choice(chunk_sizes, p=probabilities)
+    chunk_size = np.random.choice(chunk_sizes, p=probabilities_chunk_sizes)
     bt.logging.debug(
-        f"Chose chunk size: {chunk_size}. Chunk sizes: {chunk_sizes}, probabilities: {probabilities}"
+        f"Chose chunk size: {chunk_size}. Chunk sizes: {chunk_sizes}, probabilities: {probabilities_chunk_sizes}"
     )
+
     synapse = chunkSynapse(
         document=document,
         time_soft_max=time_soft_max,

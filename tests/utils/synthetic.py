@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from openai import AsyncOpenAI
 
-from chunking.utils.synthetic import generate_doc_with_llm
+from chunking.utils.synthetic.synthetic import generate_doc_with_llm
 
 
 async def generate_and_save_synthetic_document(
