@@ -262,6 +262,9 @@ async def score_miner_group_responses(
     request_type: ChunkRequestType,
     reward_options: RewardOptions,
 ) -> EndTournamentRoundInfo | None:
+    """
+    Calculating rewards + ranking, making wandb data, making tournament round info for use in update_scores()
+    """
     try:
         input_synapse = task.synapse
 
@@ -296,11 +299,12 @@ async def score_miner_group_responses(
                 np.float64
             )
         else:
+            # get rank values, "effective" rank that should be used when updating scores
             ranked_responses_global = rank_responses_global(
                 self, group_rank_values, ranked_responses, miner_group_uids
             )
 
-        bt.logging.debug(f"Ranked responses global: {ranked_responses_global}")
+        bt.logging.debug(f"Rank values: {ranked_responses_global}")
 
         if miner_group_index is None:
             alpha = -1
@@ -331,12 +335,13 @@ async def score_miner_group_responses(
             responses=responses,
             miner_group_index=miner_group_index or -1,
             rewards=rewards.tolist(),
-            ranked_responses_global=ranked_responses_global.tolist(),
+            rank_values=ranked_responses_global.tolist(),
             miner_group_uids=miner_group_uids.astype(int).tolist(),
             alpha=alpha,
             do_wandb_log=do_wandb_log,
             wandb_data=wandb_data,
             task_type=task.task_type,
+            group_best_possible_rank_value=group_rank_values[0]
         )
 
         # bt.logging.debug(f"End tournament round info: {end_tournament_round_info}")

@@ -58,6 +58,6 @@ async def forward(self):
 
     if info is not None:
         bt.logging.debug(
-            f"Queueing score update for group {info.miner_group_index}, uids: {info.miner_group_uids}, rank values {info.ranked_responses_global}"
+            f"Queueing score update for group {info.miner_group_index}, uids: {info.miner_group_uids}, rank values {info.rank_values}"
         )
         await self.queue_score_update(info)
