@@ -49,7 +49,7 @@ from chunking.utils.synthetic.types import SyntheticGenType
 from chunking.utils.wandb.wandb import WandbLogger
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
-from chunking.utils.score import get_new_scores, get_rank_value_to_adjusted_alpha
+from chunking.utils.score import get_new_scores 
 
 
 load_dotenv()
@@ -659,6 +659,7 @@ class BaseValidatorNeuron(BaseNeuron):
             alpha=end_tournament_round_info.alpha,
             group_best_possible_rank_value=end_tournament_round_info.group_best_possible_rank_value,
             rank_values=end_tournament_round_info.rank_values,
+            miner_group_index=end_tournament_round_info.miner_group_index
         )
 
         old_rankings = copy.deepcopy(self.rankings)
