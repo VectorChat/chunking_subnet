@@ -5,7 +5,8 @@ import chunking
 import wandb
 from wandb.apis.public.runs import Runs, Run
 import bittensor as bt
-from gql import gql
+
+# from gql import gql
 
 RUN_FRAGMENT = """fragment RunFragment on Run {
     id
@@ -70,37 +71,37 @@ class WandbLogger:
 
     def restart_if_past_time_delta(self, time_delta: timedelta):
         # query = gql(QUERY_TEMPLATE % RUN_FRAGMENT)
-#         query = gql("""
-#         query Run($project: String!, $entity: String!, $name: String!) {
-#             project(name: $project, entityName: $entity) {
-#                 run(name: $name) {
-#                     id
-#                     tags
-#                     name
-#                     displayName
-#                     sweepName
-#                     state
-#                     config
-#                     group
-#                     jobType
-#                     commit
-#                     readOnly
-#                     createdAt
-#                     heartbeatAt
-#                     description
-#                     notes
-#                     systemMetrics
-#                     summaryMetrics
-#                     historyLineCount
-#                     user {
-#                         name
-#                         username
-#                     }
-#                     historyKeys
-#                 }
-#             }
-#         }
-# """)
+        #         query = gql("""
+        #         query Run($project: String!, $entity: String!, $name: String!) {
+        #             project(name: $project, entityName: $entity) {
+        #                 run(name: $name) {
+        #                     id
+        #                     tags
+        #                     name
+        #                     displayName
+        #                     sweepName
+        #                     state
+        #                     config
+        #                     group
+        #                     jobType
+        #                     commit
+        #                     readOnly
+        #                     createdAt
+        #                     heartbeatAt
+        #                     description
+        #                     notes
+        #                     systemMetrics
+        #                     summaryMetrics
+        #                     historyLineCount
+        #                     user {
+        #                         name
+        #                         username
+        #                     }
+        #                     historyKeys
+        #                 }
+        #             }
+        #         }
+        # """)
 
         # variables = {
         #     "project": self.validator.config.wandb.project_name,
@@ -117,7 +118,9 @@ class WandbLogger:
         start_datetime = datetime.fromtimestamp(self.start_time)
 
         if start_datetime + time_delta < cur_datetime:
-            bt.logging.info(f"Restarting wandb run. Start time: {start_datetime}. Time delta arg: {time_delta}. Current time: {cur_datetime}")
+            bt.logging.info(
+                f"Restarting wandb run. Start time: {start_datetime}. Time delta arg: {time_delta}. Current time: {cur_datetime}"
+            )
             self.run = self._setup_wandb(force_restart=True)
             self.start_time = time.time()
 
@@ -159,7 +162,9 @@ class WandbLogger:
         )
         return self._find_valid_wandb_run(latest_runs)
 
-    def _start_new_wandb_run(self, project_name: str, run_name: str, reinit: bool = False) -> Run:
+    def _start_new_wandb_run(
+        self, project_name: str, run_name: str, reinit: bool = False
+    ) -> Run:
         """
         Start a new wandb run for this validator if no valid wandb run exists for this validator and version.
         """
@@ -248,7 +253,9 @@ class WandbLogger:
                 run: Run | None = None
 
                 if not latest_run or force_restart:
-                    run = self._start_new_wandb_run(project_name, run_name, reinit=force_restart)
+                    run = self._start_new_wandb_run(
+                        project_name, run_name, reinit=force_restart
+                    )
                 else:
                     # check if uid or version has changed
                     if (
