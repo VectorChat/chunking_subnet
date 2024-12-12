@@ -16,7 +16,7 @@ from random import choice, choices
 from math import ceil
 
 from chunking.utils.chunks import calculate_chunk_qty
-from chunking.utils.synthetic import generate_synthetic_synapse
+from chunking.utils.synthetic.synthetic import generate_synthetic_synapse
 from chunking.utils.tokens import num_tokens_from_string
 from chunking.validator.types import TaskType
 from chunking.utils.relay.relay import make_relay_payload

@@ -19,7 +19,6 @@ import time
 import asyncio
 import threading
 import traceback
-
 import bittensor as bt
 
 from chunking.base.neuron import BaseNeuron
@@ -45,12 +44,40 @@ class BaseMinerNeuron(BaseNeuron):
             verify_fn=(self.verify),
         )
         bt.logging.info(f"Axon created: {self.axon}")
-        # Instantiate runner
-        self.should_exit: bool = False
-        self.is_running: bool = False
-        self.thread: threading.Thread = None
 
         self.loop = asyncio.get_event_loop()
+
+    def reconnect(self):
+        """
+        Reconnects to the network by attempting to sync with the subtensor and metagraph.
+
+        Exponential backoff is used to avoid overwhelming the network.
+        """
+        for i in range(self.config.neuron.reconnect.max_attempts):
+            sleep_time = min(
+                self.config.neuron.reconnect.max_seconds,
+                self.config.neuron.reconnect.min_seconds * 2**i,
+            )
+            try:
+                self.subtensor = bt.subtensor(config=self.config)
+                self.metagraph = self.subtensor.metagraph(self.config.netuid)
+                bt.logging.success(
+                    f"Reconnected to the network after {i + 1} attempts."
+                )
+                return
+            except Exception as e:
+                bt.logging.error(
+                    f"Error reconnecting to the network (attempt {i + 1}/{self.config.neuron.reconnect.max_attempts}): {e}"
+                )
+                bt.logging.error(traceback.format_exc())
+
+                bt.logging.error(f"Sleeping for {sleep_time} seconds before retrying.")
+                time.sleep(sleep_time)
+
+        bt.logging.error(
+            f"Failed to reconnect to the network after {self.config.neuron.reconnect.max_attempts} attempts."
+        )
+        exit(1)
 
     def run(self):
         """
@@ -80,10 +107,15 @@ class BaseMinerNeuron(BaseNeuron):
 
         # Serve passes the axon information to the network + netuid we are hosting on.
         # This will auto-update if the axon port of external ip have changed.
-        bt.logging.info(
-            f"Serving miner axon {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
-        )
-        self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
+        if not self.config.neuron.no_serve:
+            bt.logging.info(
+                f"Serving miner axon {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
+            )
+            self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
+        else:
+            bt.logging.warning(
+                f"Not serving miner axon {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
+            )
 
         # Start  starts the miner's axon, making it active on the network.
         self.axon.start()
@@ -91,75 +123,26 @@ class BaseMinerNeuron(BaseNeuron):
         bt.logging.info(f"Miner starting at block: {self.block}")
 
         # This loop maintains the miner's operations until intentionally stopped.
-        try:
-            while not self.should_exit:
+        while True:
+            try:
                 while (
                     self.block - self.last_sync_block < self.config.neuron.epoch_length
                 ):
                     # Wait before checking again.
                     time.sleep(60)
 
-                    # Check if we should exit.
-                    if self.should_exit:
-                        break
-
                 # Sync metagraph and potentially set weights.
                 self.sync()
                 self.step += 1
 
-        # If someone intentionally stops the miner, it'll safely terminate operations.
-        except KeyboardInterrupt:
-            self.axon.stop()
-            bt.logging.success("Miner killed by keyboard interrupt.")
-            exit()
+            # If someone intentionally stops the miner, it'll safely terminate operations.
+            except KeyboardInterrupt:
+                self.axon.stop()
+                bt.logging.success("Miner killed by keyboard interrupt.")
+                exit()
 
-        # In case of unforeseen errors, the miner will log the error and continue operations.
-        except Exception as e:
-            bt.logging.error(traceback.format_exc())
-
-    def run_in_background_thread(self):
-        """
-        Starts the miner's operations in a separate background thread.
-        This is useful for non-blocking operations.
-        """
-        if not self.is_running:
-            bt.logging.debug("Starting miner in background thread.")
-            self.should_exit = False
-            self.thread = threading.Thread(target=self.run, daemon=True)
-            self.thread.start()
-            self.is_running = True
-            bt.logging.debug("Started")
-
-    def stop_run_thread(self):
-        """
-        Stops the miner's operations that are running in the background thread.
-        """
-        if self.is_running:
-            bt.logging.debug("Stopping miner in background thread.")
-            self.should_exit = True
-            self.thread.join(5)
-            self.is_running = False
-            bt.logging.debug("Stopped")
-
-    def __enter__(self):
-        """
-        Starts the miner's operations in a background thread upon entering the context.
-        This method facilitates the use of the miner in a 'with' statement.
-        """
-        self.run_in_background_thread()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        """
-        Stops the miner's background operations upon exiting the context.
-        This method facilitates the use of the miner in a 'with' statement.
-
-        Args:
-            exc_type: The type of the exception that caused the context to be exited.
-                      None if the context was exited without an exception.
-            exc_value: The instance of the exception that caused the context to be exited.
-                       None if the context was exited without an exception.
-            traceback: A traceback object encoding the stack trace.
-                       None if the context was exited without an exception.
-        """
-        self.stop_run_thread()
+            # In case of unforeseen errors, the miner will log the error and continue operations.
+            except Exception as e:
+                bt.logging.error(f"Error during mining: {e}")
+                bt.logging.error(traceback.format_exc())
+                self.reconnect()

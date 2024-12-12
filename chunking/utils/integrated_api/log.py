@@ -1,3 +1,5 @@
+import bittensor as bt
+
 
 def api_log(message: str):
-    print(f"[TASK_API]: {message}")
+    bt.logging.info(f"[TASK_API]: {message}")

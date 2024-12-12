@@ -6,7 +6,7 @@ import re
 from typing import Literal
 import bittensor as bt
 from openai import AsyncOpenAI
-from chunking.utils.synthetic import generate_doc_with_llm
+from chunking.utils.synthetic.synthetic import generate_doc_with_llm
 from tests.utils.articles import get_articles
 
 argparser = argparse.ArgumentParser()

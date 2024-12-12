@@ -32,7 +32,6 @@ from chunking.utils.integrated_api.chunk.types import RewardOptions
 from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
 import regex as re
-import dill
 import nltk
 
 
@@ -443,62 +442,74 @@ async def get_rewards(
     chunks_hash_to_info = {}
     hashes = []
 
-    async with Pool() as pool:
-        for response in responses:
-            miner_hotkey = response.axon.hotkey or "not found"
-            print(f"handling response from {miner_hotkey[:10]}")
-            chunks_hash = (
-                get_chunks_hash(response.chunks) if response is not None else ""
-            )
-            if chunks_hash not in hashes and response is not None:
+    # async with Pool() as pool:
+    for response in responses:
+        miner_hotkey = response.axon.hotkey or "not found"
+        print(f"handling response from {miner_hotkey[:10]}")
+        chunks_hash = (
+            get_chunks_hash(response.chunks) if response is not None else ""
+        )
+        if chunks_hash not in hashes and response is not None:
 
-                async def _calculate_reward():
-                    print(
-                        f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
-                    )
-
-                    print("calling reward() via aiomultiprocess pool")
-                    reward_value, extra_info = await pool.apply(
-                        reward,
-                        kwds={
-                            "document": document,
-                            "chunk_size": chunk_size,
-                            "chunk_qty": chunk_qty,
-                            "response": response,
-                            "num_embeddings": num_embeddings,
-                            "verbose": verbose,
-                            "do_checks": reward_options.with_checks,
-                            "do_penalties": reward_options.with_penalties,
-                            # no client to avoid pickling
-                        },
-                    )
-
-                    return reward_value, extra_info
-
-                try:
-                    reward_value, extra_info = await _calculate_reward()
-                except LookupError as e:
-                    print(f"LookupError: {e}")
-                    nltk.download("punkt")
-                    nltk.download("punkt_tab")
-                    # retry
-                    print(f"retrying {chunks_hash[:10]}...")
-                    reward_value, extra_info = await _calculate_reward()
-                except Exception as e:
-                    print(
-                        f"Error calculating reward for response {response.name}, axon {miner_hotkey[:10]}: {e}"
-                    )
-                    reward_value = 0
-                    extra_info = {}
-
-                chunks_hash_to_info[chunks_hash] = {
-                    "reward": reward_value,
-                    "extra_info": extra_info,
-                }
+            async def _calculate_reward():
                 print(
-                    f"calculated reward for new chunks hash: {chunks_hash[:10]}..., reward: {reward_value}"
+                    f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
                 )
-            hashes.append(chunks_hash)
+
+                # print("calling reward() via aiomultiprocess pool")
+                # reward_value, extra_info = await pool.apply(
+                #     reward,
+                #     kwds={
+                #         "document": document,
+                #         "chunk_size": chunk_size,
+                #         "chunk_qty": chunk_qty,
+                #         "response": response,
+                #         "num_embeddings": num_embeddings,
+                #         "verbose": verbose,
+                #         "do_checks": reward_options.with_checks,
+                #         "do_penalties": reward_options.with_penalties,
+                #         # no client to avoid pickling
+                #     },
+                # )
+
+                reward_value, extra_info = await reward(
+                    document=document,
+                    chunk_size=chunk_size,
+                    chunk_qty=chunk_qty,
+                    response=response,
+                    num_embeddings=num_embeddings,
+                    client=client,
+                    verbose=verbose,
+                    do_checks=reward_options.with_checks,
+                    do_penalties=reward_options.with_penalties,
+                )
+
+                return reward_value, extra_info
+
+            try:
+                reward_value, extra_info = await _calculate_reward()
+            except LookupError as e:
+                print(f"LookupError: {e}")
+                nltk.download("punkt")
+                nltk.download("punkt_tab")
+                # retry
+                print(f"retrying {chunks_hash[:10]}...")
+                reward_value, extra_info = await _calculate_reward()
+            except Exception as e:
+                print(
+                    f"Error calculating reward for response {response.name}, axon {miner_hotkey[:10]}: {e}"
+                )
+                reward_value = 0
+                extra_info = {}
+
+            chunks_hash_to_info[chunks_hash] = {
+                "reward": reward_value,
+                "extra_info": extra_info,
+            }
+            print(
+                f"calculated reward for new chunks hash: {chunks_hash[:10]}..., reward: {reward_value}"
+            )
+        hashes.append(chunks_hash)
 
     for i, response in enumerate(responses):
         chunks_hash = hashes[i]
@@ -564,9 +575,11 @@ def rank_responses_global(
     miner_group_uids: np.ndarray[int],
     override_scores: np.ndarray[float] | None = None,
 ) -> np.ndarray[np.float64]:
+    """
+    Get the effective rank values for each response, which should be used when updating scores (the psuedo- moving average of a miner's rank)
+    """
     # inf means the response should not be ranked
     ranked_responses_global = np.full_like(ranked_responses, np.inf)
-
     scores = override_scores if override_scores is not None else self.scores
 
     ranked_responses = ranked_responses.astype(int)

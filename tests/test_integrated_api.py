@@ -5,9 +5,10 @@ import random
 import time
 import httpx
 
-from chunking.utils.integrated_api.chunk.types import ChunkResponse
-from chunking.utils.synthetic import get_wiki_content_for_page
+from chunking.utils.integrated_api.chunk.types import ChunkRequestType, ChunkResponse
+from chunking.utils.synthetic.synthetic import get_wiki_content_for_page
 from tests.utils.articles import get_articles
+import bittensor as bt
 
 
 logger = logging.getLogger(__name__)
@@ -15,21 +16,32 @@ BASE_URL = "http://localhost:8080"
 
 
 async def query_integrated_api(
-    miner_group_index: int,
+    miner_group_index: int | None,
     document: str,
     do_wandb_log: bool,
     do_scoring: bool,
     chunk_size: int,
     custom_miner_uids: list[int] | None,
+    type: ChunkRequestType,
+    benchmark_id: str | None = None,
 ):
+    if not miner_group_index and not custom_miner_uids:
+        raise ValueError(
+            "Either miner_group_index or custom_miner_uids must be provided"
+        )
+
     async with httpx.AsyncClient() as client:
         req_body = {
-            "miner_group_index": miner_group_index,
             "chunk_size": chunk_size,
             "document": document,
             "do_wandb_log": do_wandb_log,
             "do_scoring": do_scoring,
+            "request_type": type.value,
+            "benchmark_id": benchmark_id,
         }
+
+        if miner_group_index is not None:
+            req_body["miner_group_index"] = miner_group_index
 
         if custom_miner_uids is not None:
             req_body["custom_miner_uids"] = custom_miner_uids
@@ -45,11 +57,13 @@ async def query_integrated_api(
 
 async def get_doc_and_query(
     pageid: int,
-    miner_group_index: int,
+    miner_group_index: int | None = None,
     chunk_size: int = 4096,
     do_wandb_log: bool = True,
     do_scoring: bool = True,
     custom_miner_uids: list[int] | None = None,
+    type: ChunkRequestType = ChunkRequestType.normal,
+    benchmark_id: str | None = None,
 ):
     logger.info(f"Getting document for pageid {pageid}")
     content, title = await get_wiki_content_for_page(pageid)
@@ -65,6 +79,8 @@ async def get_doc_and_query(
         do_scoring=do_scoring,
         chunk_size=chunk_size,
         custom_miner_uids=custom_miner_uids,
+        type=type,
+        benchmark_id=benchmark_id,
     )
 
     end_time = time.time()
@@ -79,8 +95,28 @@ async def get_doc_and_query(
 
 
 async def main(num_articles: int, batch_size: int):
+    bt.debug()
 
     test_pageids = get_articles()
+
+    # test custom uids
+    custom_uids = [18, 19, 20]
+
+    rand_page_id = random.choice(test_pageids)
+
+    res = await get_doc_and_query(
+        pageid=rand_page_id,
+        custom_miner_uids=custom_uids,
+        type=ChunkRequestType.normal,
+    )
+
+    assert res is not None
+    assert res.status_code == 200
+    assert res.json() is not None
+    res_json = res.json()
+    assert ChunkResponse.model_validate(res_json)
+
+    # test random miner group index
 
     max_miner_group_index = 3
 
@@ -106,16 +142,51 @@ async def main(num_articles: int, batch_size: int):
 
         batch_times.append(end_time - start_time)
 
-        print(f"Responses received for batch {i} in {batch_times[-1]} seconds")
+        logger.info(f"Responses received for batch {i} in {batch_times[-1]} seconds")
 
         logger.info(f"Got {len(responses)} responses")
 
-        for response in responses:
+        for i, response in enumerate(responses):
             assert response is not None
             res_json = response.json()
+            logger.info(f"Response {i}: {res_json}")
             assert ChunkResponse.model_validate(res_json)
 
-    print(f"Batch times: {json.dumps(batch_times, indent=2)}")
+    logger.info(f"Batch times: {json.dumps(batch_times, indent=2)}")
+
+    # test benchmark round
+
+    rand_page_id = random.choice(test_pageids)
+
+    miner_uids = [16, 17, 18]
+
+    benchmark_id = "test_benchmark_id"
+
+    res = await get_doc_and_query(
+        pageid=rand_page_id,
+        custom_miner_uids=miner_uids,
+        type=ChunkRequestType.benchmark,
+        benchmark_id=benchmark_id,
+    )
+
+    logger.info(f"Benchmark response: {res}")
+
+    assert res is not None
+    assert res.status_code == 200
+    assert res.json() is not None
+    res_json = res.json()
+    assert ChunkResponse.model_validate(res_json)
+
+    # if no benchmark id is sent, should error
+
+    res = await get_doc_and_query(
+        pageid=rand_page_id,
+        custom_miner_uids=miner_uids,
+        type=ChunkRequestType.benchmark,
+    )
+
+    assert res is not None
+    assert res.status_code == 500
 
 
 def test_integrated_api(num_articles, batch_size):

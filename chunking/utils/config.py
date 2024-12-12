@@ -157,13 +157,20 @@ def add_args(cls, parser):
             "--neuron.synthetic_query_interval_seconds",
             type=int,
             help="The interval between synthetic queries in seconds.",
-            default=30,
+            default=0,
         )
 
         parser.add_argument(
             "--wandb.wandb_off",
             action="store_true",
             help="Turn off wandb logging.",
+        )
+
+        parser.add_argument(
+            "--wandb.restart_interval_hours",
+            type=float,
+            help="The interval between wandb restarts in hours.",
+            default=24,
         )
 
         parser.add_argument(
@@ -283,6 +290,34 @@ def add_args(cls, parser):
             action="store_true",
             help="If set, does not check for exact or fuzzy duplicate requests in IPFS.",
             default=False,
+        )
+
+        parser.add_argument(
+            "--neuron.no_serve",
+            action="store_true",
+            help="If set, does not serve the miner axon.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--neuron.reconnect.min_seconds",
+            type=int,
+            help="The minimum number of seconds to wait before reconnecting to the network.",
+            default=2,
+        )
+        
+        parser.add_argument(
+            "--neuron.reconnect.max_seconds",
+            type=int,
+            help="The maximum number of seconds to wait before reconnecting to the network.",
+            default=70,
+        )
+
+        parser.add_argument(
+            "--neuron.reconnect.max_attempts",
+            type=int,
+            help="The maximum number of attempts to reconnect to the network.",
+            default=10,
         )
 
 

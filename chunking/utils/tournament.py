@@ -100,6 +100,8 @@ def make_wandb_data(
     request_type: ChunkRequestType,
     cur_scores: list[float],
     cur_rankings: list[int],
+    benchmark_id: str | None = None,
+    doc_name: str | None = None,
     is_debug: bool = False,
 ) -> dict:
     # initial structure for wandb logging
@@ -144,6 +146,11 @@ def make_wandb_data(
             uid = cur_rankings[rank_i]
             wandb_data["all"]["rankings"][str(uid)] = rank_i
 
+    if benchmark_id is not None:
+        wandb_data["benchmark_id"] = benchmark_id
+
+    if doc_name is not None:
+        wandb_data["doc_name"] = doc_name
 
     # log the uids that are part of the miner group that is queried
     wandb_data["group"]["uids"] = miner_group_uids

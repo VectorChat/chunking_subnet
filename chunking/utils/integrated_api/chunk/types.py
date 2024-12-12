@@ -60,6 +60,14 @@ class ChunkRequest(BaseModel):
         default=RewardOptions(),
         description="Options for rewarding chunks",
     )
+    benchmark_id: Optional[str] = Body(
+        default=None,
+        description="The associated benchmark id (if applicable)",
+    )
+    doc_name: Optional[str] = Body(
+        default=None,
+        description="The name of the document",
+    )
 
 
 class ChunkResult(BaseModel):

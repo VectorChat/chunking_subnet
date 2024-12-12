@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from datetime import timedelta
 from functools import partial
 import logging
 import os
@@ -43,10 +44,12 @@ import wandb
 from wandb.apis.public.runs import Runs, Run
 import sympy as sp
 
-from chunking.utils.synthetic import generate_document
+from chunking.utils.synthetic.synthetic import generate_document
+from chunking.utils.synthetic.types import SyntheticGenType
+from chunking.utils.wandb.wandb import WandbLogger
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
-from chunking.utils.score import get_rank_value_to_adjusted_alpha
+from chunking.utils.score import get_new_scores 
 
 
 load_dotenv()
@@ -67,11 +70,6 @@ class BaseValidatorNeuron(BaseNeuron):
     def __init__(self, config=None):
         super().__init__(config=self.config())
 
-        bt.logging.info(f"wandb off: {self.config.wandb.wandb_off}")
-
-        if not self.config.wandb.wandb_off:
-            # connect to wandb run
-            self._setup_wandb()
         # Save a copy of the hotkeys to local memory.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
@@ -127,158 +125,7 @@ class BaseValidatorNeuron(BaseNeuron):
             self.config.doc_gen.queue_size
         )
 
-    def _find_valid_wandb_run(self, runs: Runs) -> Run | None:
-        """
-        Find a valid wandb run for this validator given a list of wandb runs. The run must be signed by the validator's hotkey.
-        """
-        for run in runs:
-            sig = run.config.get("signature")
-            if not sig:
-                continue
-
-            verified = self.wallet.hotkey.verify(run.id.encode(), bytes.fromhex(sig))
-
-            if verified:
-                bt.logging.info(f"Found valid run: {run.id}")
-                return run
-            else:
-                bt.logging.warning(
-                    f"Found invalid run: {run.id}, looking for another run"
-                )
-
-        return None
-
-    def _get_latest_wandb_run(self, project_name: str) -> Run | None:
-        """
-        Get the latest valid wandb run for this validator.
-        """
-        api = wandb.Api()
-        latest_runs: Runs = api.runs(
-            f"{chunking.ENTITY}/{project_name}",
-            {
-                "config.hotkey": self.wallet.hotkey.ss58_address,
-                "config.type": "validator",
-            },
-            order="-created_at",
-        )
-        return self._find_valid_wandb_run(latest_runs)
-
-    def _start_new_wandb_run(self, project_name: str, run_name: str) -> Run:
-        """
-        Start a new wandb run for this validator if no valid wandb run exists for this validator and version.
-        """
-        run = wandb.init(
-            name=run_name,
-            project=project_name,
-            entity=chunking.ENTITY,
-            config=self.config,
-            dir=self.config.full_path,
-            reinit=False,
-        )
-        signature = self.wallet.hotkey.sign(run.id.encode()).hex()
-        self.config.signature = signature
-        bt.logging.success(
-            f"Started wandb run for project '{project_name}', name: '{run_name}', id: '{run.id}'"
-        )
-        return run
-
-    def _find_existing_wandb_run(self, version: str, uid: int) -> Run | None:
-        """
-        Find a valid wandb run for this validator given a list of wandb runs. The run must be signed by the validator's hotkey and match the validator's uid and version.
-        """
-        api = wandb.Api()
-        latest_runs: Runs = api.runs(
-            f"{chunking.ENTITY}/{self.config.wandb.project_name}",
-            {
-                "config.hotkey": self.wallet.hotkey.ss58_address,
-                "config.type": "validator",
-                "config.version": version,
-                "config.uid": uid,
-            },
-            order="-created_at",
-        )
-        bt.logging.debug(
-            f"Found {len(latest_runs)} runs with version {version} and uid {uid}"
-        )
-        return self._find_valid_wandb_run(latest_runs)
-
-    def _resume_wandb_run(self, run: Run, project_name: str):
-        """
-        Resume a wandb run for this validator.
-        """
-        wandb.init(
-            entity=chunking.ENTITY, project=project_name, id=run.id, resume="must"
-        )
-        bt.logging.success(
-            f"Resumed wandb run '{run.name}' for project '{project_name}'"
-        )
-
-    def _get_wandb_project_name(self):
-        if self.config.subtensor.chain_endpoint == "test":
-            return "chunking-testnet"
-        return self.config.wandb.project_name
-
-    def _setup_wandb(self):
-        """
-        Setup wandb for this validator.
-
-        This function will start a new wandb run if no valid wandb run exists for this validator and version.
-        If a valid wandb run exists, it will resume the wandb run.
-        """
-        if (
-            os.environ.get("WANDB_API_KEY") is None
-            or os.environ.get("WANDB_API_KEY") == ""
-        ):
-            raise Exception("WANDB_API_KEY environment variable must be set")
-
-        else:
-            try:
-                project_name = self._get_wandb_project_name()
-
-                latest_run = self._get_latest_wandb_run(project_name)
-
-                run_name = f"validator-{self.uid}-{chunking.__version__}"
-
-                self.config.uid = self.uid
-                self.config.hotkey = self.wallet.hotkey.ss58_address
-                self.config.run_name = run_name
-                self.config.version = chunking.__version__
-                self.config.type = "validator"
-
-                if not latest_run:
-                    self._start_new_wandb_run(project_name, run_name)
-                else:
-                    # check if uid or version has changed
-                    if (
-                        latest_run.config.get("version") != chunking.__version__
-                        or latest_run.config.get("uid") != self.uid
-                    ):
-                        bt.logging.info(
-                            f"Found run with different version or uid ({latest_run.name})"
-                        )
-
-                        existing_run = self._find_existing_wandb_run(
-                            chunking.__version__, self.uid
-                        )
-
-                        if not existing_run:
-                            bt.logging.info(
-                                f"Could not find existing run with version {chunking.__version__} and uid {self.uid}, starting new run"
-                            )
-                            self._start_new_wandb_run(project_name, run_name)
-                        else:
-                            bt.logging.info(
-                                f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run"
-                            )
-                            self._resume_wandb_run(existing_run, project_name)
-                    else:
-                        self._resume_wandb_run(latest_run, project_name)
-
-                # always update config
-                wandb.config.update(self.config, allow_val_change=True)
-
-            except Exception as e:
-                raise Exception(f"Error in init_wandb: {e}")
+        self.wandb_logger = WandbLogger(self)
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
@@ -417,6 +264,8 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # TODO: consider using to_thread()
 
+                self.wandb_logger.restart_if_past_time_delta(timedelta(hours=self.config.wandb.restart_interval_hours))
+
                 # Sync metagraph and potentially set weights.
                 await self.sync_articles()
                 self.sync()
@@ -512,7 +361,8 @@ class BaseValidatorNeuron(BaseNeuron):
             traceback: A traceback object encoding the stack trace.
                        None if the context was exited without an exception.
         """
-        wandb.finish()
+        if self.wandb_logger:
+            self.wandb_logger.finish()
 
         if self.is_running:
             bt.logging.debug("Stopping validator in background thread.")
@@ -686,8 +536,8 @@ class BaseValidatorNeuron(BaseNeuron):
         ) = bt.utils.weight_utils.convert_weights_and_uids_for_emit(
             uids=processed_weight_uids, weights=processed_weights
         )
-        bt.logging.debug("uint_weights", uint_weights)
-        bt.logging.debug("uint_uids", uint_uids)
+        bt.logging.trace("uint_weights", uint_weights)
+        bt.logging.trace("uint_uids", uint_uids)
 
         # log the weights that would be set on chain
         wandb_data = {"weights": {}}
@@ -793,62 +643,26 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         wandb_data = end_tournament_round_info.wandb_data
-        ranks = end_tournament_round_info.ranked_responses_global
-        uids = end_tournament_round_info.miner_group_uids
-        alpha = end_tournament_round_info.alpha
         do_wandb_log = end_tournament_round_info.do_wandb_log
-
-        self.scores = self.scores.astype(np.float64)
-        # Check if rewards contains NaN values.
-        if np.isnan(ranks).any():
-            bt.logging.warning(f"NaN values detected in rewards: {ranks}")
-            # Replace any NaN values in rewards with inf.
-            ranks = np.nan_to_num(ranks, nan=np.inf)
+        uids = end_tournament_round_info.miner_group_uids
 
         if isinstance(uids, np.ndarray):
             uids_array = uids.copy()
         else:
             uids_array = np.array(uids)
 
-        # Update scores with rewards produced by this step.
-        # bt.logging.debug(
-        #     f"Previous scores: {self.scores}, ranks: {ranks}, uids: {uids_array}"
-        # )
+        self.scores = self.scores.astype(np.float64)
 
-        bt.logging.debug(f"group alpha: {alpha}")
-
-        rank_value_to_adjusted_alpha = get_rank_value_to_adjusted_alpha(ranks, alpha)
-
-        for rank, uid in zip(ranks, uids_array):
-            if np.isinf(rank):
-                continue
-
-            adjusted_alpha = rank_value_to_adjusted_alpha[rank]
-
-            bt.logging.debug(
-                f"uid: {uid}, rank value: {rank}, adjusted_alpha: {adjusted_alpha}"
-            )
-            score_str = f"score: {self.scores[uid]} -> "
-
-            # initialize score if it is np.inf
-            if np.isinf(self.scores[uid]):
-                self.scores[uid] = adjusted_alpha * rank + (1 - adjusted_alpha) * floor(
-                    np.sum(np.isfinite(self.scores)) / 2
-                )
-            elif self.scores[uid] < 0:
-                self.scores[uid] = np.inf
-            else:
-                self.scores[uid] = (
-                    adjusted_alpha * rank + (1 - adjusted_alpha) * self.scores[uid]
-                )
-
-            score_str += f"{self.scores[uid]}"
-            bt.logging.debug(score_str)
-
-        # bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+        self.scores = get_new_scores(
+            scores=self.scores,
+            uids=uids_array,
+            alpha=end_tournament_round_info.alpha,
+            group_best_possible_rank_value=end_tournament_round_info.group_best_possible_rank_value,
+            rank_values=end_tournament_round_info.rank_values,
+            miner_group_index=end_tournament_round_info.miner_group_index
+        )
 
         old_rankings = copy.deepcopy(self.rankings)
-
         self.rankings = np.argsort(self.scores)
 
         # print old/new rankings
@@ -874,11 +688,7 @@ class BaseValidatorNeuron(BaseNeuron):
             self.wandb_log(wandb_data)
 
     def wandb_log(self, wandb_data: dict):
-        if not self.config.wandb.wandb_off:
-            bt.logging.info("Logging wandb_data")
-            wandb.log(wandb_data)
-        else:
-            bt.logging.debug("WANDB logging is off, skipping")
+        self.wandb_logger.log(wandb_data)
 
     async def save_state(self):
         """Saves the state of the validator to a file."""

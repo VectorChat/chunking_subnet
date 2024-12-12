@@ -39,13 +39,17 @@ To run the miner with relay mining protection (`lucid`), follow the setup instru
 
 ## Configuration
 
-| Argument                                | Description                                                                     |
-| --------------------------------------- | ------------------------------------------------------------------------------- |
-| `--blacklist.force_validator_permit`    | If set, force incoming requests to have a validator permit.                     |
-| `--blacklist.allow_non_registered`      | If set, will accept queries from non registered entities. (Dangerous!)   |
-| `--blacklist.minimum_stake`             | If set, force incoming requests to have a weight-settable stake.                |
-| `--neuron.disable_verification`         | If set, will accept queries without verifying (nonce). (Dangerous!)              |
-| `--neuron.synapse_verify_allowed_delta` | The allowed delta for synapse verification in nanoseconds.                      |
-| `--neuron.relay_embed_threshold`        | The threshold of cosine similarity to use when comparing two request documents. |
-| `--neuron.no_check_ipfs`                | If set, does not run IPFS/relay mining related checks.                          |
-| `--neuron.no_check_duplicate_ipfs`      | If set, does not check for exact or fuzzy duplicate requests in IPFS.           |
+| Argument                                | Description                                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `--blacklist.force_validator_permit`    | If set, force incoming requests to have a validator permit.                                                                     |
+| `--blacklist.allow_non_registered`      | If set, will accept queries from non registered entities. (Dangerous!)                                                          |
+| `--blacklist.minimum_stake`             | If set, force incoming requests to have a weight-settable stake.                                                                |
+| `--neuron.disable_verification`         | If set, will accept queries without verifying (nonce). (Dangerous!)                                                             |
+| `--neuron.synapse_verify_allowed_delta` | The allowed delta for synapse verification in nanoseconds.                                                                      |
+| `--neuron.relay_embed_threshold`        | The threshold of cosine similarity to use when comparing two request documents.                                                 |
+| `--neuron.no_check_ipfs`                | If set, does not run IPFS/relay mining related checks.                                                                          |
+| `--neuron.no_check_duplicate_ipfs`      | If set, does not check for exact or fuzzy duplicate requests in IPFS.                                                           |
+| `--neuron.no_serve`                     | If set, skips serving the miner axon on chain                                                                                   |
+| `--neuron.reconnect.min_seconds`        | The minimum number of seconds to wait before reconnecting to the network.                                                       |
+| `--neuron.reconnect.max_seconds`        | The maximum number of seconds to wait before reconnecting to the network (makes sure exponential backoff is not too aggressive) |
+| `--neuron.reconnect.max_attempts`       | The maximum number of attempts to reconnect to the network.                                                                     |

@@ -22,7 +22,7 @@ from chunking.validator.types import EndTournamentRoundInfo
 from chunking.protocol import chunkSynapse
 
 
-def create_groups(rankings: np.ndarray, group_size: int):
+def create_groups(rankings: np.ndarray, group_size: int) -> tuple[list[np.ndarray[int]], list[range], list[np.ndarray[float]]]:
     """
     Creates groups of miners based on the rankings. The group size increases as the ranks get worse (higher number).
     There is always overlap between each group, with the size of the overlap being group_size // 2.
@@ -261,7 +261,12 @@ async def score_miner_group_responses(
     do_wandb_log: bool,
     request_type: ChunkRequestType,
     reward_options: RewardOptions,
+    benchmark_id: str | None = None,
+    doc_name: str | None = None,
 ) -> EndTournamentRoundInfo | None:
+    """
+    Calculating rewards + ranking, making wandb data, making tournament round info for use in update_scores()
+    """
     try:
         input_synapse = task.synapse
 
@@ -296,11 +301,12 @@ async def score_miner_group_responses(
                 np.float64
             )
         else:
+            # get rank values, "effective" rank that should be used when updating scores
             ranked_responses_global = rank_responses_global(
                 self, group_rank_values, ranked_responses, miner_group_uids
             )
 
-        bt.logging.debug(f"Ranked responses global: {ranked_responses_global}")
+        bt.logging.debug(f"Rank values: {ranked_responses_global}")
 
         if miner_group_index is None:
             alpha = -1
@@ -325,18 +331,21 @@ async def score_miner_group_responses(
             is_debug=self.is_debug,
             cur_scores=scores.tolist(),
             cur_rankings=rankings.tolist(),
+            benchmark_id=benchmark_id,
+            doc_name=doc_name,
         )
 
         end_tournament_round_info = EndTournamentRoundInfo(
             responses=responses,
             miner_group_index=miner_group_index or -1,
             rewards=rewards.tolist(),
-            ranked_responses_global=ranked_responses_global.tolist(),
+            rank_values=ranked_responses_global.tolist(),
             miner_group_uids=miner_group_uids.astype(int).tolist(),
             alpha=alpha,
             do_wandb_log=do_wandb_log,
             wandb_data=wandb_data,
             task_type=task.task_type,
+            group_best_possible_rank_value=group_rank_values[0] or -1
         )
 
         # bt.logging.debug(f"End tournament round info: {end_tournament_round_info}")
@@ -358,6 +367,8 @@ async def run_tournament_round(
     ) = None,  # takes precedence over `choose_miner_group_index`
     request_type: ChunkRequestType = ChunkRequestType.normal,
     reward_options: RewardOptions = RewardOptions(),
+    benchmark_id: str | None = None,
+    doc_name: str | None = None,
     # TODO: do not score responses if the task is not do_scoring
 ) -> list[EndTournamentRoundInfo | None]:
     """
@@ -402,6 +413,8 @@ async def run_tournament_round(
                 do_wandb_log=do_wandb_log,
                 request_type=request_type,
                 reward_options=reward_options,
+                benchmark_id=benchmark_id,
+                doc_name=doc_name,
             )
         )
 

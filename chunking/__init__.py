@@ -17,7 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 
-__version__ = "2.3.1"
+__version__ = "2.4.0"
 
 version_split = __version__.split(".")
 __spec_version__ = (

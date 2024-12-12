@@ -115,20 +115,20 @@ def process_weights_for_netuid(
     exclude_quantile: int = 0,
     skip_exclude: bool = False,
 ) -> np.ndarray:
-    bt.logging.debug("process_weights_for_netuid()")
-    bt.logging.debug("weights", weights)
-    bt.logging.debug("netuid", netuid)
-    bt.logging.debug("subtensor", subtensor)
-    bt.logging.debug("metagraph", metagraph)
+    bt.logging.trace("process_weights_for_netuid()")
+    bt.logging.trace("weights", weights)
+    bt.logging.trace("netuid", netuid)
+    bt.logging.trace("subtensor", subtensor)
+    bt.logging.trace("metagraph", metagraph)
 
     # Get latest metagraph from chain if metagraph is None.
     if metagraph == None:
-        bt.logging.debug("metagraph is None, getting from chain")
+        bt.logging.trace("metagraph is None, getting from chain")
         metagraph = subtensor.metagraph(netuid)
 
     # Cast weights to floats.
     if not isinstance(weights, np.ndarray) or weights.dtype != np.float32:
-        bt.logging.debug(
+        bt.logging.trace(
             f"weights is not a numpy array or is not float32, casting. received type {type(weights)}"
         )
         weights = weights.astype(np.float32)
@@ -138,9 +138,9 @@ def process_weights_for_netuid(
     quantile = exclude_quantile / U16_MAX
     min_allowed_weights = subtensor.min_allowed_weights(netuid=netuid)
     max_weight_limit = subtensor.max_weight_limit(netuid=netuid)
-    bt.logging.debug("quantile", quantile)
-    bt.logging.debug("min_allowed_weights", min_allowed_weights)
-    bt.logging.debug("max_weight_limit", max_weight_limit)
+    bt.logging.trace("quantile", quantile)
+    bt.logging.trace("min_allowed_weights", min_allowed_weights)
+    bt.logging.trace("max_weight_limit", max_weight_limit)
 
     # Find all non zero weights.
     non_zero_weight_idx = np.argwhere(weights > 0).squeeze()
@@ -149,7 +149,7 @@ def process_weights_for_netuid(
     if non_zero_weights.size == 0 or metagraph.n < min_allowed_weights:
         bt.logging.warning("No non-zero weights returning all ones.")
         final_weights = np.ones((metagraph.n)) / metagraph.n
-        bt.logging.debug("final_weights", final_weights)
+        bt.logging.trace("final_weights", final_weights)
         return np.arange(len(final_weights)), final_weights
 
     elif non_zero_weights.size < min_allowed_weights:
@@ -160,11 +160,11 @@ def process_weights_for_netuid(
             np.ones((metagraph.n)) * 1e-5
         )  # creating minimum even non-zero weights
         weights[non_zero_weight_idx] += non_zero_weights
-        bt.logging.debug("final_weights", weights)
+        bt.logging.trace("final_weights", weights)
         normalized_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
         return np.arange(len(normalized_weights)), normalized_weights
 
-    bt.logging.debug("non_zero_weights", non_zero_weights)
+    # bt.logging.trace("non_zero_weights", non_zero_weights)
 
     # Compute the exclude quantile and find the weights in the lowest quantile
     if not skip_exclude:
@@ -172,24 +172,24 @@ def process_weights_for_netuid(
             non_zero_weights
         )
         lowest_quantile = np.quantile(non_zero_weights, exclude_quantile)
-        bt.logging.debug("max_exclude", max_exclude)
-        bt.logging.debug("exclude_quantile", exclude_quantile)
-        bt.logging.debug("lowest_quantile", lowest_quantile)
+        bt.logging.trace("max_exclude", max_exclude)
+        bt.logging.trace("exclude_quantile", exclude_quantile)
+        bt.logging.trace("lowest_quantile", lowest_quantile)
 
         # Exclude all weights below the allowed quantile.
         non_zero_weight_uids = non_zero_weight_uids[lowest_quantile <= non_zero_weights]
         non_zero_weights = non_zero_weights[lowest_quantile <= non_zero_weights]
-        bt.logging.debug("non_zero_weight_uids", non_zero_weight_uids)
-        bt.logging.debug("non_zero_weights", non_zero_weights)
+        bt.logging.trace("non_zero_weight_uids", non_zero_weight_uids)
+        bt.logging.trace("non_zero_weights", non_zero_weights)
     else:
         non_zero_weight_uids = uids
         non_zero_weights = weights
-        bt.logging.debug("Skipping exclude step.")
+        bt.logging.trace("Skipping exclude step.")
 
     # Normalize weights and return.
     normalized_weights = normalize_max_weight(
         x=non_zero_weights, limit=max_weight_limit
     )
-    bt.logging.debug("final_weights", normalized_weights)
+    # bt.logging.trace("final_weights", normalized_weights)
 
     return non_zero_weight_uids, normalized_weights

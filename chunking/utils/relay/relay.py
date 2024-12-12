@@ -3,6 +3,8 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 import os
+from tempfile import NamedTemporaryFile
+import time
 from typing import List
 from openai import AsyncOpenAI
 from chunking.utils.ipfs.ipfs import (
@@ -194,32 +196,24 @@ async def make_relay_payload(
         f"IPFS payload:\n message: {json.dumps(payload_dict['message'])[:100]}...\n signature: {payload_dict['signature']}"
     )
 
-    time = datetime.now().isoformat()
+    with NamedTemporaryFile(mode="w", suffix=".json", delete=True) as tmp_file:
+        json.dump(payload_dict, tmp_file)
+        tmp_file.flush()
 
-    tmp_file_base = f"tmp_relay_payload_{time}"
+        _verbose(f"Wrote IPFS payload to {tmp_file.name}")
+        _verbose(f"Temp file size: {os.path.getsize(tmp_file.name)} bytes")
 
-    tmp_file_hashed = sha256_hash(tmp_file_base)
+        start_time = time.time()
+        cid = await add_to_ipfs_and_pin_to_cluster(
+            tmp_file.name, expiry_delta=timedelta(minutes=3), verbose=verbose
+        )
 
-    tmp_file = f"{tmp_file_hashed}.json"
+        bt.logging.info(
+            f"Added IPFS payload to cluster with CID: {cid} in {time.time() - start_time} seconds"
+        )
 
-    with open(tmp_file, "w") as f:
-        json.dump(payload_dict, f)
-        _verbose(f"Wrote IPFS payload to {tmp_file}")
-
-    _verbose(f"Temp file size: {os.path.getsize(tmp_file)} bytes")
-
-    cid = await add_to_ipfs_and_pin_to_cluster(
-        tmp_file, expiry_delta=timedelta(minutes=3)
-    )
-
-    if not cid:
-        raise Exception("Failed to add IPFS payload to cluster")
-
-    _verbose(f"Added IPFS payload to cluster with CID: {cid}")
-
-    os.remove(tmp_file)
-
-    _verbose(f"Removed temporary file {tmp_file}")
+        if not cid:
+            raise Exception("Failed to add IPFS payload to cluster")
 
     return cid
 
@@ -300,6 +294,8 @@ if __name__ == "__main__":
         document = f.read()
 
     wallet = bt.wallet(args.coldkey, args.hotkey)
+
+    bt.debug()
 
     client = AsyncOpenAI()
     cid = asyncio.run(
