@@ -261,6 +261,8 @@ async def score_miner_group_responses(
     do_wandb_log: bool,
     request_type: ChunkRequestType,
     reward_options: RewardOptions,
+    benchmark_id: str | None = None,
+    doc_name: str | None = None,
 ) -> EndTournamentRoundInfo | None:
     """
     Calculating rewards + ranking, making wandb data, making tournament round info for use in update_scores()
@@ -329,6 +331,8 @@ async def score_miner_group_responses(
             is_debug=self.is_debug,
             cur_scores=scores.tolist(),
             cur_rankings=rankings.tolist(),
+            benchmark_id=benchmark_id,
+            doc_name=doc_name,
         )
 
         end_tournament_round_info = EndTournamentRoundInfo(
@@ -363,6 +367,8 @@ async def run_tournament_round(
     ) = None,  # takes precedence over `choose_miner_group_index`
     request_type: ChunkRequestType = ChunkRequestType.normal,
     reward_options: RewardOptions = RewardOptions(),
+    benchmark_id: str | None = None,
+    doc_name: str | None = None,
     # TODO: do not score responses if the task is not do_scoring
 ) -> list[EndTournamentRoundInfo | None]:
     """
@@ -407,6 +413,8 @@ async def run_tournament_round(
                 do_wandb_log=do_wandb_log,
                 request_type=request_type,
                 reward_options=reward_options,
+                benchmark_id=benchmark_id,
+                doc_name=doc_name,
             )
         )
 

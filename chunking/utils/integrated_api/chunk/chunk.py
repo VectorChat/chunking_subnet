@@ -4,7 +4,7 @@ from typing import Optional, List
 from fastapi import Body
 from pydantic import BaseModel, Field
 from chunking.utils.chunks import calculate_chunk_qty
-from chunking.utils.integrated_api.chunk.types import ChunkRequest, ChunkResponse, ChunkResult
+from chunking.utils.integrated_api.chunk.types import ChunkRequest, ChunkRequestType, ChunkResponse, ChunkResult
 from chunking.utils.integrated_api.log import api_log
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import Task
@@ -15,6 +15,10 @@ import bittensor as bt
 
 async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
 
+    if request.request_type == ChunkRequestType.benchmark:
+        if not request.benchmark_id:
+            raise ValueError("Benchmark id is required for benchmark requests")
+
     print(
         f"handling chunk request with document length: {len(request.document)}, miner uids: {request.custom_miner_uids}, miner group index: {request.miner_group_index}"
     )
@@ -22,6 +26,8 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
     chunk_qty = request.chunk_qty or calculate_chunk_qty(
         request.document, request.chunk_size
     )
+
+    bt.logging.info(f"chunk qty: {chunk_qty}")
 
     input_synapse = chunkSynapse(
         document=request.document,
@@ -31,18 +37,21 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
         time_soft_max=request.timeout * request.time_soft_max_multiplier,
     )
 
-    try:
-        CID = await make_relay_payload(
-            input_synapse.document, self.aclient, self.wallet
-        )
-    except Exception as e:
-        api_log(f"Error making relay payload: {e}")
-        traceback.print_exc()
-        CID = None
+    if request.do_scoring:
+        try:
+            CID = await make_relay_payload(
+                input_synapse.document, self.aclient, self.wallet
+            )
+        except Exception as e:
+            api_log(f"Error making relay payload: {e}")
+            traceback.print_exc()
+            CID = None
 
-    input_synapse.CID = CID
+        input_synapse.CID = CID
 
     task = Task(synapse=input_synapse, task_type="organic", task_id=-1, page_id=-1)
+
+    bt.logging.info("created task")
 
     results = await run_tournament_round(
         self,
@@ -52,6 +61,8 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
         do_wandb_log=request.do_wandb_log,
         request_type=request.request_type,
         reward_options=request.reward_options,
+        benchmark_id=request.benchmark_id,
+        doc_name=request.doc_name,
     )
 
     usable_results = [result for result in results if result is not None]
