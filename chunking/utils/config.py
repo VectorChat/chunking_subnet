@@ -299,6 +299,27 @@ def add_args(cls, parser):
             default=False,
         )
 
+        parser.add_argument(
+            "--neuron.reconnect.min_seconds",
+            type=int,
+            help="The minimum number of seconds to wait before reconnecting to the network.",
+            default=2,
+        )
+        
+        parser.add_argument(
+            "--neuron.reconnect.max_seconds",
+            type=int,
+            help="The maximum number of seconds to wait before reconnecting to the network.",
+            default=70,
+        )
+
+        parser.add_argument(
+            "--neuron.reconnect.max_attempts",
+            type=int,
+            help="The maximum number of attempts to reconnect to the network.",
+            default=10,
+        )
+
 
 def config(cls):
     """

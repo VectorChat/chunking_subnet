@@ -49,8 +49,28 @@ class BaseMinerNeuron(BaseNeuron):
         self.loop = asyncio.get_event_loop()
 
     def reconnect(self):
-        self.subtensor = bt.subtensor(config=self.config)
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
+        """
+        Reconnects to the network by attempting to sync with the subtensor and metagraph.
+
+        Exponential backoff is used to avoid overwhelming the network.
+        """
+        for i in range(self.config.neuron.reconnect.max_attempts):
+            sleep_time = min(
+                self.config.neuron.reconnect.max_seconds,
+                self.config.neuron.reconnect.min_seconds * 2**i,
+            )
+            try:
+                self.subtensor = bt.subtensor(config=self.config)
+                self.metagraph = self.subtensor.metagraph(self.config.netuid)
+                break
+            except Exception as e:
+                bt.logging.error(
+                    f"Error reconnecting to the network (attempt {i}/{self.config.neuron.reconnect.max_attempts}): {e}"
+                )
+                bt.logging.error(traceback.format_exc())
+
+                bt.logging.error(f"Sleeping for {sleep_time} seconds before retrying.")
+                time.sleep(sleep_time)
 
     def run(self):
         """
