@@ -345,7 +345,7 @@ async def score_miner_group_responses(
             do_wandb_log=do_wandb_log,
             wandb_data=wandb_data,
             task_type=task.task_type,
-            group_best_possible_rank_value=group_rank_values[0]
+            group_best_possible_rank_value=group_rank_values[0] or -1
         )
 
         # bt.logging.debug(f"End tournament round info: {end_tournament_round_info}")

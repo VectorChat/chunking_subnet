@@ -4,7 +4,12 @@ from typing import Optional, List
 from fastapi import Body
 from pydantic import BaseModel, Field
 from chunking.utils.chunks import calculate_chunk_qty
-from chunking.utils.integrated_api.chunk.types import ChunkRequest, ChunkRequestType, ChunkResponse, ChunkResult
+from chunking.utils.integrated_api.chunk.types import (
+    ChunkRequest,
+    ChunkRequestType,
+    ChunkResponse,
+    ChunkResult,
+)
 from chunking.utils.integrated_api.log import api_log
 from chunking.utils.relay.relay import make_relay_payload
 from chunking.validator.task_api import Task

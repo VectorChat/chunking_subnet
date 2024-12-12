@@ -167,6 +167,13 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
+            "--wandb.restart_interval_hours",
+            type=float,
+            help="The interval between wandb restarts in hours.",
+            default=24,
+        )
+
+        parser.add_argument(
             "--neuron.use_wiki_gen",
             action="store_true",
             help="Only to be used for debugging, gets documents from wikipedia instead of generating from LLM",
