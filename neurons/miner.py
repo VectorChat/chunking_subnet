@@ -507,52 +507,39 @@ class Miner(BaseMinerNeuron):
             if synapse.dendrite.nonce is None:
                 raise Exception("Missing Nonce")
 
-            if synapse.dendrite.version is not None and synapse.dendrite.version >= 720:
-                bt.logging.debug(f"Using custom synapse verification logic")
-                # If we don't have a nonce stored, ensure that the nonce falls within
-                # a reasonable delta.
-                cur_time = time.time_ns()
+            bt.logging.debug(f"Using custom synapse verification logic")
+            # If we don't have a nonce stored, ensure that the nonce falls within
+            # a reasonable delta.
+            cur_time = time.time_ns()
 
-                allowed_delta = min(
-                    self.config.neuron.synapse_verify_allowed_delta,
-                    self._to_nanoseconds(synapse.timeout or 0),
+            allowed_delta = min(
+                self.config.neuron.synapse_verify_allowed_delta,
+                self._to_nanoseconds(synapse.timeout or 0),
+            )
+
+            latest_allowed_nonce = synapse.dendrite.nonce + allowed_delta
+
+            bt.logging.debug(f"synapse.dendrite.nonce: {synapse.dendrite.nonce}")
+            bt.logging.debug(f"latest_allowed_nonce: {latest_allowed_nonce}")
+            bt.logging.debug(f"cur time: {cur_time}")
+            bt.logging.debug(
+                f"delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}"
+            )
+
+            if (
+                self.nonces.get(endpoint_key) is None
+                and synapse.dendrite.nonce > latest_allowed_nonce
+            ):
+                raise Exception(
+                    f"Nonce is too old. Allowed delta in seconds: {self._to_seconds(allowed_delta)}, got delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}"
                 )
-
-                latest_allowed_nonce = synapse.dendrite.nonce + allowed_delta
-
-                bt.logging.debug(f"synapse.dendrite.nonce: {synapse.dendrite.nonce}")
-                bt.logging.debug(f"latest_allowed_nonce: {latest_allowed_nonce}")
-                bt.logging.debug(f"cur time: {cur_time}")
-                bt.logging.debug(
-                    f"delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}"
+            if (
+                self.nonces.get(endpoint_key) is not None
+                and synapse.dendrite.nonce <= self.nonces[endpoint_key]
+            ):
+                raise Exception(
+                    f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}"
                 )
-
-                if (
-                    self.nonces.get(endpoint_key) is None
-                    and synapse.dendrite.nonce > latest_allowed_nonce
-                ):
-                    raise Exception(
-                        f"Nonce is too old. Allowed delta in seconds: {self._to_seconds(allowed_delta)}, got delta: {self._to_seconds(cur_time - synapse.dendrite.nonce)}"
-                    )
-                if (
-                    self.nonces.get(endpoint_key) is not None
-                    and synapse.dendrite.nonce <= self.nonces[endpoint_key]
-                ):
-                    raise Exception(
-                        f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}"
-                    )
-            else:
-                bt.logging.warning(
-                    f"Using synapse verification logic for version < 7.2.0: {synapse.dendrite.version}"
-                )
-                if (
-                    endpoint_key in self.nonces.keys()
-                    and self.nonces[endpoint_key] is not None
-                    and synapse.dendrite.nonce <= self.nonces[endpoint_key]
-                ):
-                    raise Exception(
-                        f"Nonce is too small, already have a newer nonce in the nonce store, got: {synapse.dendrite.nonce}, already have: {self.nonces[endpoint_key]}"
-                    )
 
             if not keypair.verify(message, synapse.dendrite.signature):
                 raise Exception(

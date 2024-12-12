@@ -19,7 +19,6 @@ import time
 import asyncio
 import threading
 import traceback
-
 import bittensor as bt
 
 from chunking.base.neuron import BaseNeuron
@@ -62,15 +61,23 @@ class BaseMinerNeuron(BaseNeuron):
             try:
                 self.subtensor = bt.subtensor(config=self.config)
                 self.metagraph = self.subtensor.metagraph(self.config.netuid)
-                break
+                bt.logging.success(
+                    f"Reconnected to the network after {i + 1} attempts."
+                )
+                return
             except Exception as e:
                 bt.logging.error(
-                    f"Error reconnecting to the network (attempt {i}/{self.config.neuron.reconnect.max_attempts}): {e}"
+                    f"Error reconnecting to the network (attempt {i + 1}/{self.config.neuron.reconnect.max_attempts}): {e}"
                 )
                 bt.logging.error(traceback.format_exc())
 
                 bt.logging.error(f"Sleeping for {sleep_time} seconds before retrying.")
                 time.sleep(sleep_time)
+
+        bt.logging.error(
+            f"Failed to reconnect to the network after {self.config.neuron.reconnect.max_attempts} attempts."
+        )
+        exit(1)
 
     def run(self):
         """
