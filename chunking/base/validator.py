@@ -859,7 +859,7 @@ class BaseValidatorNeuron(BaseNeuron):
 
         except Exception as e:
             bt.logging.error(f"Error querying axon: {e}")
-            bt.logging.trace(traceback.format_exc())
+            # bt.logging.trace(traceback.format_exc())
 
             synapse.dendrite.status_code = 500
             synapse.dendrite.status_message = str(e)
