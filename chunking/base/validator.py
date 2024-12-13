@@ -126,6 +126,10 @@ class BaseValidatorNeuron(BaseNeuron):
         self.synthetic_document_queue = asyncio.Queue[Tuple[str, int]](
             self.config.doc_gen.queue_size
         )
+        self.synthetic_document_semaphore = asyncio.Semaphore(
+            value=self.config.doc_gen.concurrent_n
+        )
+        self.synthetic_doc_gen_timeout = self.config.doc_gen.timeout
 
         self.wandb_logger = WandbLogger(self)
 
@@ -189,19 +193,29 @@ class BaseValidatorNeuron(BaseNeuron):
             )
             await self.add_synthetic_document_to_queue(doc, pageid)
 
+        async def make_task():
+            try:
+                await asyncio.wait_for(
+                    generate_and_add_to_queue(), timeout=self.synthetic_doc_gen_timeout
+                )
+            except asyncio.TimeoutError:
+                bt.logging.error(
+                    f"Synthetic document generation task timed out after {self.synthetic_doc_gen_timeout} seconds"
+                )
+
         while True:
+            bt.logging.info("Waiting for semaphore to be released")
+            await self.synthetic_document_semaphore.acquire()
             bt.logging.info(
-                f"Generating {self.config.doc_gen.concurrent_n} synthetic documents concurrently"
+                f"Acquired semaphore, current value: {self.synthetic_document_semaphore._value}. Creating synth gen task"
             )
+            task = asyncio.create_task(make_task())
 
-            await asyncio.gather(
-                *[
-                    generate_and_add_to_queue()
-                    for _ in range(self.config.doc_gen.concurrent_n)
-                ]
-            )
+            def task_done_callback(task: asyncio.Task):
+                self.synthetic_document_semaphore.release()
+                bt.logging.info(f"Released semaphore for task {task}")
 
-            await asyncio.sleep(self.config.doc_gen.interval_seconds)
+            task.add_done_callback(task_done_callback)
 
     async def add_synthetic_document_to_queue(
         self, synthetic_document: str, pageid: int

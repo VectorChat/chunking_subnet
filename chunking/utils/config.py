@@ -231,14 +231,14 @@ def add_args(cls, parser):
             "--doc_gen.concurrent_n",
             type=int,
             help="The number of concurrent document generation tasks to run.",
-            default=5,
+            default=6,
         )
 
         parser.add_argument(
-            "--doc_gen.interval_seconds",
-            type=int,
-            help="The interval between document generation tasks in seconds.",
-            default=0,
+            "--doc_gen.timeout",
+            type=float,
+            help="Time to weight before timing out a synthetic doc generation task",
+            default=160,
         )
 
         parser.add_argument(
@@ -326,7 +326,7 @@ def add_args(cls, parser):
             help="The minimum number of seconds to wait before reconnecting to the network.",
             default=2,
         )
-        
+
         parser.add_argument(
             "--neuron.reconnect.max_seconds",
             type=int,
