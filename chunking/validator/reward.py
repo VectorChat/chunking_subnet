@@ -446,9 +446,7 @@ async def get_rewards(
     for response in responses:
         miner_hotkey = response.axon.hotkey or "not found"
         print(f"handling response from {miner_hotkey[:10]}")
-        chunks_hash = (
-            get_chunks_hash(response.chunks) if response is not None else ""
-        )
+        chunks_hash = get_chunks_hash(response.chunks) if response is not None else ""
         if chunks_hash not in hashes and response is not None:
 
             async def _calculate_reward():

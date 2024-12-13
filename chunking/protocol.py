@@ -51,6 +51,7 @@ class chunkSynapse(bt.Synapse):
     chunk_size: int
     chunk_qty: int
     time_soft_max: float
+    timeout: float = 20.0
 
     # Optional request input
     CID: Optional[str] = None

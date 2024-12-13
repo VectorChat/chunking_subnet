@@ -96,13 +96,6 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--wandb.project_name",
-            type=str,
-            help="The name of the wandb project.",
-            default=chunking.PROJECT_NAME,
-        )
-
-        parser.add_argument(
             "--neuron.sample_size",
             type=int,
             help="The number of miners to query in a single step.",
@@ -161,9 +154,23 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
+            "--wandb.project_name",
+            type=str,
+            help="The name of the wandb project.",
+            default=chunking.PROJECT_NAME,
+        )
+
+        parser.add_argument(
             "--wandb.wandb_off",
             action="store_true",
             help="Turn off wandb logging.",
+        )
+
+        parser.add_argument(
+            "--wandb.log_stdout_if_off",
+            action="store_true",
+            help="If set, logs to stdout if wandb is off.",
+            default=False,
         )
 
         parser.add_argument(
@@ -224,14 +231,28 @@ def add_args(cls, parser):
             "--doc_gen.concurrent_n",
             type=int,
             help="The number of concurrent document generation tasks to run.",
-            default=5,
+            default=6,
         )
 
         parser.add_argument(
-            "--doc_gen.interval_seconds",
-            type=int,
-            help="The interval between document generation tasks in seconds.",
-            default=0,
+            "--doc_gen.timeout",
+            type=float,
+            help="Time to weight before timing out a synthetic doc generation task",
+            default=160,
+        )
+
+        parser.add_argument(
+            "--no_forward",
+            action="store_true",
+            help="If set, does not forward queries to miners. Useful for debugging.",
+            default=False,
+        )
+
+        parser.add_argument(
+            "--query_axons_type",
+            type=str,
+            help="The type of query axons to use.",
+            default="custom",
         )
 
     # Miner
@@ -305,7 +326,7 @@ def add_args(cls, parser):
             help="The minimum number of seconds to wait before reconnecting to the network.",
             default=2,
         )
-        
+
         parser.add_argument(
             "--neuron.reconnect.max_seconds",
             type=int,
