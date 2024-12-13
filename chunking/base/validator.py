@@ -858,7 +858,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 synapse.dendrite.process_time = str(time.time() - start_time)  # type: ignore
 
         except Exception as e:
-            bt.logging.error(f"Error querying axon: {e}")
+            # bt.logging.error(f"Error querying axon: {e}")
             # bt.logging.trace(traceback.format_exc())
 
             synapse.dendrite.status_code = 500
