@@ -24,6 +24,8 @@ async def query_integrated_api(
     custom_miner_uids: list[int] | None,
     type: ChunkRequestType,
     benchmark_id: str | None = None,
+    timeout: float = 20,
+    time_soft_max_multiplier: float = 0.75,
 ):
     if not miner_group_index and not custom_miner_uids:
         raise ValueError(
@@ -38,6 +40,8 @@ async def query_integrated_api(
             "do_scoring": do_scoring,
             "request_type": type.value,
             "benchmark_id": benchmark_id,
+            "timeout": timeout,
+            "time_soft_max_multiplier": time_soft_max_multiplier,
         }
 
         if miner_group_index is not None:
@@ -64,8 +68,12 @@ async def get_doc_and_query(
     custom_miner_uids: list[int] | None = None,
     type: ChunkRequestType = ChunkRequestType.normal,
     benchmark_id: str | None = None,
+    timeout: float = 20,
+    time_soft_max_multiplier: float = 0.75,
 ):
-    logger.info(f"Getting document for pageid {pageid}")
+    logger.info(
+        f"Getting document for pageid {pageid}, group index: {miner_group_index}, custom uids: {custom_miner_uids}"
+    )
     content, title = await get_wiki_content_for_page(pageid)
 
     logger.info(f"Got document {title} of len {len(content)}")
@@ -81,6 +89,8 @@ async def get_doc_and_query(
         custom_miner_uids=custom_miner_uids,
         type=type,
         benchmark_id=benchmark_id,
+        timeout=timeout,
+        time_soft_max_multiplier=time_soft_max_multiplier,
     )
 
     end_time = time.time()
@@ -97,10 +107,13 @@ async def get_doc_and_query(
 async def main(num_articles: int, batch_size: int):
     bt.debug()
 
+    print("Getting test pageids")
     test_pageids = get_articles()
 
+    print(f"Got {len(test_pageids)} test pageids")
+
     # test custom uids
-    custom_uids = [18, 19, 20]
+    custom_uids = [16, 17, 18]
 
     rand_page_id = random.choice(test_pageids)
 
@@ -114,11 +127,18 @@ async def main(num_articles: int, batch_size: int):
     assert res.status_code == 200
     assert res.json() is not None
     res_json = res.json()
-    assert ChunkResponse.model_validate(res_json)
+    res = ChunkResponse.model_validate(res_json)
+
+    assert len(res.results) == len(custom_uids)
+
+    for result in res.results:
+        assert result.uid in custom_uids
+        assert result.chunks is not None
+        assert len(result.chunks) > 0
 
     # test random miner group index
 
-    max_miner_group_index = 3
+    max_miner_group_index = 2
 
     batch_times = []
 
@@ -177,6 +197,15 @@ async def main(num_articles: int, batch_size: int):
     res_json = res.json()
     assert ChunkResponse.model_validate(res_json)
 
+    res = ChunkResponse.model_validate(res_json)
+
+    assert len(res.results) == len(miner_uids)
+
+    for result in res.results:
+        assert result.uid in miner_uids
+        assert result.chunks is not None
+        assert len(result.chunks) > 0
+
     # if no benchmark id is sent, should error
 
     res = await get_doc_and_query(
@@ -191,3 +220,9 @@ async def main(num_articles: int, batch_size: int):
 
 def test_integrated_api(num_articles, batch_size):
     asyncio.run(main(num_articles, batch_size))
+
+
+if __name__ == "__main__":
+    print("Starting main")
+    logger.setLevel(logging.DEBUG)
+    asyncio.run(main(100, 1))

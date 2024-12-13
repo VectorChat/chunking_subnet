@@ -32,14 +32,16 @@ async def chunk_handler(self, request: ChunkRequest) -> ChunkResponse:
         request.document, request.chunk_size
     )
 
-    bt.logging.info(f"chunk qty: {chunk_qty}")
-
     input_synapse = chunkSynapse(
         document=request.document,
         chunk_size=request.chunk_size,
         chunk_qty=chunk_qty,
-        timeout=request.timeout,
         time_soft_max=request.timeout * request.time_soft_max_multiplier,
+        timeout=request.timeout,
+    )
+
+    bt.logging.debug(
+        f"input - timeout: {input_synapse.timeout} | chunk_size: {input_synapse.chunk_size} | chunk_qty: {input_synapse.chunk_qty} | time_soft_max: {input_synapse.time_soft_max}"
     )
 
     if request.do_scoring:

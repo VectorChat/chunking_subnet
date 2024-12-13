@@ -33,6 +33,7 @@ import requests
 import uvicorn
 import chunking
 import traceback
+from bittensor.core.settings import version_as_int
 
 from dotenv import load_dotenv
 
@@ -44,12 +45,13 @@ import wandb
 from wandb.apis.public.runs import Runs, Run
 import sympy as sp
 
+from chunking.protocol import chunkSynapse
 from chunking.utils.synthetic.synthetic import generate_document
 from chunking.utils.synthetic.types import SyntheticGenType
 from chunking.utils.wandb.wandb import WandbLogger
 from chunking.validator.integrated_api import setup_routes
 from chunking.validator.types import EndTournamentRoundInfo
-from chunking.utils.score import get_new_scores 
+from chunking.utils.score import get_new_scores
 
 
 load_dotenv()
@@ -264,14 +266,18 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # TODO: consider using to_thread()
 
-                self.wandb_logger.restart_if_past_time_delta(timedelta(hours=self.config.wandb.restart_interval_hours))
+                if not self.config.wandb.wandb_off:
+                    self.wandb_logger.restart_if_past_time_delta(
+                        timedelta(hours=self.config.wandb.restart_interval_hours)
+                    )
 
                 # Sync metagraph and potentially set weights.
                 await self.sync_articles()
                 self.sync()
 
-                # Run multiple forwards concurrently.
-                await self.concurrent_forward()
+                if not self.config.no_forward:  # useful for debugging
+                    # Run multiple forwards concurrently.
+                    await self.concurrent_forward()
 
                 # Process any queued score updates.
                 await self.process_score_updates()
@@ -659,7 +665,7 @@ class BaseValidatorNeuron(BaseNeuron):
             alpha=end_tournament_round_info.alpha,
             group_best_possible_rank_value=end_tournament_round_info.group_best_possible_rank_value,
             rank_values=end_tournament_round_info.rank_values,
-            miner_group_index=end_tournament_round_info.miner_group_index
+            miner_group_index=end_tournament_round_info.miner_group_index,
         )
 
         old_rankings = copy.deepcopy(self.rankings)
@@ -739,12 +745,156 @@ class BaseValidatorNeuron(BaseNeuron):
             f"Loaded state: Step: {self.step}, {len(self.hotkeys)} hotkeys, {len(self.articles)} articles, {len(self.rankings)} rankings ({str(self.rankings.tolist())[:40]}...), {len(self.scores)} scores ({str(self.scores.tolist())[:40]}...)"
         )
 
+    def preprocess_synapse_for_request(
+        self,
+        target_axon_info: "bt.AxonInfo",
+        synapse: "bt.Synapse",
+        timeout: float = 12.0,
+    ) -> "bt.Synapse":
+        """
+        Preprocesses the synapse for making a request. This includes building headers for Dendrite and Axon and signing the request.
+
+        Args:
+            target_axon_info (bittensor.core.chain_data.axon_info.AxonInfo): The target axon information.
+            synapse (bittensor.core.synapse.Synapse): The synapse object to be preprocessed.
+            timeout (float): The request timeout duration in seconds. Defaults to ``12.0`` seconds.
+
+        Returns:
+            bittensor.core.synapse.Synapse: The preprocessed synapse.
+        """
+        # Set the timeout for the synapse
+        synapse.timeout = timeout
+        synapse.dendrite = bt.TerminalInfo(
+            ip=self.dendrite.external_ip,
+            version=version_as_int,
+            nonce=time.time_ns(),
+            uuid=self.dendrite.uuid,
+            hotkey=self.dendrite.keypair.ss58_address,
+        )
+
+        # Build the Axon headers using the target axon's details
+        synapse.axon = bt.TerminalInfo(
+            ip=target_axon_info.ip,
+            port=target_axon_info.port,
+            hotkey=target_axon_info.hotkey,
+        )
+
+        # Sign the request using the dendrite, axon info, and the synapse body hash
+        message = f"{synapse.dendrite.nonce}.{synapse.dendrite.hotkey}.{synapse.axon.hotkey}.{synapse.dendrite.uuid}.{synapse.body_hash}"
+        synapse.dendrite.signature = f"0x{self.dendrite.keypair.sign(message).hex()}"
+
+        return synapse
+
+    async def query_axon(
+        self, axon: bt.axon, synapse: bt.Synapse, timeout: float
+    ) -> bt.Synapse:
+
+        start_time = time.time()
+        target_axon = axon.info() if isinstance(axon, bt.Axon) else axon
+
+        url = self.dendrite._get_endpoint_url(target_axon, synapse.__class__.__name__)
+
+        synapse = self.preprocess_synapse_for_request(
+            target_axon_info=target_axon,
+            synapse=synapse,
+            timeout=timeout,
+        )
+
+        try:
+            async with httpx.AsyncClient() as client:
+                bt.logging.trace(
+                    f"dendrite | --> | {synapse.get_total_size()} B | {synapse.name} | {synapse.axon.hotkey} | {synapse.axon.ip}:{str(synapse.axon.port)} | 0 | Success"
+                )
+
+                bt.legacy_encrypt_keyfile_data
+                response = await client.post(
+                    url,
+                    headers=synapse.to_headers(),
+                    json=synapse.model_dump(),
+                    timeout=timeout,
+                )
+
+                json_response = response.json()
+
+                # process the response
+
+                if response.status_code == 200:
+                    new_synapse = synapse.__class__(**json_response)
+                    for key in synapse.model_dump().keys():
+                        try:
+                            setattr(synapse, key, getattr(new_synapse, key))
+                        except Exception as e:
+                            # bt.logging.error(f"Error setting attribute {key}: {e}")
+                            # traceback.print_exc()
+                            pass
+                else:
+                    if synapse.axon is None:
+                        synapse.axon = bt.TerminalInfo()
+                    synapse.axon.status_code = response.status_code
+                    synapse.axon.status_message = json_response.get("message")
+
+                server_headers = bt.Synapse.from_headers(response.headers)
+
+                # Merge dendrite headers
+                synapse.dendrite.__dict__.update(
+                    {
+                        **synapse.dendrite.model_dump(exclude_none=True),
+                        **server_headers.dendrite.model_dump(exclude_none=True),
+                    }
+                )
+
+                # Merge axon headers
+                synapse.axon.__dict__.update(
+                    {
+                        **synapse.axon.model_dump(exclude_none=True),
+                        **server_headers.axon.model_dump(exclude_none=True),
+                    }
+                )
+
+                # Update the status code and status message of the dendrite to match the axon
+                synapse.dendrite.status_code = synapse.axon.status_code  # type: ignore
+                synapse.dendrite.status_message = synapse.axon.status_message  # type: ignore
+
+                synapse.dendrite.process_time = str(time.time() - start_time)  # type: ignore
+
+        except Exception as e:
+            bt.logging.error(f"Error querying axon: {e}")
+            traceback.print_exc()
+
+            synapse.dendrite.status_code = 500
+            synapse.dendrite.status_message = str(e)
+
+        finally:
+            if synapse.axon is not None and synapse.dendrite is not None:
+                bt.logging.trace(
+                    f"dendrite | <-- | {synapse.get_total_size()} B | {synapse.name} | {synapse.axon.hotkey} | {synapse.axon.ip}:{str(synapse.axon.port)} | {synapse.dendrite.status_code} | {synapse.dendrite.status_message} | {synapse.dendrite.process_time} seconds"
+                )
+
+            return synapse
+
     async def query_axons(
         self, axons: list[bt.axon], synapse: bt.Synapse, timeout: float
-    ):
-        return await self.dendrite.forward(
-            axons=axons, synapse=synapse, timeout=timeout, deserialize=False
-        )
+    ) -> list[bt.Synapse]:
+        if self.config.query_axons_type == "custom":
+            coros = [
+                self.query_axon(axon, synapse.model_copy(), timeout) for axon in axons
+            ]
+            responses = await asyncio.gather(*coros)
+            return responses
+        elif (
+            self.config.query_axons_type == "bt"
+            or self.config.query_axons_type == "bittensor"
+        ):
+            return await self.dendrite.forward(
+                axons=axons,
+                deserialize=False,
+                synapse=synapse,
+                timeout=timeout,
+            )
+        else:
+            raise ValueError(
+                f"Invalid query_axons_type: {self.config.query_axons_type}. Must be 'custom', 'bt', or 'bittensor'."
+            )
 
     async def sync_articles(self):
         try:

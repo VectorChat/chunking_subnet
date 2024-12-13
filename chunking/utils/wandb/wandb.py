@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import os
 import time
+import traceback
 import chunking
 import wandb
 from wandb.apis.public.runs import Runs, Run
@@ -67,7 +68,8 @@ class WandbLogger:
         if not self.is_off():
             wandb.log(*args, **kwargs)
         else:
-            bt.logging.info(f"Wandb is off, not logging {args} {kwargs}")
+            if self.validator.config.wandb.log_stdout_if_off:
+                bt.logging.info(f"Wandb is off, logging to stdout: {args} {kwargs}")
 
     def restart_if_past_time_delta(self, time_delta: timedelta):
         # query = gql(QUERY_TEMPLATE % RUN_FRAGMENT)
@@ -289,4 +291,4 @@ class WandbLogger:
                 return run
 
             except Exception as e:
-                raise Exception(f"Error in init_wandb: {e}")
+                raise Exception(f"Error in init_wandb: {e}. {traceback.format_exc()}")

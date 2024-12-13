@@ -17,6 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 
+import random
 import time
 import traceback
 from typing import Dict, List, Tuple
@@ -332,7 +333,12 @@ class Miner(BaseMinerNeuron):
 
         # default miner logic, see docs/miner_guide.md for help writing your own miner logic
         bt.logging.debug(
-            f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}"
+            "\n"
+            + "-" * 100
+            + "\n"
+            + f"from hotkey {synapse.dendrite.hotkey[:10]}: Received chunk_size: {synapse.chunk_size}, time_soft_max: {synapse.time_soft_max}, timeout: {synapse.timeout}. Document length: {len(synapse.document)}. Doc snippet: {synapse.document[:100]}..."
+            + "\n"
+            + "-" * 100
         )
 
         if not self.config.neuron.no_check_ipfs:
@@ -371,7 +377,7 @@ class Miner(BaseMinerNeuron):
         data_to_sign = str.encode(json.dumps(response_data))
         bt.logging.trace(f"data to sign: {data_to_sign[:100]}...")
         signature = self.wallet.get_hotkey().sign(data_to_sign)
-        
+
         return signature.hex()
 
     async def blacklist(

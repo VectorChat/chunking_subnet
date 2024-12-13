@@ -22,7 +22,9 @@ from chunking.validator.types import EndTournamentRoundInfo
 from chunking.protocol import chunkSynapse
 
 
-def create_groups(rankings: np.ndarray, group_size: int) -> tuple[list[np.ndarray[int]], list[range], list[np.ndarray[float]]]:
+def create_groups(
+    rankings: np.ndarray, group_size: int
+) -> tuple[list[np.ndarray[int]], list[range], list[np.ndarray[float]]]:
     """
     Creates groups of miners based on the rankings. The group size increases as the ranks get worse (higher number).
     There is always overlap between each group, with the size of the overlap being group_size // 2.
@@ -181,7 +183,7 @@ async def query_miner_group(
     miner_group_index: int | None = None,
 ) -> list[chunkSynapse]:
     bt.logging.debug(
-        f"Querying miner group ({miner_group_index}): {miner_group_uids}, timeout: {input_synapse.timeout}"
+        f"Querying miner group ({miner_group_index}): {miner_group_uids}, timeout: {input_synapse.timeout}, chunk_size: {input_synapse.chunk_size}, chunk_qty: {input_synapse.chunk_qty}, document length: {len(input_synapse.document)}. Document snippet: {input_synapse.document[:100]}..."
     )
     axons: list[bt.axon] = [self.metagraph.axons[uid] for uid in miner_group_uids]
 
@@ -271,6 +273,7 @@ async def score_miner_group_responses(
         input_synapse = task.synapse
 
         bt.logging.debug("calling get_rewards() async")
+        bt.logging.debug(f"len(responses): {len(responses)}")
         rewards, extra_infos = await get_rewards(
             document=input_synapse.document,
             chunk_size=input_synapse.chunk_size,
@@ -345,7 +348,7 @@ async def score_miner_group_responses(
             do_wandb_log=do_wandb_log,
             wandb_data=wandb_data,
             task_type=task.task_type,
-            group_best_possible_rank_value=group_rank_values[0] or -1
+            group_best_possible_rank_value=group_rank_values[0] or -1,
         )
 
         # bt.logging.debug(f"End tournament round info: {end_tournament_round_info}")
