@@ -9,13 +9,15 @@ async-timeout==5.0.1
 attrs==24.2.0
 backoff==2.2.1
 base58==2.1.1
-bittensor==8.4.5
+bittensor==8.5.1
 bittensor-cli==8.4.1
+bittensor-commit-reveal==0.1.0
 bittensor-wallet==2.1.3
 bt-decode==0.4.0
 certifi==2024.8.30
 cffi==1.17.1
 charset-normalizer==3.4.0
+-e git+https://github.com/VectorChat/chunking_subnet.git@39f2199fc2883316d01ca7dd01e7b3311434efb5#egg=chunking
 click==8.1.7
 colorama==0.4.6
 cryptography==43.0.3
