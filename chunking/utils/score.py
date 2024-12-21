@@ -65,7 +65,7 @@ def get_new_scores(
 
         # adjust alpha based on how many other uids got the same score as this uid
         # if more people tie, affects score less
-        alpha = alpha / (2 ** (rank_value_to_count[rank_value] - 1))
+        alpha = alpha / max(rank_value_to_count[rank_value], 1)
 
         bt.logging.debug(f"tie alpha: {alpha}")
 
