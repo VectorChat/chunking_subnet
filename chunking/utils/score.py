@@ -2,10 +2,41 @@ from math import floor
 import numpy as np
 import bittensor as bt
 
-from chunking.validator.types import EndTournamentRoundInfo
 
+def get_alpha(
+    self,  # Validator
+    num_miner_groups: int,
+    miner_group_index: int,
+    override_min_moving_average_alpha: float | None = None,
+):
+    """
+    Get's the alpha value for a specific group ("tiered" alpha) where the alpha is higher for miner groups that are worse (higher number)
+    Ex:
+        the first miner group as the "highest rank" and therefore the lowest alpha value
+        the last miner group as the "lowest rank" and therefore the highest alpha
 
-#  rank_value_to_adjusted_alpha[rank] = alpha / (2 ** (count - 1))
+    This means that the scores are updated more slowly at higher ranks, because these miners should only be punished
+    if they _consistently_ produce low quality responses. At lower ranks, the alpha value is higher, this allows for
+    higher variability in the scores at lower ranks, allowing new miners with high quality responses to rise the ranks
+    more quickly.
+
+    Args:
+        num_miner_groups (int): The number of miner groups.
+        miner_group_index (int): The index of the miner group.
+        override_min_moving_average_alpha (float | None): The alpha to use if the override is provided.
+
+    Returns:
+        float: The alpha value.
+    """
+    min_moving_average_alpha = (
+        override_min_moving_average_alpha
+        if override_min_moving_average_alpha
+        else self.config.neuron.min_moving_average_alpha
+    )
+    alpha_adjustment = (1 - min_moving_average_alpha) / max((num_miner_groups - 1), 1)
+    alpha = min_moving_average_alpha + alpha_adjustment * miner_group_index
+
+    return alpha
 
 
 def get_rank_value_to_count(ranks: np.ndarray[np.float64]) -> dict[float, int]:
@@ -56,7 +87,7 @@ def get_new_scores(
 
         alpha = group_alpha
 
-        # adjust alpha if lost (did not tie)
+        # adjust alpha if miner lost (did not get first place within group)
         if not did_win:
             alpha = alpha * (
                 2 if miner_group_index == 0 else (1 + 0.25**miner_group_index)

@@ -176,7 +176,7 @@ async def reward(
     The reward function checks that:
     - every word in each chunk exists in the source document
     - every set of 3 adjacent words in the document appears in at least one chunk
-    - each chunk ends on a sentence boundary
+    - each chunk ends on a sentence boundary (with `nltk.sent_tokenize` as source of truth)
 
     If these conditions are not met, the reward is set to 0.
 

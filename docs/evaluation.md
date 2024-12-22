@@ -20,27 +20,27 @@ Then, the validator confirms that every set of 3 adjacent words in the original 
 
 https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L126-L147
 
-If either don't hold true, the reward is 0.
-
 ### 3. Check that each chunk ends on a sentence boundary
 
 Finally, the validator checks that each chunk ends on a sentence boundary.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L150-L157
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L151-L159
+
+If any of these checks fail, the miner is rewarded 0 for the chunk submitted in that tournament round.
 
 ## Evaluating
 
 After passing the fail states, the validator parses through each chunk, creating 'small chunks' of 3 sentences or fewer.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L262-L265
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L281-L285
 
 A random sample, of `num_embeddings` size, is taken and then embedded. The default value is 150.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L287-L291
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L301-L305
 
 Then, to calculate the similarity score, the dot product of every possible pair of embeddings is calculated. The average of each pair originating from the same chunk is added to the score (intrachunk similarity), while the average of each pair originating from different chunks is subtracted from the score (interchunk dissimilarity).
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L313-L325
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L331-L351
 
 Here is a visualization of how the validator calculates a miner’s score:
 
@@ -50,17 +50,10 @@ Here is a visualization of how the validator calculates a miner’s score:
 
 Finally, penalities are deducted from the reward exponentially.
 
-Responses are penalized exponentially for each character over the maximum chunk length: `chunk_size`
-
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L253-L259
-
-And for each chunk over the maximum chunk quantity: `chunk_qty`
-
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L237-L243
-
+Responses are penalized exponentially for each character over the maximum chunk length `chunk_size` and for each chunk over the maximum chunk quantity `chunk_qty`.
 Validators exponentially penalize responses for each second they are late.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L355-L357
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L363-L390
 
 The penalties are summed and applied to the reward with the following formula:
 

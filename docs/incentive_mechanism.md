@@ -30,7 +30,7 @@ The document is then sent to all miners in the selected group, alongside the con
 
 ### 3. Ranking
 
-Miners are ranked within their group based on the reward values they received for their responses. Then scores and global rankings for the validator's tournament are updated based on these local group rankings. More details can be found [in the ranking doc](./ranking.md) (which also includes the transition from the old ranking system to the new one).
+Miners are ranked within their group based on the reward values they received for their responses. Then scores and global rankings for the validator's tournament are updated based on these local group rankings. More details can be found [in the ranking doc](./ranking.md).
 
 ### Example
 
@@ -51,7 +51,7 @@ $$
 
 Right now, _k_ is set to 7.
 
-Then, the incentive is distributed linearly to the rest of the active miners. 
+Then, the incentive is distributed linearly to the rest of the active miners.
 
 https://github.com/VectorChat/chunking_subnet/blob/425f46c33542e1d17e3fd6baf10b9266e46215bc/chunking/base/validator.py#L479-L543
 

@@ -15,6 +15,7 @@ from random import choice
 from openai import AsyncOpenAI
 from chunking.utils.integrated_api.chunk.types import ChunkRequestType, RewardOptions
 from chunking.utils.log import PrefixStream
+from chunking.utils.score import get_alpha
 from chunking.utils.tournament import make_wandb_data, pretty_print_rewards
 from chunking.validator.reward import get_rewards, rank_responses, rank_responses_global
 from chunking.validator.task_api import Task
@@ -139,41 +140,6 @@ def get_miner_groups_to_query(
     )
     return miner_group_indices
 
-
-def get_alpha(
-    self,
-    num_miner_groups: int,
-    miner_group_index: int,
-    override_min_moving_average_alpha: float | None = None,
-):
-    """
-    "tiered" alpha, where the alpha is higher for miner groups that have a lower rank (higher number)
-    Ex:
-        the first miner group as the "highest rank" and therefore the lowest alpha value
-        the last miner group as the "lowest rank" and therefore the highest alpha
-
-    This means that the scores are updated more slowly at higher ranks, because these miners should only be punished
-    if they _consistently_ produce low quality responses. At lower ranks, the alpha value is higher, this allows for
-    higher variability in the scores at lower ranks, allowing new miners with high quality responses to rise the ranks
-    more quickly.
-
-    Args:
-        num_miner_groups (int): The number of miner groups.
-        miner_group_index (int): The index of the miner group.
-        override_min_moving_average_alpha (float | None): The alpha to use if the override is provided.
-
-    Returns:
-        float: The alpha value.
-    """
-    min_moving_average_alpha = (
-        override_min_moving_average_alpha
-        if override_min_moving_average_alpha
-        else self.config.neuron.min_moving_average_alpha
-    )
-    alpha_adjustment = (1 - min_moving_average_alpha) / max((num_miner_groups - 1), 1)
-    alpha = min_moving_average_alpha + alpha_adjustment * miner_group_index
-
-    return alpha
 
 
 async def query_miner_group(

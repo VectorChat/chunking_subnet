@@ -1,4 +1,7 @@
-# Improved Ranking
+# Improved Ranking ('Rank Values')
+
+> [!NOTE]
+> The ranking system as it works currently is described in [ranking.md](../ranking/ranking.md). This document serves to explain the changes from using miner's normal global rank (example for group 1: 1, 2, 3, 4) to using a 'rank value' (example for group 1: 0.5, 1.5, 2.5, 3.5) when updating a miner's score.
 
 ## Issue 1
 
@@ -45,7 +48,7 @@ A good miner will have a hard time climbing ranks because they are always in at 
 
 At any point a miner tends to be in 2 groups as all miner groups overlap; This miner will be in one group that is better and one group that is worse. For example: a miner, M, with a rank of 3 will be in group 1 and group 2 (0-indexed). Here's a picture of groups and the corresponding ranks:
 
-![Old Group Ranking System](../assets/improved_ranking/old.png)
+![Old Group Ranking System](../../assets/improved_ranking/old.png)
 
 Group 1 is better because it has miners that are lower ranked and group 2 is worse because it contains miner that are ranked higher (numerically). One issue with this approach is that the miner winning in group 2 actually hurts it's ability to climb ranks in group 1. As an example, let's say the current scores are [0.5, 1.2, 2.3, 2.7]. Our miner, M, has a score of 2.7 and the miner with a rank of 2 has a score of 2.3, and so on. Any win of miner M in group 2 actually ends up hurting it's score, as the best rank miner M can get in group 2 is 3, which is greater than 2.7. This means that, even if miner M wins 100% of the time in group 2, it still hurt's miner M's score.
 
@@ -60,16 +63,16 @@ The starting rank value of each miner group should be equal to the average of (1
 4.125 ...
 ``` -->
 
-![New Group Ranking System](../assets/improved_ranking/new.png)
+![New Group Ranking System](../../assets/improved_ranking/new.png)
 
 Why? This makes it such that a miner is not penalized by being in 2 groups at once. Below is a picture that explains more about the reasoning behind the new ranking system in a visual way:
 
 <div align="center">
-    <img src="../assets/improved_ranking/system_comparison.png" alt="Ranking Change System Comparison" style="width: 50%; height: auto;">
+    <img src="../..//assets/improved_ranking/system_comparison.png" alt="Ranking Change System Comparison" style="width: 50%; height: auto;">
 </div>
 
 ## Examples
 
 <div align="center">
-    <img src="../assets/improved_ranking/examples.png" alt="Worked out examples" style="width: 50%; height: auto;">
+    <img src="../../assets/improved_ranking/examples.png" alt="Worked out examples" style="width: 50%; height: auto;">
 </div>
