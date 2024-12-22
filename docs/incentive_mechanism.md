@@ -30,7 +30,7 @@ The document is then sent to all miners in the selected group, alongside the con
 
 ### 3. Ranking
 
-Miners are ranked within their group based on the reward values they received for their responses. Then scores and global rankings for the validator's tournament are updated based on these local group rankings. More details can be found [in the ranking doc](./ranking.md).
+Miners are ranked within their group based on the reward values they received for their responses. Then scores and global rankings for the validator's tournament are updated based on these local group rankings. More details can be found [in the ranking doc](./ranking/ranking.md).
 
 ### Example
 
@@ -39,7 +39,7 @@ Here is an example of this system with 12 miners and a sample size of 4:
 ![ranking_visualization](../assets/ranking_visualization.png)
 
 > [!WARNING]
-> The above example is for illustrative purposes only. The actual implementation has since changed as group sizes are now variable and group "rank values" are floats rather than integers. More details can be found [in the ranking doc](./ranking.md).
+> The above example is for illustrative purposes only. The actual implementation has since changed as group sizes are now variable and group "rank values" are floats rather than integers. More details can be found [in the ranking doc](./ranking/ranking.md).
 
 ## Incentive Curve
 

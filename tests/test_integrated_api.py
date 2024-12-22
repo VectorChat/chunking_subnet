@@ -10,6 +10,8 @@ from chunking.utils.synthetic.synthetic import get_wiki_content_for_page
 from tests.utils.articles import get_articles
 import bittensor as bt
 
+from tests.utils.misc import get_abbreviated_dict_string
+
 
 logger = logging.getLogger(__name__)
 BASE_URL = "http://localhost:8080"
@@ -44,14 +46,20 @@ async def query_integrated_api(
             "time_soft_max_multiplier": time_soft_max_multiplier,
         }
 
+        logger.info(f"Req body:\n{get_abbreviated_dict_string(req_body)}")
+
         if miner_group_index is not None:
             req_body["miner_group_index"] = miner_group_index
 
         if custom_miner_uids is not None:
             req_body["custom_miner_uids"] = custom_miner_uids
 
+        req_url = f"{BASE_URL}/chunk"
+
+        logger.info(f"Req url: {req_url}")
+
         response = await client.post(
-            f"{BASE_URL}/chunk",
+            req_url,
             json=req_body,
             timeout=None,
         )
@@ -136,6 +144,8 @@ async def main(num_articles: int, batch_size: int):
         assert result.chunks is not None
         assert len(result.chunks) > 0
 
+    logger.info("can query with custom uids")
+
     # test random miner group index
 
     max_miner_group_index = 2
@@ -150,7 +160,10 @@ async def main(num_articles: int, batch_size: int):
         start_time = time.time()
 
         coros = [
-            get_doc_and_query(pageid, rand_miner_group_index)
+            get_doc_and_query(
+                pageid=pageid,
+                miner_group_index=rand_miner_group_index,
+            )
             for pageid in batch_pageids
         ]
 
@@ -173,6 +186,8 @@ async def main(num_articles: int, batch_size: int):
             assert ChunkResponse.model_validate(res_json)
 
     logger.info(f"Batch times: {json.dumps(batch_times, indent=2)}")
+
+    logger.info("can query with random miner group index")
 
     # test benchmark round
 
@@ -205,6 +220,8 @@ async def main(num_articles: int, batch_size: int):
         assert result.uid in miner_uids
         assert result.chunks is not None
         assert len(result.chunks) > 0
+
+    logger.info("can query with custom uids for benchmark round")
 
     # if no benchmark id is sent, should error
 

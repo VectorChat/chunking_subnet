@@ -32,7 +32,7 @@ _See how organic queries are handled [here](./docs/organic.md)._
 - ⛏️ [Default Miner](./docs/default_miner.md)
 - 💰 [Incentive Mechanism](./docs/incentive_mechanism.md)
 - 📝 [Evaluation](./docs/evaluation.md)
-- 📊 [Ranking](./docs/ranking.md)
+- 📊 [Ranking](./docs/ranking/ranking.md)
 - 🧪 [Synthetic Queries](./docs/synthetic.md)
 - 🌱 [Organic Queries & the Task API](./docs/organic.md)
 - 📚 [W&B Guide](./docs/wandb_guide.md)

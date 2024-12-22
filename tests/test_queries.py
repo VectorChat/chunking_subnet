@@ -1,17 +1,19 @@
 import argparse
 import asyncio
+import logging
 import random
 import time
 from chunking.utils.integrated_api.chunk.types import ChunkResponse
 from tests.test_integrated_api import get_doc_and_query
 from tests.utils.articles import get_articles
 
+logger = logging.getLogger(__name__)
 
 async def main(args: argparse.Namespace | None = None):
-    print("Getting test pageids")
+    logger.info("Getting test pageids")
     test_pageids = get_articles()
 
-    print(f"Got {len(test_pageids)} test pageids")
+    logger.info(f"Got {len(test_pageids)} test pageids")
 
     if args is None:
         num_articles = 5
@@ -29,11 +31,11 @@ async def main(args: argparse.Namespace | None = None):
         sleep_time = args.sleep_time
 
     if not group_indices and not custom_uids:
-        print("Must provide either group indices or custom uids")
+        logger.info("Must provide either group indices or custom uids")
         exit(1)
 
     if group_indices and custom_uids:
-        print("Cannot provide both group indices and custom uids")
+        logger.info("Cannot provide both group indices and custom uids")
         exit(1)
 
     for i in range(0, num_articles, batch_size):
@@ -62,18 +64,18 @@ async def main(args: argparse.Namespace | None = None):
                 uids_seen.add(result.uid)
 
                 if result.chunks is None:
-                    print(
+                    logger.info(
                         f"Got None chunks for pageid {batch_pageids[j]}, uid: {result.uid} in group {result.miner_group_index}. Process time: {result.process_time}"
                     )
                     is_error = True
                 else:
-                    print(
+                    logger.info(
                         f"Got {len(result.chunks)} chunks for pageid {batch_pageids[j]}, uid: {result.uid} in group {result.miner_group_index}. Process time: {result.process_time}"
                     )
 
             if custom_uids is not None:
                 if len(uids_seen) != len(custom_uids):
-                    print(f"Missing uids: {set(custom_uids) - uids_seen}")
+                    logger.info(f"Missing uids: {set(custom_uids) - uids_seen}")
                     raise ValueError(f"Missing uids: {set(custom_uids) - uids_seen}")
 
             if is_error:
