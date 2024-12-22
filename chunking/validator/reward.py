@@ -17,11 +17,13 @@
 # DEALINGS IN THE SOFTWARE.
 
 import hashlib
+import json
 from math import ceil, e
 import time
 from typing import List, Tuple
 
 from openai import AsyncOpenAI, OpenAI
+from termcolor import colored
 from chunking.protocol import chunkSynapse
 from random import sample
 from nltk.tokenize import sent_tokenize, wordpunct_tokenize
@@ -146,13 +148,15 @@ def check_document_words_in_chunks(
     return True
 
 
-def check_chunk_ends_on_sentence_boundary(chunk: str):
-    sentence_end_regex = r"([.!?])"
-    stripped_chunk = chunk.strip()  # remove leading and trailing whitespace
-    if re.search(sentence_end_regex, stripped_chunk):
-        return True
-    else:
-        return False
+def check_chunk_ends_on_sentence_boundary(all_sentences: List[str], chunk: str):
+    """
+    Check if the chunk ends on sentence boundary by checking if the chunk sentences can be found in any of the document sentences in the same order.
+    """
+    chunk_sentences = sent_tokenize(chunk)
+    for i in range(len(all_sentences) - len(chunk_sentences) + 1):
+        if all_sentences[i : i + len(chunk_sentences)] == chunk_sentences:
+            return True
+    return False
 
 
 async def reward(
@@ -205,7 +209,7 @@ async def reward(
     # helper function to print verbose output
     def _verbose(msg: str):
         if verbose:
-            print(msg)
+            bt.logging.debug(msg)
 
     if client is None:
         client = AsyncOpenAI()
@@ -236,6 +240,8 @@ async def reward(
 
     start_time = time.time()
 
+    document_sentences = sent_tokenize(document)
+
     if do_checks:
         # check that every set of 3 adjacent words from the document appears in the chunks
         if not check_document_words_in_chunks(document, chunks, chunk_size):
@@ -255,9 +261,12 @@ async def reward(
                     f"Chunk {i} does not contain all words from the document"
                 )
 
-            if not check_chunk_ends_on_sentence_boundary(chunks[i]):
+            if not check_chunk_ends_on_sentence_boundary(document_sentences, chunks[i]):
+                _verbose(
+                    f"Chunk {i}: {colored(chunks[i], 'yellow')} does not end on a sentence boundary.\nAll sentences: {colored(json.dumps(document_sentences, indent=2), 'cyan')}\nChunk sentences: {colored(json.dumps(sent_tokenize(chunks[i]), indent=2), 'green')}"
+                )
                 return _get_early_return_stuff(
-                    f"Chunk {i} does not end on a sentence boundary. Must end with a punctuation mark."
+                    f"Chunk {i} does not end on a sentence boundary."
                 )
 
         if do_penalties:

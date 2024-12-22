@@ -2,6 +2,7 @@ import logging
 import regex as re
 from typing import List
 from nltk.tokenize import sent_tokenize
+from termcolor import colored
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +42,16 @@ def mid_sentence_chunker(document: str, chunk_size: int) -> List[str]:
         match = re.search(can_split_regex, chunk)
         if match:
             index = match.start()
-            new_chunks.append(chunk[:index])
-            new_chunks.append(chunk[index:])
+            first_half = chunk[: index + 1]
+            second_half = chunk[index + 1 :]
+            logger.info(
+                f"split chunk:\n\nold: {colored(chunk, 'yellow')}\n\nfirst_half: {colored(first_half, 'cyan')}\n\nsecond_half: {colored(second_half, 'green')}"
+            )
+            if len(first_half) > 0:
+                new_chunks.append(first_half)
+            if len(second_half) > 0:
+                new_chunks.append(second_half)
         else:
             new_chunks.append(chunk)
-
-    logger.debug(f"mid_sentence_chunker chunks: {new_chunks}")
 
     return new_chunks

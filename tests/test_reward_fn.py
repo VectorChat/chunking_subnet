@@ -13,11 +13,17 @@ from tests.utils.articles import get_articles
 from tests.utils.chunker import base_chunker, mid_sentence_chunker
 from tests.utils.synthetic import get_or_load_synthetic_data
 from nltk.tokenize import word_tokenize
+from dotenv import load_dotenv
+import bittensor as bt
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
 async def run_test(document: str):
+    bt.debug()
+    bt.logging.debug(f"running test with document of length {len(document)}")
 
     timeout = 20
     time_soft_max = timeout * 0.75
@@ -73,10 +79,20 @@ async def run_test(document: str):
     logger.info(f"got {len(synapse.chunks)} chunks")
 
     reward_value, _ = await _calculate_reward(
-        synapse, do_checks=True, do_penalties=False
+        synapse, do_checks=True, do_penalties=True
     )
 
     assert reward_value == 0
+
+    logger.info(
+        "reward should be non-zero if not doing checks and chunk does not end on sentence boundary"
+    )
+
+    reward_value, _ = await _calculate_reward(
+        synapse, do_checks=False, do_penalties=True
+    )
+
+    assert reward_value > 0
 
     # reward should be zero if any word is reordered
 
@@ -196,9 +212,10 @@ async def run_test(document: str):
     synapse.chunks = test_chunks
 
     reward_value, extra_info = await _calculate_reward(
-        synapse, do_checks=True, do_penalties=False
+        synapse, do_checks=True, do_penalties=False,
     )
 
+    logger.info(f"num_embed_tokens: {extra_info['num_embed_tokens']}")
     embedding_reward = extra_info["embedding_reward"]
     logger.info(f"embedding_reward: {embedding_reward}")
 

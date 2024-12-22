@@ -31,7 +31,6 @@ def create_bad_chunk(chunk: str):
 
 
 async def run_test():
-    # courteousy of tvxq19910509
     test_document = (
         "Mammoths – Giants of the Ice Age (3 ed.). With some extra words here."
     )
