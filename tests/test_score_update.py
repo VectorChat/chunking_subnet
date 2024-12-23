@@ -28,6 +28,7 @@ async def main():
     group_1_uids = uids[1:5]
 
     group_1_rank_values = np.array([0.5, 0.5, 1.5, 2.5])
+    logger.info("-- testing group 1 tie, loss alpha, no score change --")
 
     group_1_alpha = group_alphas[1]
 
@@ -48,7 +49,7 @@ async def main():
 
     # uid 2 should get lower score, alpha should have tiebreak
     assert new_scores[2] < scores[2]
-    uid_2_alpha = group_1_alpha * 0.5
+    uid_2_alpha = group_1_alpha / 2
     assert new_scores[2] == (uid_2_alpha * group_1_rank_values[1]) + (
         (1 - uid_2_alpha) * scores[2]
     )
@@ -78,6 +79,7 @@ async def main():
 
     # have uid 3 and 4 tie
     group_1_rank_values = np.array([0.5, 0.5, 2.5, 2.5])
+    logger.info("-- testing uid 1 and 2 tie, uid 3 and 4 tie --")
 
     new_scores = get_new_scores(
         scores=new_scores,
@@ -135,6 +137,53 @@ async def main():
     # other scores should not change
     assert np.array_equal(scores[:1], new_scores[:1])
     assert np.array_equal(scores[5:], new_scores[5:])
+
+    # 4-way tie
+    group_1_rank_values = np.array([0.5, 0.5, 0.5, 0.5])
+    logger.info("-- testing 4-way tie for first place --")
+
+    scores = new_scores
+
+    new_scores = get_new_scores(
+        scores=new_scores,
+        uids=group_1_uids,
+        alpha=group_1_alpha,
+        group_best_possible_rank_value=0.5,
+        rank_values=group_1_rank_values,
+        miner_group_index=1,
+    )
+
+    logger.info(f"new_scores: {new_scores}")
+
+    # uid 1 should get lower score, alpha should have tiebreak
+    assert new_scores[1] < scores[1]
+    uid_1_alpha = group_1_alpha / 4
+    assert new_scores[1] == (uid_1_alpha * group_1_rank_values[0]) + (
+        (1 - uid_1_alpha) * scores[1]
+    )
+    logger.info("uid 1 group 1 score is right")
+
+    # uid 2 should get lower score, alpha should have tiebreak
+    assert new_scores[2] < scores[2]
+    uid_2_alpha = group_1_alpha / 4
+    assert new_scores[2] == (uid_2_alpha * group_1_rank_values[1]) + (
+        (1 - uid_2_alpha) * scores[2]
+    )
+    logger.info("uid 2 group 1 score is right")
+
+    assert new_scores[3] < scores[3]
+    uid_3_alpha = group_1_alpha / 4
+    assert new_scores[3] == (uid_3_alpha * group_1_rank_values[2]) + (
+        (1 - uid_3_alpha) * scores[3]
+    )
+    logger.info("uid 3 group 1 score is right")
+
+    assert new_scores[4] < scores[4]
+    uid_4_alpha = group_1_alpha / 4
+    assert new_scores[4] == (uid_4_alpha * group_1_rank_values[3]) + (
+        (1 - uid_4_alpha) * scores[4]
+    )
+    logger.info("uid 4 group 1 score is right")
 
     # test group 0
     group_0_rank_values = [0.0, 1.0]

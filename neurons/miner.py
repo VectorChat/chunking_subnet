@@ -275,6 +275,7 @@ class Miner(BaseMinerNeuron):
 
                 bt.logging.debug("No duplicates found")
 
+            bt.logging.success("Synapse passed all checks")
             return True
         except Exception as e:
             bt.logging.error(f"Error checking synapse: {e}")
@@ -341,7 +342,8 @@ class Miner(BaseMinerNeuron):
             + "-" * 100
         )
 
-        if not self.config.neuron.no_check_ipfs:
+        if self.config.neuron.check_ipfs:
+            bt.logging.info("Checking running IPFS/relay mining checks")
             # Check if the synapse is being used for relay mining.
             try:
                 if not await self.check_synapse(synapse):

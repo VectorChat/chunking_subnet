@@ -300,9 +300,9 @@ def add_args(cls, parser):
         )
 
         parser.add_argument(
-            "--neuron.no_check_ipfs",
+            "--neuron.check_ipfs",
             action="store_true",
-            help="If set, does not run IPFS/relay mining related checks.",
+            help="If set, runs IPFS/relay mining related checks.",
             default=False,
         )
 
