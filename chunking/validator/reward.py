@@ -152,7 +152,7 @@ def check_chunk_ends_on_sentence_boundary(all_sentences: List[str], chunk: str):
     """
     Check if the chunk ends on sentence boundary by checking if the chunk sentences can be found in any of the document sentences in the same order.
     """
-    chunk_sentences = sent_tokenize(chunk)
+    chunk_sentences = sent_tokenize(chunk.strip())
     for i in range(len(all_sentences) - len(chunk_sentences) + 1):
         if all_sentences[i : i + len(chunk_sentences)] == chunk_sentences:
             return True
