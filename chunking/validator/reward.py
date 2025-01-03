@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import copy
 import hashlib
 import json
 from math import ceil, e
@@ -35,7 +36,6 @@ from chunking.utils.tokens import num_tokens_from_string
 import bittensor as bt
 import regex as re
 import nltk
-
 
 PUNCTUATION_REGEX = r'([.,!?"\'])'
 
@@ -158,6 +158,25 @@ def check_chunk_ends_on_sentence_boundary(all_sentences: List[str], chunk: str):
             return True
     return False
 
+def get_time_penalty(response: chunkSynapse) -> float | None:
+    """
+    Exponential penalty for time over the time soft max.
+    """
+    if (
+        response.dendrite
+        and response.dendrite.process_time
+        and response.dendrite.process_time > response.time_soft_max
+    ):
+        over_time = response.dendrite.process_time - response.time_soft_max
+        print(f"Found time penalty: {over_time} seconds over time")
+        time_penalty = (2 / 3) ** over_time
+        return time_penalty
+
+    return None
+
+def apply_time_penalty(reward: float, time_penalty: float) -> float:
+    return reward * time_penalty
+
 
 async def reward(
     document: str,
@@ -183,7 +202,7 @@ async def reward(
     Exponential penalties are applied for:
     - excessive chunk size
     - excessive number of chunks
-    - time above the time soft max
+    - time over the time soft max (applied outside of this function)
 
     It creates "smallChunks" from the chunks to be evaluated for quality. These are segments of the chunks that are 3 adjacent sentences long (currently).
     Then, "testChunks" are sampled (or the entire smallChunks if num_embeddings is less than the number of smallChunks) to be used for evaluation.
@@ -371,21 +390,6 @@ async def reward(
                 f"Too many chunks: {num_chunks} chunks, new quantity penalty: {qty_penalty}"
             )
 
-        # apply time penalty if the process time is greater than the time soft max
-        if (
-            response.dendrite
-            and response.dendrite.process_time
-            and response.dendrite.process_time > response.time_soft_max
-        ):
-            over_time = response.dendrite.process_time - response.time_soft_max
-            _verbose(f"Applying time penalty: {over_time} seconds over time")
-            time_penalty = (2 / 3) ** over_time
-
-            extra_info_dict["time_penalty"] = time_penalty
-
-            # apply time penalty to the reward
-            reward *= time_penalty
-
         # apply size and quantity penalties
         reward *= (2 / 3) ** (size_penalty + qty_penalty)
 
@@ -451,13 +455,19 @@ async def get_rewards(
     chunks_hash_to_info = {}
     hashes = []
 
-    # async with Pool() as pool:
+    miner_hotkey_to_time_penalty: dict[str, float | None] = {}
+
     for response in responses:
         miner_hotkey = response.axon.hotkey or "not found"
         print(f"handling response from {miner_hotkey[:10]}")
         chunks_hash = get_chunks_hash(response.chunks) if response is not None else ""
-        if chunks_hash not in hashes and response is not None:
 
+        time_penalty = get_time_penalty(response)
+
+        miner_hotkey_to_time_penalty[miner_hotkey] = time_penalty
+        print(f"set time penalty for {miner_hotkey[:10]} to {time_penalty}")
+
+        if chunks_hash not in hashes and response is not None:
             async def _calculate_reward():
                 print(
                     f"calculating reward for new chunks hash: {chunks_hash[:10]}..., there are {len(response.chunks)} chunks"
@@ -516,6 +526,8 @@ async def get_rewards(
             print(
                 f"calculated reward for new chunks hash: {chunks_hash[:10]}..., reward: {reward_value}"
             )
+        else:
+            print(f"hash already exists: {chunks_hash[:10]}...")
         hashes.append(chunks_hash)
 
     for i, response in enumerate(responses):
@@ -523,18 +535,27 @@ async def get_rewards(
 
         chunks_info = chunks_hash_to_info.get(chunks_hash)
 
+        miner_hotkey = response.axon.hotkey or "not found"
+
         if chunks_info:
             rewards[i] = float(chunks_info["reward"])
-            extra_infos.append(chunks_info["extra_info"])
+            time_penalty = miner_hotkey_to_time_penalty.get(miner_hotkey)
+
+            if time_penalty is not None:
+                print(f"applying time penalty: {time_penalty}")
+                rewards[i] = apply_time_penalty(rewards[i], time_penalty)
+
+            extra_info = copy.deepcopy(chunks_info["extra_info"])
+
+            extra_info["time_penalty"] = time_penalty
+
+            extra_infos.append(extra_info)
         else:
             rewards[i] = 0
             extra_infos.append({})
         print(
-            f"response {i}: {rewards[i]} - {response.axon.hotkey[:10] if response.axon is not None and response.axon.hotkey is not None else 'None'} - {chunks_hash[:10]}..."
+            f"response {i}: {rewards[i]} - {miner_hotkey[:10]} - {chunks_hash[:10]}..."
         )
-
-    # print(f"rewards is picklable: {dill.pickles(rewards)}")
-    # print(f"extra_infos is picklable: {dill.pickles(extra_infos)}")
 
     return rewards, extra_infos
 
