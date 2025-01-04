@@ -147,16 +147,19 @@ def check_document_words_in_chunks(
 
     return True
 
-
-def check_chunk_ends_on_sentence_boundary(all_sentences: List[str], chunk: str):
-    """
-    Check if the chunk ends on sentence boundary by checking if the chunk sentences can be found in any of the document sentences in the same order.
-    """
-    chunk_sentences = sent_tokenize(chunk.strip())
-    for i in range(len(all_sentences) - len(chunk_sentences) + 1):
-        if all_sentences[i : i + len(chunk_sentences)] == chunk_sentences:
+def check_sentence_in_chunks(chunks: List[str], sentence: str):
+    for chunk in chunks:
+        if sentence in chunk:
             return True
     return False
+
+def check_chunks_end_on_sentence_boundaries(chunks: List[str], sentences: List[str], verbose: bool = False):
+    for sentence in sentences:
+        if not check_sentence_in_chunks(chunks, sentence):
+            if verbose:
+                print(f"Sentence '{sentence}' not found in any chunk")
+            return False
+    return True
 
 
 async def reward(
@@ -253,20 +256,23 @@ async def reward(
             f"Passed: Every set of 3 adjacent words from the document appears in the chunks"
         )
 
+        if not check_chunks_end_on_sentence_boundaries(chunks, document_sentences):
+            return _get_early_return_stuff(
+                f"Chunks do not end on sentence boundaries"
+            )
+
+        _verbose(
+            f"Passed: Chunks end on sentence boundaries"
+        )
+
+        
+
     for i in range(len(chunks)):
         if do_checks:
             # check that every word in chunk exists and is in the same order as the source document
             if not check_chunk_words_in_document(chunks[i], document, verbose):
                 return _get_early_return_stuff(
                     f"Chunk {i} does not contain all words from the document"
-                )
-
-            if not check_chunk_ends_on_sentence_boundary(document_sentences, chunks[i]):
-                _verbose(
-                    f"Chunk {i}: {colored(chunks[i], 'yellow')} does not end on a sentence boundary.\nAll sentences: {colored(json.dumps(document_sentences, indent=2), 'cyan')}\nChunk sentences: {colored(json.dumps(sent_tokenize(chunks[i]), indent=2), 'green')}"
-                )
-                return _get_early_return_stuff(
-                    f"Chunk {i} does not end on a sentence boundary."
                 )
 
         if do_penalties:
