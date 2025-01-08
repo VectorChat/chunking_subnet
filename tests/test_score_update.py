@@ -3,7 +3,7 @@ import logging
 import bittensor as bt
 import numpy as np
 
-from chunking.utils.score import get_new_scores, get_rank_value_to_count
+from chunking.utils.score import MAX_TIE_DIVISION, get_new_scores, get_rank_value_to_count
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +219,37 @@ async def main():
 
     # no other scores should change
     assert np.array_equal(scores[2:], new_scores[2:])
+
+    # test with num tie > MAX_TIE_DIVISION
+
+    group_size = MAX_TIE_DIVISION + 1
+
+    scores = np.arange(group_size) + 0.5
+    uids = np.arange(group_size)
+    group_alpha = 0.025
+
+    logger.info(f"Initial scores: {scores}")
+
+    # all 0s (everyone ties for first place)
+    rank_values = np.zeros(group_size)
+
+    new_scores = get_new_scores(
+        scores=scores,
+        uids=uids,
+        alpha=group_alpha,
+        group_best_possible_rank_value=0.0,
+        miner_group_index=0,
+        rank_values=rank_values
+    )
+
+    logger.info(f"new_scores: {new_scores}")
+    for i, new_score in enumerate(new_scores):
+        assert new_scores[i] < scores[i]
+
+        tie_alpha = group_alpha / MAX_TIE_DIVISION
+        assert new_score == rank_values[i] * tie_alpha + scores[i] * (1 - tie_alpha)
+
+    logger.info("MAX_TIE_DIVISION works")
 
 
 def test_score_update():
