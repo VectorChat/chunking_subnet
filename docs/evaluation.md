@@ -24,7 +24,7 @@ https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f7
 
 Finally, the validator checks that each chunk ends on a sentence boundary.
 
-https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L151-L159
+https://github.com/VectorChat/chunking_subnet/blob/8c00fd799bfa4d53b2bcaeb1718f76bcfbacfe5d/chunking/validator/reward.py#L150-L162
 
 If any of these checks fail, the miner is rewarded 0 for the chunk submitted in that tournament round.
 

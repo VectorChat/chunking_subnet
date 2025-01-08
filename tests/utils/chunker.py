@@ -44,7 +44,7 @@ def mid_sentence_chunker(document: str, chunk_size: int) -> List[str]:
             index = match.start()
             first_half = chunk[: index + 1]
             second_half = chunk[index + 1 :]
-            logger.info(
+            logger.debug(
                 f"split chunk:\n\nold: {colored(chunk, 'yellow')}\n\nfirst_half: {colored(first_half, 'cyan')}\n\nsecond_half: {colored(second_half, 'green')}"
             )
             if len(first_half) > 0:
