@@ -32,15 +32,15 @@ If any of these checks fail, the miner is rewarded 0 for the chunk submitted in 
 
 After passing the fail states, the validator parses through each chunk, creating 'small chunks' of 3 sentences or fewer.
 
-https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L281-L285
+https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L307-L312
 
 A random sample, of `num_embeddings` size, is taken and then embedded. The default value is 150.
 
-https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L301-L305
+https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L325-L331
 
 Then, to calculate the similarity score, the dot product of every possible pair of embeddings is calculated. The average of each pair originating from the same chunk is added to the score (intrachunk similarity), while the average of each pair originating from different chunks is subtracted from the score (interchunk dissimilarity).
 
-https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L331-L351
+https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L357-L372
 
 Here is a visualization of how the validator calculates a miner’s score:
 
@@ -53,7 +53,7 @@ Finally, penalities are deducted from the reward exponentially.
 Responses are penalized exponentially for each character over the maximum chunk length `chunk_size` and for each chunk over the maximum chunk quantity `chunk_qty`.
 Validators exponentially penalize responses for each second they are late.
 
-https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L363-L390
+https://github.com/VectorChat/chunking_subnet/blob/8ac69eb9d9690678ff0ec30f1b07eb185f34e07a/chunking/validator/reward.py#L389-L401
 
 The penalties are summed and applied to the reward with the following formula:
 
