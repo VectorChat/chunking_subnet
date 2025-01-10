@@ -2,6 +2,8 @@ from math import floor
 import numpy as np
 import bittensor as bt
 
+MAX_TIE_DIVISION = 5
+
 
 def get_alpha(
     self,  # Validator
@@ -96,7 +98,7 @@ def get_new_scores(
 
         # adjust alpha based on how many other uids got the same score as this uid
         # if more people tie, affects score less
-        alpha = alpha / max(rank_value_to_count[rank_value], 1)
+        alpha = alpha / min(MAX_TIE_DIVISION, max(rank_value_to_count[rank_value], 1))
 
         bt.logging.debug(f"tie alpha: {alpha}")
 
