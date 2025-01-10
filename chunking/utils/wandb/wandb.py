@@ -279,7 +279,7 @@ class WandbLogger:
                             run = self._start_new_wandb_run(project_name, run_name)
                         else:
                             bt.logging.info(
-                                f"Found existing run with version {chunking.__version__} and uid {self.uid}, resuming run"
+                                f"Found existing run with version {chunking.__version__} and uid {self.validator.uid}, resuming run"
                             )
                             run = self._resume_wandb_run(existing_run, project_name)
                     else:
