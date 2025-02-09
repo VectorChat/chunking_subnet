@@ -41,3 +41,5 @@ logs/
 *.pickle
 
 tests/v1*
+
+!misc/**/*
