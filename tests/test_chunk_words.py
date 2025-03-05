@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_bad_chunk(chunk: str):
-    # remove a random word from the chunk
+    # remove a random word from the chunk that is not first or last word
     words = chunk.split()
-    if len(words) == 1:
+    if len(words) <= 2:
         return chunk
-    index = random.randint(0, len(words) - 1)
+    index = random.randint(1, len(words) - 2)
     words.pop(index)
     return " ".join(words)
 
@@ -46,7 +46,7 @@ async def run_test():
 
     chunk_size = 4096
     for case in read_test_cases():
-        logger.info("testing case")
+        logger.info(f"testing case: {case[:100]} ..")
         document = case
 
         chunks = base_chunker(document, chunk_size)
@@ -168,6 +168,9 @@ async def run_test():
 
 
 def test_chunk_words():
+    from dotenv import load_dotenv
+
+    load_dotenv()
     asyncio.run(run_test())
 
 

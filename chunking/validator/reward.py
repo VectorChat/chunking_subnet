@@ -153,6 +153,23 @@ def check_sentence_in_chunks(chunks: List[str], sentence: str):
             return True
     return False
 
+def check_word_count(document: str, chunks: List[str], verbose: bool = False):
+    document_words = custom_word_tokenize(document)
+
+    chunk_words = []
+    for chunk in chunks:
+        chunk_words.extend(custom_word_tokenize(chunk))
+
+    if verbose:
+        print(f"Document words: {len(document_words)}")
+        print(f"Chunk words: {len(chunk_words)}")
+    
+    if len(document_words) != len(chunk_words):
+        return False
+
+    return True
+
+
 def check_chunks_end_on_sentence_boundaries(chunks: List[str], sentences: List[str], verbose: bool = False):
     for sentence in sentences:
         if not check_sentence_in_chunks(chunks, sentence):
@@ -285,7 +302,14 @@ async def reward(
             f"Passed: Chunks end on sentence boundaries"
         )
 
-        
+        if not check_word_count(document, chunks):
+            return _get_early_return_stuff(
+                f"Chunks do not contain the same number of words as the document"
+            )
+
+        _verbose(
+            f"Passed: Chunks contain the same number of words as the document"
+        )
 
     for i in range(len(chunks)):
         if do_checks:
