@@ -280,10 +280,10 @@ class BaseValidatorNeuron(BaseNeuron):
 
                 # TODO: consider using to_thread()
 
-                if not self.config.wandb.wandb_off:
-                    self.wandb_logger.restart_if_past_time_delta(
-                        timedelta(hours=self.config.wandb.restart_interval_hours)
-                    )
+                # if not self.config.wandb.wandb_off:
+                #     self.wandb_logger.restart_if_past_time_delta(
+                #         timedelta(hours=self.config.wandb.restart_interval_hours)
+                #     )
 
                 # Sync metagraph and potentially set weights.
                 await self.sync_articles()
