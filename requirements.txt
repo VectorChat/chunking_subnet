@@ -5,20 +5,21 @@ aiosignal==1.3.2
 annotated-types==0.7.0
 anyio==4.8.0
 async-property==0.2.2
-async-substrate-interface==1.0.1
+async-substrate-interface==1.1.0
 async-timeout==5.0.1
 asyncstdlib==3.13.0
 attrs==25.1.0
 backoff==2.2.1
 base58==2.1.1
-bittensor==9.0.0
+bittensor==9.4.0
 bittensor-cli==9.0.1
-bittensor-commit-reveal==0.2.0
-bittensor-wallet==3.0.3
-bt-decode==0.5.0a2
+bittensor-commit-reveal==0.4.0
+bittensor-wallet==3.0.8
+bt-decode==0.6.0
 certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
+-e git+https://github.com/VectorChat/chunking_subnet.git@303636bd7a83e3ab0368f10b9ff1bb148da00be1#egg=chunking
 click==8.1.8
 colorama==0.4.6
 cryptography==43.0.3
@@ -71,6 +72,7 @@ protobuf==5.29.3
 psutil==7.0.0
 py==1.11.0
 py-bip39-bindings==0.1.11
+py-sr25519-bindings==0.2.2
 pycparser==2.22
 pycryptodome==3.21.0
 pydantic==2.10.6
